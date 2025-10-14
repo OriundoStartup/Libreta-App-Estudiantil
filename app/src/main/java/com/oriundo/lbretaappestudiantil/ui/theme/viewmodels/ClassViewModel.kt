@@ -5,7 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.oriundo.lbretaappestudiantil.data.local.models.ClassEntity
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
 import com.oriundo.lbretaappestudiantil.domain.model.repository.ClassRepository
-import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ClassUiState.*
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ClassUiState.Error
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ClassUiState.Initial
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ClassUiState.Loading
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ClassUiState.Success
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +34,10 @@ class ClassViewModel @Inject constructor(
     private val _teacherClasses = MutableStateFlow<List<ClassEntity>>(emptyList())
     val teacherClasses: StateFlow<List<ClassEntity>> = _teacherClasses.asStateFlow()
 
+    // ✅ Agregamos un estado de carga para los cursos del profesor
+    private val _isClassesLoading = MutableStateFlow(false)
+    val isClassesLoading: StateFlow<Boolean> = _isClassesLoading.asStateFlow()
+
     fun createClass(
         teacherId: Int,
         className: String,
@@ -52,22 +59,28 @@ class ClassViewModel @Inject constructor(
             when (result) {
                 is ApiResult.Success -> {
                     _createState.value = Success(result.data.first, result.data.second)
+                    // ✅ ¡IMPORTANTE! Actualizar la lista después de la creación
                     loadTeacherClasses(teacherId)
                 }
                 is ApiResult.Error -> {
                     _createState.value = Error(result.message)
                 }
 
-                ApiResult.Loading -> TODO()
+                // ✅ Eliminamos el TODO()
+                ApiResult.Loading -> _createState.value = Loading
             }
         }
     }
 
     fun loadTeacherClasses(teacherId: Int) {
         viewModelScope.launch {
+            _isClassesLoading.value = true
+            // Si ClassRepository.getClassesByTeacher devuelve un Flow, este es el patrón correcto:
             classRepository.getClassesByTeacher(teacherId).collect { classes ->
                 _teacherClasses.value = classes
+                _isClassesLoading.value = false
             }
+            // NOTA: Si getClassesByTeacher no devuelve un Flow, necesitarás manejar errores aquí.
         }
     }
 
