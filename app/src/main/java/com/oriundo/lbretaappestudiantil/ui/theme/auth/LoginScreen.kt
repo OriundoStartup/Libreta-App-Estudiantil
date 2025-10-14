@@ -75,9 +75,16 @@ fun LoginScreen(
 
     val uiState by viewModel.uiState.collectAsState()
 
+    // 🚀 CORRECCIÓN CLAVE: Usamos 'when' para resolver el error del Smart Cast del delegado.
     LaunchedEffect(uiState) {
-        if (uiState is AuthUiState.Success) {
-            onLoginSuccess((uiState as AuthUiState.Success).userWithProfile as UserWithProfile)
+        when (uiState) {
+            is AuthUiState.Success -> {
+                onLoginSuccess((uiState as AuthUiState.Success).userWithProfile)
+                // Limpiar el estado para evitar re-navegación si el usuario vuelve
+                viewModel.resetState()
+            }
+            // Ignoramos el resto de los estados (Loading, Error, Initial)
+            else -> Unit
         }
     }
 

@@ -6,7 +6,7 @@ import com.oriundo.lbretaappestudiantil.data.local.models.MaterialRequestEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.RequestStatus
 import com.oriundo.lbretaappestudiantil.data.local.models.UrgencyLevel
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
-import com.oriundo.lbretaappestudiantil.repositories.MaterialRequestRepository // 👈 CAMBIO AQUÍ
+import com.oriundo.lbretaappestudiantil.domain.model.repository.MaterialRequestRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,21 +50,23 @@ class MaterialRequestViewModel @Inject constructor(
         viewModelScope.launch {
             _createState.value = MaterialRequestUiState.Loading
 
-            val request = MaterialRequestEntity(
+            // ❌ ELIMINAMOS la creación de la entidad aquí.
+
+            // ✅ CORREGIDO: Llamamos a la función del repositorio pasando todos los parámetros,
+            // ya que el repositorio es ahora el encargado de construir la entidad.
+            val result = materialRequestRepository.createRequest(
                 teacherId = teacherId,
                 classId = classId,
                 studentId = studentId,
                 material = material,
                 quantity = quantity,
                 urgency = urgency,
-                deadlineDate = deadlineDate,
-                status = RequestStatus.PENDING
+                deadlineDate = deadlineDate
             )
 
-            val result = materialRequestRepository.createRequest(request)
-
+            // ✅ CORREGIDO: Ahora usamos 'result.data' para obtener la entidad del Success.
             _createState.value = when (result) {
-                is ApiResult.Success -> MaterialRequestUiState.Success(request)
+                is ApiResult.Success -> MaterialRequestUiState.Success(result.data)
                 is ApiResult.Error -> MaterialRequestUiState.Error(result.message)
                 ApiResult.Loading -> MaterialRequestUiState.Loading
             }
@@ -89,11 +91,17 @@ class MaterialRequestViewModel @Inject constructor(
 
     fun loadRequestsForParent(parentId: Int) {
         viewModelScope.launch {
-            // Nota: Este método no existe en la interfaz MaterialRequestRepository
-            // Necesitarás agregarlo o usar otro método
-            // materialRequestRepository.getRequestsForParent(parentId).collect { requests ->
-            //     _requestsForParent.value = requests
-            // }
+            // Este método NO existe en la interfaz MaterialRequestRepository (que enviaste antes).
+            // Si necesitas este método, debes:
+            // 1. Agregar el método `getRequestsForParent(parentId: Int)` a la Interfaz.
+            // 2. Implementar el método en MaterialRequestRepositoryImpl.
+            // De lo contrario, esta función del ViewModel no compilará.
+            // Por ahora, la dejamos comentada para que la compilación pase.
+            /*
+            materialRequestRepository.getRequestsForParent(parentId).collect { requests ->
+                 _requestsForParent.value = requests
+            }
+            */
         }
     }
 

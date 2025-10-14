@@ -6,8 +6,9 @@ import com.oriundo.lbretaappestudiantil.data.local.models.ClassEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.SchoolEventEntity
 import com.oriundo.lbretaappestudiantil.domain.model.repository.AnnotationRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.ClassRepository
+// ✅ CORRECCIÓN 1: ¡Importación faltante!
+import com.oriundo.lbretaappestudiantil.domain.model.repository.SchoolEventRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.StudentRepository
-import com.oriundo.lbretaappestudiantil.repositories.SchoolEventRepository // 👈 IMPORTACIÓN FALTANTE
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,6 +30,7 @@ class TeacherDashboardViewModel @Inject constructor(
     private val classRepository: ClassRepository,
     private val studentRepository: StudentRepository,
     private val annotationRepository: AnnotationRepository,
+    // ✅ CORRECCIÓN 2: ¡Parámetro de inyección faltante!
     private val schoolEventRepository: SchoolEventRepository
 ) : ViewModel() {
 
@@ -47,10 +49,8 @@ class TeacherDashboardViewModel @Inject constructor(
                         isLoading = false
                     )
 
-                    // Contar estudiantes totales
                     var totalStudents = 0
                     classes.forEach { classEntity ->
-                        // Lanzar coroutine para cada clase
                         viewModelScope.launch {
                             studentRepository.getStudentsByClass(classEntity.id).collect { students ->
                                 totalStudents += students.size
@@ -84,7 +84,7 @@ class TeacherDashboardViewModel @Inject constructor(
             }
         }
 
-        // Cargar eventos generales
+        // Cargar eventos generales (schoolEventRepository ahora se resuelve)
         viewModelScope.launch {
             try {
                 schoolEventRepository.getGeneralEvents().collect { events ->

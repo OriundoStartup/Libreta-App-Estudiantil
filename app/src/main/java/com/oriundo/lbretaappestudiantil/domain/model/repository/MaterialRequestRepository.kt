@@ -20,4 +20,6 @@ interface MaterialRequestRepository {
     fun getRequestsByStudent(studentId: Int): Flow<List<MaterialRequestEntity>>
     fun getRequestsForParent(parentId: Int): Flow<List<MaterialRequestEntity>>
     suspend fun updateRequestStatus(requestId: Int, status: RequestStatus): ApiResult<Unit>
+    suspend fun deleteRequest(requestId: Int): ApiResult<Unit>
+
 }

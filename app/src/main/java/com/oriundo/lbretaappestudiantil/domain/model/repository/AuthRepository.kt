@@ -20,3 +20,4 @@ interface AuthRepository {
     suspend fun isEmailRegistered(email: String): Boolean
     suspend fun getCurrentUser(): UserWithProfile?
 }
+

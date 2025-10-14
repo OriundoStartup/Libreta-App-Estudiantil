@@ -4,10 +4,9 @@ import androidx.lifecycle.ViewModel // Cambiado de AndroidViewModel a ViewModel
 import androidx.lifecycle.viewModelScope
 import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType
-// import com.oriundo.lbretaappestudiantil.di.RepositoryProvider // ¡ELIMINADO!
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
-import com.oriundo.lbretaappestudiantil.domain.model.repository.AnnotationRepository // Importa la interfaz del Repository
-import dagger.hilt.android.lifecycle.HiltViewModel // Nueva importación de Hilt
+import com.oriundo.lbretaappestudiantil.domain.model.repository.AnnotationRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

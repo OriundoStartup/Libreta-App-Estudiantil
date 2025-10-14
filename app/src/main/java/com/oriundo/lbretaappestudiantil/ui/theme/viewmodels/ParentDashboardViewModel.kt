@@ -8,9 +8,9 @@ import com.oriundo.lbretaappestudiantil.data.local.models.RequestStatus
 import com.oriundo.lbretaappestudiantil.data.local.models.SchoolEventEntity
 import com.oriundo.lbretaappestudiantil.domain.model.StudentWithClass
 import com.oriundo.lbretaappestudiantil.domain.model.repository.AnnotationRepository
+import com.oriundo.lbretaappestudiantil.domain.model.repository.MaterialRequestRepository
+import com.oriundo.lbretaappestudiantil.domain.model.repository.SchoolEventRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.StudentRepository
-import com.oriundo.lbretaappestudiantil.repositories.MaterialRequestRepository
-import com.oriundo.lbretaappestudiantil.repositories.SchoolEventRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

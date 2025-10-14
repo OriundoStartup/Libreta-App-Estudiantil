@@ -1,79 +1,53 @@
 package com.oriundo.lbretaappestudiantil.ui.theme.teacher
 
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.automirrored.filled.Message
-import androidx.compose.material.icons.automirrored.filled.Note
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Class
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.HowToReg
-import androidx.compose.material.icons.filled.Inventory
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Badge
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DividerDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.oriundo.lbretaappestudiantil.domain.model.UserWithProfile
-import com.oriundo.lbretaappestudiantil.ui.theme.AppColors
+import com.oriundo.lbretaappestudiantil.ui.theme.AppColors // Asumiendo que AppColors tiene los gradientes
+
+// Modelo de datos para Course
+data class Course(
+    val id: Int,
+    val name: String,
+    val schoolName: String,
+    val studentCount: Int,
+    val code: String,
+    val recentActivity: String = "Todo al día"
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TeacherDashboardScreen(
     userWithProfile: UserWithProfile,
+    courses: List<Course>,
+    isLoading: Boolean = false,
     onNavigateToCreateClass: () -> Unit,
     onNavigateToClassDetail: (Int) -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    // TODO: Añadir navegación a Perfil, Configuración, Notificaciones, etc.
 ) {
     var showMenu by remember { mutableStateOf(false) }
+
+    // ✅ Mantenemos el cálculo simple aquí
+    val totalCourses = courses.size
+    val totalStudents = courses.sumOf { it.studentCount }
 
     Scaffold(
         topBar = {
@@ -93,64 +67,49 @@ fun TeacherDashboardScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* TODO: Notificaciones */ }) {
-                        Badge(
-                            containerColor = MaterialTheme.colorScheme.error
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Notifications,
-                                contentDescription = "Notificaciones"
-                            )
+                    // Botón de notificaciones (Mejorado el uso de Badge)
+                    BadgedBox(
+                        badge = {
+                            if (/* Lógica para tener notificaciones */ true) {
+                                Badge(containerColor = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    ) {
+                        IconButton(onClick = { /* TODO: Notificaciones */ }) {
+                            Icon(Icons.Filled.Notifications, contentDescription = "Notificaciones")
                         }
                     }
 
+                    // Menú de opciones
                     Box {
                         IconButton(onClick = { showMenu = !showMenu }) {
-                            Icon(
-                                imageVector = Icons.Filled.MoreVert,
-                                contentDescription = "Más opciones"
-                            )
+                            Icon(Icons.Filled.MoreVert, contentDescription = "Más opciones")
                         }
 
                         DropdownMenu(
                             expanded = showMenu,
                             onDismissRequest = { showMenu = false }
                         ) {
+                            // ... Items del menú igual
                             DropdownMenuItem(
                                 text = { Text("Mi Perfil") },
-                                onClick = { /* TODO */ },
-                                leadingIcon = {
-                                    Icon(Icons.Filled.Person, null)
-                                }
+                                onClick = { showMenu = false /* TODO */ },
+                                leadingIcon = { Icon(Icons.Filled.Person, null) }
                             )
                             DropdownMenuItem(
                                 text = { Text("Configuración") },
-                                onClick = { /* TODO */ },
-                                leadingIcon = {
-                                    Icon(Icons.Filled.Settings, null)
-                                }
+                                onClick = { showMenu = false /* TODO */ },
+                                leadingIcon = { Icon(Icons.Filled.Settings, null) }
                             )
-                            HorizontalDivider(
-                                Modifier,
-                                DividerDefaults.Thickness,
-                                DividerDefaults.color
-                            )
+                            HorizontalDivider()
                             DropdownMenuItem(
                                 text = { Text("Cerrar sesión") },
                                 onClick = {
                                     showMenu = false
                                     onLogout()
                                 },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.AutoMirrored.Filled.Logout,
-                                        null,
-                                        tint = MaterialTheme.colorScheme.error
-                                    )
-                                },
-                                colors = MenuDefaults.itemColors(
-                                    textColor = MaterialTheme.colorScheme.error
-                                )
+                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Logout, null, tint = MaterialTheme.colorScheme.error) },
+                                colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.error)
                             )
                         }
                     }
@@ -163,15 +122,11 @@ fun TeacherDashboardScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onNavigateToCreateClass,
-                icon = {
-                    Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = null
-                    )
-                },
+                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                 text = { Text("Crear Curso") },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White
+                // ✅ Usar el color primario para el FAB
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
     ) { padding ->
@@ -192,7 +147,7 @@ fun TeacherDashboardScreen(
             ) {
                 StatCard(
                     title = "Cursos",
-                    value = "3",
+                    value = totalCourses.toString(),
                     icon = Icons.Filled.Class,
                     gradient = AppColors.PrimaryGradient,
                     modifier = Modifier.weight(1f),
@@ -200,20 +155,19 @@ fun TeacherDashboardScreen(
                 )
                 StatCard(
                     title = "Estudiantes",
-                    value = "87",
+                    value = totalStudents.toString(),
                     icon = Icons.Filled.People,
                     gradient = AppColors.SecondaryGradient,
                     modifier = Modifier.weight(1f),
                     onClick = { /* TODO: Ver todos los estudiantes */ }
                 )
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
+            // Segunda fila de Stats
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
+                    .padding(horizontal = 24.dp)
+                    .padding(top = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 StatCard(
@@ -255,14 +209,17 @@ fun TeacherDashboardScreen(
                     QuickActionCard(
                         title = "Asistencia",
                         icon = Icons.Filled.HowToReg,
-                        color = MaterialTheme.colorScheme.tertiary,
+                        // ✅ Usar colores de contenedor de Material 3
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
                         onClick = { /* TODO */ },
                         modifier = Modifier.weight(1f)
                     )
                     QuickActionCard(
                         title = "Anotación",
                         icon = Icons.Filled.Edit,
-                        color = MaterialTheme.colorScheme.primary,
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                         onClick = { /* TODO */ },
                         modifier = Modifier.weight(1f)
                     )
@@ -277,14 +234,16 @@ fun TeacherDashboardScreen(
                     QuickActionCard(
                         title = "Materiales",
                         icon = Icons.Filled.Inventory,
-                        color = MaterialTheme.colorScheme.secondary,
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                         onClick = { /* TODO */ },
                         modifier = Modifier.weight(1f)
                     )
                     QuickActionCard(
                         title = "Calendario",
                         icon = Icons.Filled.CalendarMonth,
-                        color = MaterialTheme.colorScheme.error,
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
                         onClick = { /* TODO */ },
                         modifier = Modifier.weight(1f)
                     )
@@ -320,41 +279,64 @@ fun TeacherDashboardScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Lista de cursos (ejemplo)
-                ClassCard(
-                    className = "4° Básico A",
-                    schoolName = "Escuela República de Chile",
-                    studentCount = 30,
-                    code = "ABC123",
-                    recentActivity = "3 anotaciones hoy",
-                    onClick = { onNavigateToClassDetail(1) }
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                ClassCard(
-                    className = "5° Básico B",
-                    schoolName = "Escuela República de Chile",
-                    studentCount = 28,
-                    code = "XYZ789",
-                    recentActivity = "Asistencia pendiente",
-                    onClick = { onNavigateToClassDetail(2) }
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                ClassCard(
-                    className = "6° Básico C",
-                    schoolName = "Escuela República de Chile",
-                    studentCount = 29,
-                    code = "DEF456",
-                    recentActivity = "Todo al día",
-                    onClick = { onNavigateToClassDetail(3) }
-                )
+                if (isLoading) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    }
+                } else if (courses.isEmpty()) {
+                    EmptyCoursesMessage()
+                } else {
+                    courses.forEach { course ->
+                        ClassCard(
+                            course = course, // ✅ Pasamos el objeto completo para limpieza
+                            onClick = { onNavigateToClassDetail(course.id) }
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(100.dp))
         }
+    }
+}
+
+// --- Componentes Reutilizables ---
+
+// Componente para manejar el estado vacío de los cursos
+@Composable
+fun EmptyCoursesMessage() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Class,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.size(64.dp)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "No tienes cursos todavía",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Crea tu primer curso usando el botón +",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center
+        )
     }
 }
 
@@ -371,8 +353,8 @@ fun StatCard(
         modifier = modifier
             .height(120.dp)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        shape = RoundedCornerShape(16.dp), // Ligeramente más redondeado
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
     ) {
         Box(
             modifier = Modifier
@@ -387,15 +369,15 @@ fun StatCard(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.8f),
-                    modifier = Modifier.size(32.dp)
+                    tint = Color.White.copy(alpha = 0.9f),
+                    modifier = Modifier.size(36.dp) // Icono un poco más grande
                 )
                 Column {
                     Text(
                         text = value,
                         style = MaterialTheme.typography.headlineMedium,
                         color = Color.White,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.ExtraBold // Fuente más pesada
                     )
                     Text(
                         text = title,
@@ -412,7 +394,8 @@ fun StatCard(
 fun QuickActionCard(
     title: String,
     icon: ImageVector,
-    color: Color,
+    containerColor: Color,
+    contentColor: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -421,8 +404,10 @@ fun QuickActionCard(
             .height(100.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
+        // ✅ Usamos los colores de contenedor/contenido de Material 3 para armonía
         colors = CardDefaults.cardColors(
-            containerColor = color.copy(alpha = 0.1f)
+            containerColor = containerColor,
+            contentColor = contentColor
         )
     ) {
         Column(
@@ -434,26 +419,22 @@ fun QuickActionCard(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = color,
+                tint = contentColor,
                 modifier = Modifier.size(32.dp)
             )
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
-                color = color,
+                color = contentColor,
                 fontWeight = FontWeight.SemiBold
             )
         }
     }
-}  // ← CERRAR QuickActionCard AQUÍ
+}
 
 @Composable
 fun ClassCard(
-    className: String,
-    schoolName: String,
-    studentCount: Int,
-    code: String,
-    recentActivity: String,
+    course: Course, // ✅ Simplificamos pasando el objeto completo
     onClick: () -> Unit
 ) {
     Card(
@@ -490,14 +471,14 @@ fun ClassCard(
                 )
             }
 
-            Spacer(modifier = Modifier.weight(1f).padding(horizontal = 16.dp))
+            Spacer(modifier = Modifier.width(16.dp)) // ✅ Spacer simple y claro
 
             // Información del curso
             Column(
-                modifier = Modifier.weight(3f)
+                modifier = Modifier.weight(1f) // Usar weight para que ocupe el espacio restante
             ) {
                 Text(
-                    text = className,
+                    text = course.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -506,7 +487,7 @@ fun ClassCard(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = schoolName,
+                    text = course.schoolName,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -514,7 +495,7 @@ fun ClassCard(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Código del curso
@@ -529,7 +510,7 @@ fun ClassCard(
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
-                            text = code,
+                            text = course.code,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Medium
@@ -548,7 +529,7 @@ fun ClassCard(
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
-                            text = "$studentCount estudiantes",
+                            text = "${course.studentCount} estudiantes",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -559,7 +540,7 @@ fun ClassCard(
 
                 // Actividad reciente
                 Text(
-                    text = recentActivity,
+                    text = course.recentActivity,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.secondary,
                     fontWeight = FontWeight.Medium
