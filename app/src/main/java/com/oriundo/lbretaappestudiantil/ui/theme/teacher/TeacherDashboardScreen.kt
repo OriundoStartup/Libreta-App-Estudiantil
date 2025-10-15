@@ -1,6 +1,5 @@
 package com.oriundo.lbretaappestudiantil.ui.theme.teacher
 
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -35,6 +34,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -51,6 +51,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,9 +63,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.oriundo.lbretaappestudiantil.domain.model.UserWithProfile
 import com.oriundo.lbretaappestudiantil.ui.theme.AppColors
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ClassViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,9 +75,18 @@ fun TeacherDashboardScreen(
     userWithProfile: UserWithProfile,
     onNavigateToCreateClass: () -> Unit,
     onNavigateToClassDetail: (Int) -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    viewModel: ClassViewModel  // ← AGREGADO
 ) {
     var showMenu by remember { mutableStateOf(false) }
+
+    // ← AGREGADO: Observar los cursos del profesor
+    val teacherClasses by viewModel.teacherClasses.collectAsState()
+
+    // ← AGREGADO: Cargar cursos cuando se monta el composable
+    LaunchedEffect(userWithProfile.profile.id) {
+        viewModel.loadTeacherClasses(userWithProfile.profile.id)
+    }
 
     Scaffold(
         topBar = {
@@ -183,7 +196,7 @@ fun TeacherDashboardScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Quick Stats
+            // Quick Stats - AHORA DINÁMICO
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -192,19 +205,19 @@ fun TeacherDashboardScreen(
             ) {
                 StatCard(
                     title = "Cursos",
-                    value = "3",
+                    value = teacherClasses.size.toString(),  // ← CAMBIADO
                     icon = Icons.Filled.Class,
                     gradient = AppColors.PrimaryGradient,
                     modifier = Modifier.weight(1f),
-                    onClick = { /* TODO: Ver todos los cursos */ }
+                    onClick = { }
                 )
                 StatCard(
                     title = "Estudiantes",
-                    value = "87",
+                    value = "0",  // TODO: Sumar estudiantes cuando tengas la tabla
                     icon = Icons.Filled.People,
                     gradient = AppColors.SecondaryGradient,
                     modifier = Modifier.weight(1f),
-                    onClick = { /* TODO: Ver todos los estudiantes */ }
+                    onClick = { }
                 )
             }
 
@@ -218,19 +231,19 @@ fun TeacherDashboardScreen(
             ) {
                 StatCard(
                     title = "Anotaciones",
-                    value = "24",
+                    value = "0",
                     icon = Icons.AutoMirrored.Filled.Note,
                     gradient = AppColors.SuccessGradient,
                     modifier = Modifier.weight(1f),
-                    onClick = { /* TODO: Ver anotaciones */ }
+                    onClick = { }
                 )
                 StatCard(
                     title = "Mensajes",
-                    value = "5",
+                    value = "0",
                     icon = Icons.AutoMirrored.Filled.Message,
                     gradient = AppColors.ErrorGradient,
                     modifier = Modifier.weight(1f),
-                    onClick = { /* TODO: Ver mensajes */ }
+                    onClick = { }
                 )
             }
 
@@ -293,7 +306,7 @@ fun TeacherDashboardScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Mis Cursos
+            // Mis Cursos - AHORA DINÁMICO
             Column(
                 modifier = Modifier.padding(horizontal = 24.dp)
             ) {
@@ -308,49 +321,72 @@ fun TeacherDashboardScreen(
                         fontWeight = FontWeight.Bold
                     )
 
-                    TextButton(onClick = { /* TODO: Ver todos */ }) {
-                        Text("Ver todos")
-                        Icon(
-                            imageVector = Icons.Filled.ChevronRight,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
+                    if (teacherClasses.isNotEmpty()) {  // ← CAMBIADO
+                        TextButton(onClick = { /* TODO: Ver todos */ }) {
+                            Text("Ver todos")
+                            Icon(
+                                imageVector = Icons.Filled.ChevronRight,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Lista de cursos (ejemplo)
-                ClassCard(
-                    className = "4° Básico A",
-                    schoolName = "Escuela República de Chile",
-                    studentCount = 30,
-                    code = "ABC123",
-                    recentActivity = "3 anotaciones hoy",
-                    onClick = { onNavigateToClassDetail(1) }
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                ClassCard(
-                    className = "5° Básico B",
-                    schoolName = "Escuela República de Chile",
-                    studentCount = 28,
-                    code = "XYZ789",
-                    recentActivity = "Asistencia pendiente",
-                    onClick = { onNavigateToClassDetail(2) }
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                ClassCard(
-                    className = "6° Básico C",
-                    schoolName = "Escuela República de Chile",
-                    studentCount = 29,
-                    code = "DEF456",
-                    recentActivity = "Todo al día",
-                    onClick = { onNavigateToClassDetail(3) }
-                )
+                // ← CAMBIADO: Mostrar cursos reales o mensaje vacío
+                if (teacherClasses.isEmpty()) {
+                    // Estado vacío
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(48.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Class,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "No tienes cursos creados",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Crea tu primer curso usando el botón de abajo",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    // Lista de cursos reales
+                    teacherClasses.forEach { classEntity ->
+                        ClassCard(
+                            className = classEntity.className,
+                            schoolName = classEntity.schoolName,
+                            studentCount = 0,  // TODO: Contar estudiantes reales
+                            code = classEntity.classCode,
+                            recentActivity = "Todo al día",
+                            onClick = { onNavigateToClassDetail(classEntity.id) }
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(100.dp))
@@ -445,7 +481,7 @@ fun QuickActionCard(
             )
         }
     }
-}  // ← CERRAR QuickActionCard AQUÍ
+}
 
 @Composable
 fun ClassCard(
@@ -472,7 +508,6 @@ fun ClassCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icono del curso
             Box(
                 modifier = Modifier
                     .size(56.dp)
@@ -492,7 +527,6 @@ fun ClassCard(
 
             Spacer(modifier = Modifier.weight(1f).padding(horizontal = 16.dp))
 
-            // Información del curso
             Column(
                 modifier = Modifier.weight(3f)
             ) {
@@ -517,7 +551,6 @@ fun ClassCard(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Código del curso
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -536,7 +569,6 @@ fun ClassCard(
                         )
                     }
 
-                    // Número de estudiantes
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -557,7 +589,6 @@ fun ClassCard(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Actividad reciente
                 Text(
                     text = recentActivity,
                     style = MaterialTheme.typography.labelMedium,
@@ -566,7 +597,6 @@ fun ClassCard(
                 )
             }
 
-            // Icono de navegación
             Icon(
                 imageVector = Icons.Filled.ChevronRight,
                 contentDescription = "Ver detalles",

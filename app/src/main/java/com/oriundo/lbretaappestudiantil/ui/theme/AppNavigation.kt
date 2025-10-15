@@ -110,6 +110,8 @@ fun AppNavigation(
 
         // Dashboard profesor
         composable(Screen.TeacherDashboard.route) {
+            val classViewModel: ClassViewModel = hiltViewModel()
+
             currentUser?.let { user ->
                 TeacherDashboardScreen(
                     userWithProfile = user,
@@ -124,7 +126,8 @@ fun AppNavigation(
                         navController.navigate(Screen.RoleSelection.route) {
                             popUpTo(0) { inclusive = true }
                         }
-                    }
+                    },
+                    viewModel = classViewModel
                 )
             }
         }
@@ -155,7 +158,8 @@ fun AppNavigation(
                 },
                 onClassCreated = { code ->
                     navController.popBackStack()
-                }
+                },
+                viewModel = classViewModel
             )
         }
     }
