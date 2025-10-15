@@ -3,8 +3,9 @@ package com.oriundo.lbretaappestudiantil.data.local.repositories
 import com.oriundo.lbretaappestudiantil.data.local.daos.MaterialRequestDao
 import com.oriundo.lbretaappestudiantil.data.local.models.MaterialRequestEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.RequestStatus
+import com.oriundo.lbretaappestudiantil.data.local.models.UrgencyLevel
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
-import com.oriundo.lbretaappestudiantil.repositories.MaterialRequestRepository
+import com.oriundo.lbretaappestudiantil.domain.model.repository.MaterialRequestRepository
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -14,36 +15,39 @@ class MaterialRequestRepositoryImpl @Inject constructor(
     private val materialRequestDao: MaterialRequestDao
 ) : MaterialRequestRepository {
 
-    override suspend fun createRequest(request: MaterialRequestEntity): ApiResult<Long> {
+    override suspend fun createRequest(
+        teacherId: Int,
+        classId: Int,
+        studentId: Int?,
+        material: String,
+        quantity: Int,
+        urgency: UrgencyLevel,
+        deadlineDate: Long?
+    ): ApiResult<MaterialRequestEntity> {
         return try {
+            val request = MaterialRequestEntity(
+                teacherId = teacherId,
+                classId = classId,
+                studentId = studentId,
+                material = material,
+                quantity = quantity,
+                urgency = urgency,
+                deadlineDate = deadlineDate,
+                // ✅ CORRECCIÓN 1: Asignar el estado inicial PENDING (ya que no viene en los parámetros)
+                status = RequestStatus.PENDING
+            )
+
             if (request.material.isBlank()) {
                 return ApiResult.Error("El material es requerido")
             }
             if (request.quantity <= 0) {
                 return ApiResult.Error("La cantidad debe ser mayor a 0")
             }
-            val id = materialRequestDao.insertRequest(request)
-            ApiResult.Success(id)
+
+            materialRequestDao.insertRequest(request)
+            ApiResult.Success(request)
         } catch (e: Exception) {
             ApiResult.Error("Error al crear solicitud: ${e.message}", e)
-        }
-    }
-
-    override suspend fun updateRequest(request: MaterialRequestEntity): ApiResult<Unit> {
-        return try {
-            materialRequestDao.updateRequest(request)
-            ApiResult.Success(Unit)
-        } catch (e: Exception) {
-            ApiResult.Error("Error al actualizar solicitud: ${e.message}", e)
-        }
-    }
-
-    override suspend fun deleteRequest(request: MaterialRequestEntity): ApiResult<Unit> {
-        return try {
-            materialRequestDao.deleteRequest(request)
-            ApiResult.Success(Unit)
-        } catch (e: Exception) {
-            ApiResult.Error("Error al eliminar solicitud: ${e.message}", e)
         }
     }
 
@@ -56,9 +60,17 @@ class MaterialRequestRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun getRequestsByTeacher(teacherId: Int): Flow<List<MaterialRequestEntity>> {
-        return materialRequestDao.getRequestsByTeacher(teacherId)
+    // ✅ CORRECCIÓN 2: Implementación de deleteRequest usando la nueva función del DAO
+    override suspend fun deleteRequest(requestId: Int): ApiResult<Unit> {
+        return try {
+            materialRequestDao.deleteRequestById(requestId)
+            ApiResult.Success(Unit)
+        } catch (e: Exception) {
+            ApiResult.Error("Error al eliminar solicitud: ${e.message}", e)
+        }
     }
+
+    // ✅ CORRECCIÓN 3: Implementación de los métodos Flow (que faltaban en tu implementación)
 
     override fun getRequestsByClass(classId: Int): Flow<List<MaterialRequestEntity>> {
         return materialRequestDao.getRequestsByClass(classId)
@@ -66,5 +78,10 @@ class MaterialRequestRepositoryImpl @Inject constructor(
 
     override fun getRequestsByStudent(studentId: Int): Flow<List<MaterialRequestEntity>> {
         return materialRequestDao.getRequestsByStudent(studentId)
+    }
+
+    override fun getRequestsForParent(parentId: Int): Flow<List<MaterialRequestEntity>> {
+        // Usamos parentId como studentId, ya que así lo definimos en el DAO.
+        return materialRequestDao.getRequestsForParent(parentId)
     }
 }

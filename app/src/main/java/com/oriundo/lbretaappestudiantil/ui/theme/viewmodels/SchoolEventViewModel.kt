@@ -5,7 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.oriundo.lbretaappestudiantil.data.local.models.EventType
 import com.oriundo.lbretaappestudiantil.data.local.models.SchoolEventEntity
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
-import com.oriundo.lbretaappestudiantil.repositories.SchoolEventRepository // 👈 IMPORTACIÓN FALTANTE
+// ✅ IMPORTACIÓN CORREGIDA
+import com.oriundo.lbretaappestudiantil.domain.model.repository.SchoolEventRepository
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.SchoolEventUiState.Error
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.SchoolEventUiState.Initial
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.SchoolEventUiState.Loading
@@ -17,9 +18,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/**
- * Estados de la UI para eventos escolares
- */
 sealed class SchoolEventUiState {
     object Initial : SchoolEventUiState()
     object Loading : SchoolEventUiState()
@@ -27,38 +25,23 @@ sealed class SchoolEventUiState {
     data class Error(val message: String) : SchoolEventUiState()
 }
 
-/**
- * ViewModel para gestión de eventos escolares
- * Maneja:
- * - Creación de eventos
- * - Actualización de eventos
- * - Eliminación de eventos
- * - Consultas por profesor, clase y rango de fechas
- */
 @HiltViewModel
 class SchoolEventViewModel @Inject constructor(
     private val eventRepository: SchoolEventRepository
 ) : ViewModel() {
 
-    // Estado de creación/actualización de eventos
     private val _createState = MutableStateFlow<SchoolEventUiState>(Initial)
     val createState: StateFlow<SchoolEventUiState> = _createState.asStateFlow()
 
-    // Lista de eventos por profesor
     private val _eventsByTeacher = MutableStateFlow<List<SchoolEventEntity>>(emptyList())
     val eventsByTeacher: StateFlow<List<SchoolEventEntity>> = _eventsByTeacher.asStateFlow()
 
-    // Lista de eventos por clase
     private val _eventsByClass = MutableStateFlow<List<SchoolEventEntity>>(emptyList())
     val eventsByClass: StateFlow<List<SchoolEventEntity>> = _eventsByClass.asStateFlow()
 
-    // Lista de eventos por rango de fechas
     private val _eventsByDateRange = MutableStateFlow<List<SchoolEventEntity>>(emptyList())
     val eventsByDateRange: StateFlow<List<SchoolEventEntity>> = _eventsByDateRange.asStateFlow()
 
-    /**
-     * Crea un nuevo evento escolar
-     */
     fun createEvent(
         classId: Int?,
         teacherId: Int,
@@ -70,7 +53,6 @@ class SchoolEventViewModel @Inject constructor(
         viewModelScope.launch {
             _createState.value = Loading
 
-            // Crear la entidad directamente
             val event = SchoolEventEntity(
                 classId = classId,
                 teacherId = teacherId,
@@ -83,16 +65,13 @@ class SchoolEventViewModel @Inject constructor(
             val result = eventRepository.createEvent(event)
 
             _createState.value = when (result) {
-                is ApiResult.Success -> Success(event)
+                is ApiResult.Success -> Success(result.data) // Usar result.data
                 is ApiResult.Error -> Error(result.message)
                 ApiResult.Loading -> Loading
             }
         }
     }
 
-    /**
-     * Actualiza un evento existente
-     */
     fun updateEvent(event: SchoolEventEntity) {
         viewModelScope.launch {
             _createState.value = Loading
@@ -100,16 +79,13 @@ class SchoolEventViewModel @Inject constructor(
             val result = eventRepository.updateEvent(event)
 
             _createState.value = when (result) {
-                is ApiResult.Success -> Success(event)
+                is ApiResult.Success -> Success(result.data) // Usar result.data
                 is ApiResult.Error -> Error(result.message)
                 ApiResult.Loading -> Loading
             }
         }
     }
 
-    /**
-     * Elimina un evento
-     */
     fun deleteEvent(event: SchoolEventEntity) {
         viewModelScope.launch {
             _createState.value = Loading
@@ -124,9 +100,6 @@ class SchoolEventViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Obtiene eventos creados por un profesor específico
-     */
     fun loadEventsByTeacher(teacherId: Int) {
         viewModelScope.launch {
             eventRepository.getEventsByTeacher(teacherId).collect { events ->
@@ -135,9 +108,6 @@ class SchoolEventViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Obtiene eventos de una clase específica
-     */
     fun loadEventsByClass(classId: Int) {
         viewModelScope.launch {
             eventRepository.getEventsByClass(classId).collect { events ->
@@ -146,9 +116,6 @@ class SchoolEventViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Obtiene eventos en un rango de fechas
-     */
     fun loadEventsByDateRange(startDate: Long, endDate: Long) {
         viewModelScope.launch {
             eventRepository.getEventsByDateRange(startDate, endDate).collect { events ->
@@ -157,9 +124,6 @@ class SchoolEventViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Obtiene eventos de un profesor en un rango de fechas específico
-     */
     fun loadEventsByTeacherAndDateRange(teacherId: Int, startDate: Long, endDate: Long) {
         viewModelScope.launch {
             eventRepository.getEventsByTeacherAndDateRange(
@@ -172,16 +136,10 @@ class SchoolEventViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Reinicia el estado de creación/actualización
-     */
     fun resetCreateState() {
         _createState.value = Initial
     }
 
-    /**
-     * Limpia las listas de eventos
-     */
     fun clearEvents() {
         _eventsByTeacher.value = emptyList()
         _eventsByClass.value = emptyList()

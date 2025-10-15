@@ -5,7 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.oriundo.lbretaappestudiantil.data.local.models.AttendanceEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.AttendanceStatus
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
-import com.oriundo.lbretaappestudiantil.repositories.AttendanceRepository // 👈 CAMBIO AQUÍ
+// ✅ IMPORTACIÓN CORREGIDA: Apuntando al paquete de dominio correcto.
+import com.oriundo.lbretaappestudiantil.domain.model.repository.AttendanceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -47,18 +48,19 @@ class AttendanceViewModel @Inject constructor(
         viewModelScope.launch {
             _recordState.value = AttendanceUiState.Loading
 
-            val attendance = AttendanceEntity(
+            // ✅ CORREGIDO: Llamando al repositorio con los parámetros individuales
+            // que espera la Interfaz, no pasando una Entidad que rompía la firma.
+            val result = attendanceRepository.recordAttendance(
                 studentId = studentId,
                 teacherId = teacherId,
-                attendanceDate = date,  // 👈 CAMBIO AQUÍ: date → attendanceDate
+                date = date,
                 status = status,
                 note = note
             )
 
-            val result = attendanceRepository.recordAttendance(attendance)
-
+            // ✅ CORREGIDO: Manejando ApiResult.Success<AttendanceEntity>
             _recordState.value = when (result) {
-                is ApiResult.Success -> AttendanceUiState.Success(attendance)
+                is ApiResult.Success -> AttendanceUiState.Success(result.data)
                 is ApiResult.Error -> AttendanceUiState.Error(result.message)
                 ApiResult.Loading -> AttendanceUiState.Loading
             }
