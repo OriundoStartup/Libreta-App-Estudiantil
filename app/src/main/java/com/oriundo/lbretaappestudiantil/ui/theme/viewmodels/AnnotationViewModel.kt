@@ -1,6 +1,6 @@
 package com.oriundo.lbretaappestudiantil.ui.theme.viewmodels
 
-import androidx.lifecycle.ViewModel // Cambiado de AndroidViewModel a ViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType
@@ -11,29 +11,23 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import javax.inject.Inject // Nueva importación de Inyección
+import javax.inject.Inject
 
 sealed class AnnotationUiState {
-    object Initial : AnnotationUiState()
+    object Idle : AnnotationUiState()
     object Loading : AnnotationUiState()
-    data class Success(val annotation: AnnotationEntity) : AnnotationUiState()
+    object Success : AnnotationUiState()
     data class Error(val message: String) : AnnotationUiState()
 }
 
-// 1. Añadir @HiltViewModel
 @HiltViewModel
 class AnnotationViewModel @Inject constructor(
-    // 2. Usar @Inject y pedir el Repository
-    private val annotationRepository: AnnotationRepository // Hilt lo inyecta automáticamente
-) : ViewModel() { // 3. Heredar de ViewModel
+    private val annotationRepository: AnnotationRepository
+) : ViewModel() {
 
-    // Código interno del ViewModel sin cambios, pero ahora usa el repositorio inyectado
-    // private val annotationRepository = RepositoryProvider.provideAnnotationDao(application) // ¡ELIMINADO!
-
-    private val _createState = MutableStateFlow<AnnotationUiState>(AnnotationUiState.Initial)
+    private val _createState = MutableStateFlow<AnnotationUiState>(AnnotationUiState.Idle)
     val createState: StateFlow<AnnotationUiState> = _createState.asStateFlow()
 
-    // ... (El resto de tus StateFlows)
     private val _annotationsByStudent = MutableStateFlow<List<AnnotationEntity>>(emptyList())
     val annotationsByStudent: StateFlow<List<AnnotationEntity>> = _annotationsByStudent.asStateFlow()
 
@@ -46,37 +40,41 @@ class AnnotationViewModel @Inject constructor(
     private val _unreadAnnotations = MutableStateFlow<List<AnnotationEntity>>(emptyList())
     val unreadAnnotations: StateFlow<List<AnnotationEntity>> = _unreadAnnotations.asStateFlow()
 
-
+    /**
+     * Crea una nueva anotación.
+     *
+     * @param studentId ID del estudiante
+     * @param teacherId ID del profesor
+     * @param title Título de la anotación
+     * @param description Descripción detallada
+     * @param type Tipo de anotación
+     * @param classId ID de la clase (opcional, por defecto 0)
+     */
     fun createAnnotation(
-        teacherId: Int,
         studentId: Int,
-        classId: Int,
+        teacherId: Int,
+        title: String,
+        description: String,
         type: AnnotationType,
-        subject: String,
-        description: String
+        classId: Int = 0  // ← Parámetro opcional con valor por defecto
     ) {
         viewModelScope.launch {
             _createState.value = AnnotationUiState.Loading
 
-            val result = annotationRepository.createAnnotation( // Uso del repositorio inyectado
+            val result = annotationRepository.createAnnotation(
                 teacherId = teacherId,
                 studentId = studentId,
                 classId = classId,
                 type = type,
-                subject = subject,
+                subject = title,        // ← title se mapea a subject
                 description = description
             )
 
-            // En AnnotationViewModel.kt (fun createAnnotation)
-
             _createState.value = when (result) {
-                is ApiResult.Success<*> -> AnnotationUiState.Success(result.data as AnnotationEntity) // OK
-                is ApiResult.Error -> AnnotationUiState.Error(result.message) // OK
-                is ApiResult.Loading -> AnnotationUiState.Loading           // Usar 'is' explícitamente
-                // Si sigue fallando, la última alternativa es añadir un 'else'
-                // else -> AnnotationUiState.Error("Respuesta de API desconocida.")
-                else -> {}
-            } as AnnotationUiState
+                is ApiResult.Success -> AnnotationUiState.Success
+                is ApiResult.Error -> AnnotationUiState.Error(result.message)
+                ApiResult.Loading -> AnnotationUiState.Loading
+            }
         }
     }
 
@@ -118,7 +116,7 @@ class AnnotationViewModel @Inject constructor(
         }
     }
 
-    fun resetCreateState() {
-        _createState.value = AnnotationUiState.Initial
+    fun resetState() {
+        _createState.value = AnnotationUiState.Idle
     }
 }

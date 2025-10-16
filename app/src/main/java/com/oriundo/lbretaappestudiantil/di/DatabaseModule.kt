@@ -26,12 +26,16 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun provideDatabase(@ApplicationContext context: Context): LibretAppDatabase {
+    fun provideDatabase(
+        @ApplicationContext context: Context
+    ): LibretAppDatabase {
         return Room.databaseBuilder(
             context,
             LibretAppDatabase::class.java,
             "libreta_app_database"
-        ).build()
+        )
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     @Provides
@@ -72,12 +76,6 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun provideMessageDao(database: LibretAppDatabase): MessageDao {
-        return database.messageDao()
-    }
-
-    @Provides
-    @Singleton
     fun provideAttendanceDao(database: LibretAppDatabase): AttendanceDao {
         return database.attendanceDao()
     }
@@ -86,6 +84,12 @@ object DatabaseModule {
     @Singleton
     fun provideMaterialRequestDao(database: LibretAppDatabase): MaterialRequestDao {
         return database.materialRequestDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideMessageDao(database: LibretAppDatabase): MessageDao {
+        return database.messageDao()
     }
 
     @Provides

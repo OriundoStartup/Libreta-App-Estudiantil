@@ -1,5 +1,15 @@
 package com.oriundo.lbretaappestudiantil.di
 
+import com.oriundo.lbretaappestudiantil.data.local.daos.AnnotationDao
+import com.oriundo.lbretaappestudiantil.data.local.daos.AttendanceDao
+import com.oriundo.lbretaappestudiantil.data.local.daos.ClassDao
+import com.oriundo.lbretaappestudiantil.data.local.daos.MaterialRequestDao
+import com.oriundo.lbretaappestudiantil.data.local.daos.MessageDao
+import com.oriundo.lbretaappestudiantil.data.local.daos.ProfileDao
+import com.oriundo.lbretaappestudiantil.data.local.daos.SchoolEventDao
+import com.oriundo.lbretaappestudiantil.data.local.daos.StudentDao
+import com.oriundo.lbretaappestudiantil.data.local.daos.StudentParentRelationDao
+import com.oriundo.lbretaappestudiantil.data.local.daos.UserDao
 import com.oriundo.lbretaappestudiantil.data.local.repositories.AnnotationRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.AttendanceRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.AuthRepositoryImpl
@@ -10,101 +20,109 @@ import com.oriundo.lbretaappestudiantil.data.local.repositories.ProfileRepositor
 import com.oriundo.lbretaappestudiantil.data.local.repositories.SchoolEventRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.StudentRepositoryImpl
 import com.oriundo.lbretaappestudiantil.domain.model.repository.AnnotationRepository
-import com.oriundo.lbretaappestudiantil.domain.model.repository.AttendanceRepository // ✅
+import com.oriundo.lbretaappestudiantil.domain.model.repository.AttendanceRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.AuthRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.ClassRepository
-import com.oriundo.lbretaappestudiantil.domain.model.repository.MaterialRequestRepository // ✅
+import com.oriundo.lbretaappestudiantil.domain.model.repository.MaterialRequestRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.MessageRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.ProfileRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.SchoolEventRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.StudentRepository
-
-import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
-/**
- * Módulo de Hilt responsable de proporcionar todas las dependencias de la capa de Dominio (Interfaces Repository).
- *
- * @Module: Indica que esta es una clase de módulo de Dagger.
- * @InstallIn(SingletonComponent::class): Asegura que las dependencias duren mientras la aplicación esté viva.
- * (Singleton).
- */
 @Module
 @InstallIn(SingletonComponent::class)
-abstract class RepositoryModule {
+object RepositoryModule {
 
-    // --- Enlaces de Repositorio de Autenticación y Perfil ---
-
-    /**
-     * Provee una instancia Singleton de AuthRepository, enlazándola a su implementación concreta.
-     */
-    @Binds
+    @Provides
     @Singleton
-    abstract fun bindAuthRepository(authRepositoryImpl: AuthRepositoryImpl): AuthRepository
+    fun provideAuthRepository(
+        userDao: UserDao,
+        profileDao: ProfileDao,
+        classDao: ClassDao,
+        studentDao: StudentDao,
+        studentParentRelationDao: StudentParentRelationDao
+    ): AuthRepository {
+        return AuthRepositoryImpl(
+            userDao = userDao,
+            profileDao = profileDao,
+            classDao = classDao,
+            studentDao = studentDao,
+            studentParentRelationDao = studentParentRelationDao
+        )
+    }
 
-    /**
-     * Provee una instancia Singleton de ProfileRepository, enlazándola a su implementación.
-     */
-    @Binds
+    @Provides
     @Singleton
-    abstract fun bindProfileRepository(profileRepositoryImpl: ProfileRepositoryImpl): ProfileRepository
+    fun provideProfileRepository(
+        profileDao: ProfileDao
+    ): ProfileRepository {
+        return ProfileRepositoryImpl(profileDao)
+    }
 
-    // --- Enlaces de Repositorios de Información Estudiantil ---
-
-    /**
-     * Provee una instancia Singleton de ClassRepository.
-     */
-    @Binds
+    @Provides
     @Singleton
-    abstract fun bindClassRepository(classRepositoryImpl: ClassRepositoryImpl): ClassRepository
+    fun provideClassRepository(
+        classDao: ClassDao
+    ): ClassRepository {
+        return ClassRepositoryImpl(classDao)
+    }
 
-    /**
-     * Provee una instancia Singleton de StudentRepository.
-     */
-    @Binds
+    @Provides
     @Singleton
-    abstract fun bindStudentRepository(studentRepositoryImpl: StudentRepositoryImpl): StudentRepository
+    fun provideStudentRepository(
+        studentDao: StudentDao,
+        classDao: ClassDao,
+        studentParentRelationDao: StudentParentRelationDao
+    ): StudentRepository {
+        return StudentRepositoryImpl(
+            studentDao = studentDao,
+            classDao = classDao,
+            studentParentRelationDao = studentParentRelationDao
+        )
+    }
 
-    /**
-     * Provee una instancia Singleton de AnnotationRepository.
-     */
-    @Binds
+    @Provides
     @Singleton
-    abstract fun bindAnnotationRepository(annotationRepositoryImpl: AnnotationRepositoryImpl): AnnotationRepository
+    fun provideAnnotationRepository(
+        annotationDao: AnnotationDao
+    ): AnnotationRepository {
+        return AnnotationRepositoryImpl(annotationDao)
+    }
 
-    /**
-     * Provee una instancia Singleton de MessageRepository.
-     */
-    @Binds
+    @Provides
     @Singleton
-    abstract fun bindMessageRepository(messageRepositoryImpl: MessageRepositoryImpl): MessageRepository
+    fun provideAttendanceRepository(
+        attendanceDao: AttendanceDao
+    ): AttendanceRepository {
+        return AttendanceRepositoryImpl(attendanceDao)
+    }
 
-    // --- Enlaces de Repositorios de Funcionalidades Específicas ---
-
-    /**
-     * Provee una instancia Singleton de AttendanceRepository.
-     */
-    @Binds
+    @Provides
     @Singleton
-    abstract fun bindAttendanceRepository(attendanceRepositoryImpl: AttendanceRepositoryImpl): AttendanceRepository
+    fun provideMaterialRequestRepository(
+        materialRequestDao: MaterialRequestDao
+    ): MaterialRequestRepository {
+        return MaterialRequestRepositoryImpl(materialRequestDao)
+    }
 
-    /**
-     * Provee una instancia Singleton de MaterialRequestRepository.
-     */
-    @Binds
+    @Provides
     @Singleton
-    abstract fun bindMaterialRequestRepository(materialRequestRepositoryImpl: MaterialRequestRepositoryImpl): MaterialRequestRepository
+    fun provideMessageRepository(
+        messageDao: MessageDao
+    ): MessageRepository {
+        return MessageRepositoryImpl(messageDao)
+    }
 
-    /**
-     * Provee una instancia Singleton de SchoolEventRepository.
-     * Esta es la dependencia que faltaba y causó el error de MissingBinding.
-     */
-    @Binds
+    @Provides
     @Singleton
-    abstract fun bindSchoolEventRepository(
-        schoolEventRepositoryImpl: SchoolEventRepositoryImpl
-    ): SchoolEventRepository
+    fun provideSchoolEventRepository(
+        schoolEventDao: SchoolEventDao
+    ): SchoolEventRepository {
+        return SchoolEventRepositoryImpl(schoolEventDao)
+    }
 }

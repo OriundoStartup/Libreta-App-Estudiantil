@@ -71,6 +71,7 @@ dependencies {
     // Hilt
     implementation(libs.hilt.android)
     implementation(libs.material)
+    implementation(libs.androidx.material3)
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
 

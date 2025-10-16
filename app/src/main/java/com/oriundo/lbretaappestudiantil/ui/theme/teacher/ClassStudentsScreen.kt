@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Card
@@ -23,6 +24,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -36,7 +38,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import com.oriundo.lbretaappestudiantil.data.local.models.StudentEntity
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentViewModel
@@ -46,7 +49,8 @@ import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentViewModel
 fun ClassStudentsScreen(
     classId: Int,
     onStudentClick: (StudentEntity) -> Unit,
-    viewModel: StudentViewModel = viewModel()
+    viewModel: StudentViewModel = hiltViewModel(),
+    navController: NavController? = null  // ← AGREGADO: opcional para back
 ) {
     val students by viewModel.studentsByClass.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
@@ -58,7 +62,17 @@ fun ClassStudentsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Estudiantes") }
+                title = { Text("Estudiantes") },
+                navigationIcon = {  // ← AGREGADO: Botón back
+                    navController?.let {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Volver"
+                            )
+                        }
+                    }
+                }
             )
         }
     ) { padding ->
@@ -75,29 +89,67 @@ fun ClassStudentsScreen(
                 ErrorView(message = (uiState as StudentUiState.Error).message)
             }
             else -> {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    item {
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
+                if (students.isEmpty()) {
+                    // ← AGREGADO: Estado vacío más bonito
+                    EmptyStudentsView()
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding)
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        item {
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
 
-                    items(students) { student ->
-                        StudentListItem(
-                            student = student,
-                            onClick = { onStudentClick(student) }
-                        )
-                    }
+                        items(students) { student ->
+                            StudentListItem(
+                                student = student,
+                                onClick = { onStudentClick(student) }
+                            )
+                        }
 
-                    item {
-                        Spacer(modifier = Modifier.height(80.dp))
+                        item {
+                            Spacer(modifier = Modifier.height(80.dp))
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+// ← AGREGADO: Vista de estado vacío
+@Composable
+private fun EmptyStudentsView() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(32.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Person,
+                contentDescription = null,
+                modifier = Modifier.size(80.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            )
+            Text(
+                text = "No hay estudiantes",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Los estudiantes aparecerán aquí cuando se registren con el código del curso",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
         }
     }
 }
