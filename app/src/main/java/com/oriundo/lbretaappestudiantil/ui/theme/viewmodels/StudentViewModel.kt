@@ -1,11 +1,9 @@
 package com.oriundo.lbretaappestudiantil.ui.theme.viewmodels
 
-// Se elimina la importación de android.app.Application y LibretAppDatabase
 import androidx.lifecycle.ViewModel // 1. Cambiamos a la clase base ViewModel
 import androidx.lifecycle.viewModelScope
 import com.oriundo.lbretaappestudiantil.data.local.models.RelationshipType
 import com.oriundo.lbretaappestudiantil.data.local.models.StudentEntity
-// Se elimina la importación de RepositoryProvider
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
 import com.oriundo.lbretaappestudiantil.domain.model.StudentWithClass
 import com.oriundo.lbretaappestudiantil.domain.model.repository.StudentRepository // 2. Importamos la interfaz del Repository

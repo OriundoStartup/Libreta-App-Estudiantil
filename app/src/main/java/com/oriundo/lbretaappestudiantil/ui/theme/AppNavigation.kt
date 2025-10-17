@@ -18,6 +18,8 @@ import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentDashboardScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.ClassStudentsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateAnnotationScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateClassScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TakeAttendanceScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateEventScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.StudentDetailScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherDashboardScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AuthViewModel
@@ -44,6 +46,13 @@ sealed class Screen(val route: String) {
     object CreateAnnotation : Screen("create_annotation/{studentId}/{classId}/{teacherId}") {
         fun createRoute(studentId: Int, classId: Int, teacherId: Int) =
             "create_annotation/$studentId/$classId/$teacherId"
+    }
+
+    object CreateEvent : Screen("create_event/{teacherId}/{classId}") {
+        fun createRoute(teacherId: Int, classId: Int) = "create_event/$teacherId/$classId"
+    }
+    object TakeAttendance : Screen("take_attendance/{classId}/{teacherId}") {
+        fun createRoute(classId: Int, teacherId: Int) = "take_attendance/$classId/$teacherId"
     }
 }
 
@@ -121,11 +130,10 @@ fun AppNavigation(
             )
         }
 
-        // Dashboard profesor - CORREGIDO
         composable(Screen.TeacherDashboard.route) {
             val classViewModel: ClassViewModel = hiltViewModel()
 
-            currentUser?.let { user ->  // ← CORREGIDO: -> en lugar de →
+            currentUser?.let { user ->
                 TeacherDashboardScreen(
                     userWithProfile = user,
                     onNavigateToCreateClass = {
@@ -145,9 +153,8 @@ fun AppNavigation(
             }
         }
 
-        // Dashboard apoderado - CORREGIDO
         composable(Screen.ParentDashboard.route) {
-            currentUser?.let { user ->  // ← CORREGIDO: -> en lugar de →
+            currentUser?.let { user ->
                 ParentDashboardScreen(
                     userWithProfile = user,
                     onLogout = {
@@ -182,6 +189,7 @@ fun AppNavigation(
             )
         ) { backStackEntry ->
             val classId = backStackEntry.arguments?.getInt("classId") ?: 0
+            val authViewModelInstance: AuthViewModel = hiltViewModel()
 
             ClassStudentsScreen(
                 classId = classId,
@@ -190,7 +198,8 @@ fun AppNavigation(
                         Screen.StudentDetail.createRoute(student.id, classId)
                     )
                 },
-                navController = navController
+                navController = navController,
+                authViewModel = authViewModelInstance
             )
         }
 
@@ -231,6 +240,37 @@ fun AppNavigation(
                 onAnnotationCreated = {
                     // Opcional: mostrar mensaje de éxito
                 }
+            )
+        }
+
+        composable(
+            route = Screen.CreateEvent.route,
+            arguments = listOf(
+                navArgument("teacherId") { type = NavType.IntType },
+                navArgument("classId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val teacherId = backStackEntry.arguments?.getInt("teacherId") ?: 0
+
+            CreateEventScreen(
+                navController = navController,
+                teacherId = teacherId
+            )
+        }
+        composable(
+            route = Screen.TakeAttendance.route,
+            arguments = listOf(
+                navArgument("classId") { type = NavType.IntType },
+                navArgument("teacherId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val classId = backStackEntry.arguments?.getInt("classId") ?: 0
+            val teacherId = backStackEntry.arguments?.getInt("teacherId") ?: 0
+
+            TakeAttendanceScreen(
+                classId = classId,
+                teacherId = teacherId,
+                navController = navController
             )
         }
     }

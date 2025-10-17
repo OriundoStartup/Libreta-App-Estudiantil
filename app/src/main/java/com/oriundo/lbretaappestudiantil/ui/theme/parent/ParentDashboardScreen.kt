@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,9 +29,9 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -41,13 +40,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -60,17 +61,60 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType
+import com.oriundo.lbretaappestudiantil.data.local.models.RequestStatus
+import com.oriundo.lbretaappestudiantil.data.local.models.UrgencyLevel
+import com.oriundo.lbretaappestudiantil.domain.model.StudentWithClass
 import com.oriundo.lbretaappestudiantil.domain.model.UserWithProfile
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AnnotationViewModel
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AttendanceViewModel
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.MaterialRequestViewModel
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.SchoolEventViewModel
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ParentDashboardScreen(
     userWithProfile: UserWithProfile,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    studentViewModel: StudentViewModel = hiltViewModel(),
+    annotationViewModel: AnnotationViewModel = hiltViewModel(),
+    attendanceViewModel: AttendanceViewModel = hiltViewModel(),
+    schoolEventViewModel: SchoolEventViewModel = hiltViewModel(),
+    materialRequestViewModel: MaterialRequestViewModel = hiltViewModel()
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedStudentIndex by remember { mutableIntStateOf(0) }
+
+    // Estados de datos reales
+    val studentsByParent by studentViewModel.studentsByParent.collectAsState()
+    val unreadAnnotations by annotationViewModel.unreadAnnotations.collectAsState()
+    val attendanceStats by attendanceViewModel.attendanceStats.collectAsState()
+    val eventsByClass by schoolEventViewModel.eventsByClass.collectAsState()
+    val materialRequests by materialRequestViewModel.requestsByStudent.collectAsState()
+    val annotationsByStudent by annotationViewModel.annotationsByStudent.collectAsState()
+
+    // Cargar datos del padre
+    LaunchedEffect(userWithProfile.profile.id) {
+        studentViewModel.loadStudentsByParent(userWithProfile.profile.id)
+        annotationViewModel.loadUnreadAnnotationsForParent(userWithProfile.profile.id)
+    }
+
+    // Cargar datos del estudiante seleccionado
+    LaunchedEffect(selectedStudentIndex, studentsByParent) {
+        if (studentsByParent.isNotEmpty() && selectedStudentIndex < studentsByParent.size) {
+            val selectedStudent = studentsByParent[selectedStudentIndex]
+            attendanceViewModel.loadAttendanceByStudent(selectedStudent.student.id)
+            schoolEventViewModel.loadEventsByClass(selectedStudent.classEntity.id)
+            materialRequestViewModel.loadRequestsByStudent(selectedStudent.student.id)
+            annotationViewModel.loadAnnotationsByStudent(selectedStudent.student.id)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -90,10 +134,22 @@ fun ParentDashboardScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* TODO: Notificaciones */ }) {
-                        Badge(
-                            containerColor = MaterialTheme.colorScheme.error
-                        ) {
+                    // Notificaciones con contador real
+                    IconButton(onClick = { /* TODO: Ver notificaciones */ }) {
+                        if (unreadAnnotations.isNotEmpty()) {
+                            BadgedBox(
+                                badge = {
+                                    Badge {
+                                        Text("${unreadAnnotations.size}")
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Notifications,
+                                    contentDescription = "Notificaciones"
+                                )
+                            }
+                        } else {
                             Icon(
                                 imageVector = Icons.Filled.Notifications,
                                 contentDescription = "Notificaciones"
@@ -116,22 +172,14 @@ fun ParentDashboardScreen(
                             DropdownMenuItem(
                                 text = { Text("Mi Perfil") },
                                 onClick = { /* TODO */ },
-                                leadingIcon = {
-                                    Icon(Icons.Filled.Person, null)
-                                }
+                                leadingIcon = { Icon(Icons.Filled.Person, null) }
                             )
                             DropdownMenuItem(
                                 text = { Text("Configuración") },
                                 onClick = { /* TODO */ },
-                                leadingIcon = {
-                                    Icon(Icons.Filled.Settings, null)
-                                }
+                                leadingIcon = { Icon(Icons.Filled.Settings, null) }
                             )
-                            HorizontalDivider(
-                                Modifier,
-                                DividerDefaults.Thickness,
-                                DividerDefaults.color
-                            )
+                            HorizontalDivider()
                             DropdownMenuItem(
                                 text = { Text("Cerrar sesión") },
                                 onClick = {
@@ -158,289 +206,411 @@ fun ParentDashboardScreen(
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-        ) {
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Tabs de navegación
-            ScrollableTabRow(
-                selectedTabIndex = selectedTab,
-                modifier = Modifier.padding(horizontal = 24.dp),
-                containerColor = Color.Transparent,
-                edgePadding = 0.dp
+        if (studentsByParent.isEmpty()) {
+            // Estado vacío
+            EmptyStudentsView(modifier = Modifier.padding(padding))
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
             ) {
-                Tab(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    modifier = Modifier.clip(RoundedCornerShape(12.dp))
-                ) {
-                    Text(
-                        text = "Resumen",
-                        modifier = Modifier.padding(16.dp),
-                        fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Selector de estudiante si hay más de uno
+                if (studentsByParent.size > 1) {
+                    StudentSelector(
+                        students = studentsByParent,
+                        selectedIndex = selectedStudentIndex,
+                        onStudentSelected = { selectedStudentIndex = it }
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
-                Tab(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    modifier = Modifier.clip(RoundedCornerShape(12.dp))
+
+                // Tabs de navegación
+                PrimaryScrollableTabRow(
+                    selectedTabIndex = selectedTab,
+                    modifier = Modifier.padding(horizontal = 24.dp),
+                    containerColor = Color.Transparent,
+                    edgePadding = 0.dp
                 ) {
-                    Text(
-                        text = "Anotaciones",
-                        modifier = Modifier.padding(16.dp),
-                        fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal
-                    )
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        modifier = Modifier.clip(RoundedCornerShape(12.dp))
+                    ) {
+                        Text(
+                            text = "Resumen",
+                            modifier = Modifier.padding(16.dp),
+                            fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        modifier = Modifier.clip(RoundedCornerShape(12.dp))
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Text(
+                                text = "Anotaciones",
+                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal
+                            )
+                            if (unreadAnnotations.isNotEmpty()) {
+                                Badge(
+                                    containerColor = MaterialTheme.colorScheme.error
+                                ) {
+                                    Text("${unreadAnnotations.size}")
+                                }
+                            }
+                        }
+                    }
+                    Tab(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        modifier = Modifier.clip(RoundedCornerShape(12.dp))
+                    ) {
+                        Text(
+                            text = "Materiales",
+                            modifier = Modifier.padding(16.dp),
+                            fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
                 }
-                Tab(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    modifier = Modifier.clip(RoundedCornerShape(12.dp))
-                ) {
-                    Text(
-                        text = "Materiales",
-                        modifier = Modifier.padding(16.dp),
-                        fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal
-                    )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Contenido según tab seleccionado
+                val currentStudent = if (studentsByParent.isNotEmpty() && selectedStudentIndex < studentsByParent.size) {
+                    studentsByParent[selectedStudentIndex]
+                } else null
+
+                currentStudent?.let { student ->
+                    when (selectedTab) {
+                        0 -> ResumenContent(
+                            student = student,
+                            attendanceStats = attendanceStats,
+                            upcomingEvents = eventsByClass,
+                            pendingAnnotations = unreadAnnotations.size
+                        )
+                        1 -> AnotacionesContent(
+                            annotations = annotationsByStudent
+                        )
+                        2 -> MaterialesContent(
+                            requests = materialRequests
+                        )
+                    }
                 }
+
+                Spacer(modifier = Modifier.height(100.dp))
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Contenido según tab seleccionado
-            when (selectedTab) {
-                0 -> ResumenContent()
-                1 -> AnotacionesContent()
-                2 -> MaterialesContent()
-            }
-
-            Spacer(modifier = Modifier.height(100.dp))
         }
     }
 }
 
 @Composable
-fun ResumenContent() {
-    Column(
-        modifier = Modifier.padding(horizontal = 24.dp)
+private fun EmptyStudentsView(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = "Mis Hijos",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Tarjeta de estudiante (ejemplo)
-        StudentCard(
-            studentName = "Pedro González",
-            className = "4° Básico A",
-            attendance = 95,
-            pendingAnnotations = 2,
-            teacherName = "Prof. Juan Pérez"
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Próximos eventos
-        Text(
-            text = "Próximos Eventos",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        EventCard(
-            title = "Reunión de Apoderados",
-            date = "15 de Octubre",
-            time = "18:00",
-            type = "Reunión"
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        EventCard(
-            title = "Prueba de Matemáticas",
-            date = "18 de Octubre",
-            time = "10:00",
-            type = "Evaluación"
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(32.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.ChildCare,
+                contentDescription = null,
+                modifier = Modifier.size(80.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            )
+            Text(
+                text = "No hay estudiantes vinculados",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Contacta a la escuela para vincular a tu hijo/a",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
     }
 }
 
 @Composable
-fun AnotacionesContent() {
-    Column(
-        modifier = Modifier.padding(horizontal = 24.dp)
-    ) {
-        Text(
-            text = "Últimas Anotaciones",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Anotaciones (ejemplo)
-        AnnotationCard(
-            type = AnnotationType.POSITIVE,
-            subject = "Excelente participación",
-            description = "Pedro participó activamente en clase de matemáticas y ayudó a sus compañeros.",
-            date = "Hoy",
-            teacherName = "Prof. Juan Pérez",
-            isRead = false
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        AnnotationCard(
-            type = AnnotationType.NEUTRAL,
-            subject = "Recordatorio",
-            description = "Traer materiales para la próxima clase de artes.",
-            date = "Ayer",
-            teacherName = "Prof. Juan Pérez",
-            isRead = true
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        AnnotationCard(
-            type = AnnotationType.POSITIVE,
-            subject = "Buen comportamiento",
-            description = "Demostró respeto y colaboración durante toda la semana.",
-            date = "Hace 3 días",
-            teacherName = "Prof. Juan Pérez",
-            isRead = true
-        )
-    }
-}
-
-@Composable
-fun MaterialesContent() {
-    Column(
-        modifier = Modifier.padding(horizontal = 24.dp)
-    ) {
-        Text(
-            text = "Solicitudes de Materiales",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        MaterialRequestCard(
-            material = "Cartulina blanca (2 unidades)",
-            deadline = "20 de Octubre",
-            urgency = "Alta",
-            status = "Pendiente"
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        MaterialRequestCard(
-            material = "Lápices de colores",
-            deadline = "25 de Octubre",
-            urgency = "Media",
-            status = "Confirmado"
-        )
-    }
-}
-
-@Composable
-fun GlassCard(
-    modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit
+private fun StudentSelector(
+    students: List<StudentWithClass>,
+    selectedIndex: Int,
+    onStudentSelected: (Int) -> Unit
 ) {
+    PrimaryScrollableTabRow(
+        selectedTabIndex = selectedIndex,
+        modifier = Modifier.padding(horizontal = 24.dp),
+        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        edgePadding = 0.dp
+    ) {
+        students.forEachIndexed { index, studentWithClass ->
+            Tab(
+                selected = selectedIndex == index,
+                onClick = { onStudentSelected(index) },
+                modifier = Modifier.clip(RoundedCornerShape(12.dp))
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = studentWithClass.student.firstName,
+                        fontWeight = if (selectedIndex == index) FontWeight.Bold else FontWeight.Normal
+                    )
+                    Text(
+                        text = studentWithClass.classEntity.className,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ResumenContent(
+    student: StudentWithClass,
+    attendanceStats: com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AttendanceStats,
+    upcomingEvents: List<com.oriundo.lbretaappestudiantil.data.local.models.SchoolEventEntity>,
+    pendingAnnotations: Int
+) {
+    Column(
+        modifier = Modifier.padding(horizontal = 24.dp)
+    ) {
+        Text(
+            text = "Información del Estudiante",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Tarjeta del estudiante con datos reales
+        StudentCard(
+            studentName = student.student.fullName,
+            className = student.classEntity.className,
+            schoolName = student.classEntity.schoolName,
+            attendance = attendanceStats.attendancePercentage,
+            pendingAnnotations = pendingAnnotations
+        )
+
+        if (upcomingEvents.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "Próximos Eventos",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            upcomingEvents.take(5).forEach { event ->
+                EventCard(event = event)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun AnotacionesContent(
+    annotations: List<com.oriundo.lbretaappestudiantil.data.local.models.AnnotationEntity>
+) {
+    Column(
+        modifier = Modifier.padding(horizontal = 24.dp)
+    ) {
+        Text(
+            text = if (annotations.isEmpty()) "Sin Anotaciones" else "Últimas Anotaciones",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (annotations.isEmpty()) {
+            EmptyAnnotationsView()
+        } else {
+            annotations.forEach { annotation ->
+                AnnotationCard(annotation = annotation)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyAnnotationsView() {
     Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            content = content
-        )
+            modifier = Modifier.padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Description,
+                contentDescription = null,
+                modifier = Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "No hay anotaciones aún",
+                style = MaterialTheme.typography.titleMedium
+            )
+        }
     }
 }
+
+@Composable
+fun MaterialesContent(
+    requests: List<com.oriundo.lbretaappestudiantil.data.local.models.MaterialRequestEntity>
+) {
+    Column(
+        modifier = Modifier.padding(horizontal = 24.dp)
+    ) {
+        Text(
+            text = if (requests.isEmpty()) "Sin Solicitudes" else "Solicitudes de Materiales",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (requests.isEmpty()) {
+            EmptyMaterialsView()
+        } else {
+            requests.forEach { request ->
+                MaterialRequestCard(request = request)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyMaterialsView() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Inventory,
+                contentDescription = null,
+                modifier = Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "No hay solicitudes de materiales",
+                style = MaterialTheme.typography.titleMedium
+            )
+        }
+    }
+}
+
+// Componentes de UI
 
 @Composable
 fun StudentCard(
     studentName: String,
     className: String,
+    schoolName: String,
     attendance: Int,
-    pendingAnnotations: Int,
-    teacherName: String
+    pendingAnnotations: Int
 ) {
-    GlassCard {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                Color(0xFFEC4899),
-                                Color(0xFFF59E0B)
-                            )
-                        )
-                    ),
-                contentAlignment = Alignment.Center
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Filled.ChildCare,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(32.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    Color(0xFFEC4899),
+                                    Color(0xFFF59E0B)
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ChildCare,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = studentName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = className,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = schoolName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = studentName,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = className,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = teacherName,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Spacer(modifier = Modifier.height(16.dp))
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Chip(
+                    text = "Asistencia $attendance%",
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    textColor = MaterialTheme.colorScheme.tertiary
+                )
+                if (pendingAnnotations > 0) {
                     Chip(
-                        text = "Asistencia $attendance%",
-                        color = MaterialTheme.colorScheme.tertiaryContainer,
-                        textColor = MaterialTheme.colorScheme.tertiary
+                        text = "$pendingAnnotations nuevas",
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        textColor = MaterialTheme.colorScheme.error
                     )
-                    if (pendingAnnotations > 0) {
-                        Chip(
-                            text = "$pendingAnnotations nuevas",
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            textColor = MaterialTheme.colorScheme.primary
-                        )
-                    }
                 }
             }
         }
@@ -469,14 +639,9 @@ fun Chip(
 
 @Composable
 fun AnnotationCard(
-    type: AnnotationType,
-    subject: String,
-    description: String,
-    date: String,
-    teacherName: String,
-    isRead: Boolean
+    annotation: com.oriundo.lbretaappestudiantil.data.local.models.AnnotationEntity
 ) {
-    val (color, icon) = when (type) {
+    val (color, icon) = when (annotation.type) {
         AnnotationType.POSITIVE -> Pair(
             MaterialTheme.colorScheme.tertiaryContainer,
             Icons.Filled.Star
@@ -495,9 +660,15 @@ fun AnnotationCard(
         )
     }
 
-    GlassCard {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box(
@@ -510,7 +681,7 @@ fun AnnotationCard(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = when (type) {
+                    tint = when (annotation.type) {
                         AnnotationType.POSITIVE -> MaterialTheme.colorScheme.tertiary
                         AnnotationType.NEGATIVE -> MaterialTheme.colorScheme.error
                         AnnotationType.NEUTRAL -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -527,11 +698,11 @@ fun AnnotationCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = subject,
+                        text = annotation.title,
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = if (isRead) FontWeight.Normal else FontWeight.Bold
+                        fontWeight = if (!annotation.isRead) FontWeight.Bold else FontWeight.Normal
                     )
-                    if (!isRead) {
+                    if (!annotation.isRead) {
                         Box(
                             modifier = Modifier
                                 .size(8.dp)
@@ -541,32 +712,18 @@ fun AnnotationCard(
                     }
                 }
                 Text(
-                    text = description,
+                    text = annotation.description,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2
+                    maxLines = 3
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = teacherName,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "•",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = date,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(
+                    text = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+                        .format(Date(annotation.date)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -574,14 +731,17 @@ fun AnnotationCard(
 
 @Composable
 fun EventCard(
-    title: String,
-    date: String,
-    time: String,
-    type: String
+    event: com.oriundo.lbretaappestudiantil.data.local.models.SchoolEventEntity
 ) {
-    GlassCard {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -602,13 +762,20 @@ fun EventCard(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = title,
+                    text = event.title,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = "$date • $time",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = event.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2
+                )
+                Text(
+                    text = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+                        .format(Date(event.eventDate)),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -620,7 +787,7 @@ fun EventCard(
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text(
-                    text = type,
+                    text = event.eventType.name,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -633,51 +800,54 @@ fun EventCard(
 
 @Composable
 fun MaterialRequestCard(
-    material: String,
-    deadline: String,
-    urgency: String,
-    status: String
+    request: com.oriundo.lbretaappestudiantil.data.local.models.MaterialRequestEntity
 ) {
-    val urgencyColor = when (urgency) {
-        "Alta" -> MaterialTheme.colorScheme.error
-        "Media" -> MaterialTheme.colorScheme.secondary
-        else -> MaterialTheme.colorScheme.tertiary
+    val urgencyColor = when (request.urgency) {
+        UrgencyLevel.HIGH -> MaterialTheme.colorScheme.error
+        UrgencyLevel.MEDIUM -> MaterialTheme.colorScheme.secondary
+        UrgencyLevel.LOW -> MaterialTheme.colorScheme.tertiary
     }
 
-    GlassCard {
-        Column {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.primaryContainer),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Inventory,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Filled.Inventory,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
 
-                    Column {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = request.material,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "Cantidad: ${request.quantity}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    request.deadlineDate?.let {
                         Text(
-                            text = material,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "Para: $deadline",
+                            text = "Para: ${SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(it))}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -691,17 +861,17 @@ fun MaterialRequestCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Chip(
-                    text = "Urgencia: $urgency",
+                    text = "Urgencia: ${request.urgency.name}",
                     color = urgencyColor.copy(alpha = 0.2f),
                     textColor = urgencyColor
                 )
                 Chip(
-                    text = status,
-                    color = if (status == "Confirmado")
+                    text = request.status.name,
+                    color = if (request.status == RequestStatus.CONFIRMED)
                         MaterialTheme.colorScheme.tertiaryContainer
                     else
                         MaterialTheme.colorScheme.surfaceVariant,
-                    textColor = if (status == "Confirmado")
+                    textColor = if (request.status == RequestStatus.CONFIRMED)
                         MaterialTheme.colorScheme.tertiary
                     else
                         MaterialTheme.colorScheme.onSurfaceVariant

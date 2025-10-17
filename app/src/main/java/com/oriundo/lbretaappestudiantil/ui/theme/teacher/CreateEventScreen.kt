@@ -21,6 +21,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
@@ -35,6 +36,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -65,12 +68,12 @@ fun CreateEventScreen(
     var description by remember { mutableStateOf("") }
     var selectedClassId by remember { mutableStateOf<Int?>(null) }
     var selectedEventType by remember { mutableStateOf(EventType.MEETING) }
-    var eventDate by remember { mutableStateOf(System.currentTimeMillis()) }
+    var eventDate by remember { mutableLongStateOf(System.currentTimeMillis()) } // ← CAMBIO AQUÍ
     var showDatePicker by remember { mutableStateOf(false) }
     var showClassDropdown by remember { mutableStateOf(false) }
     var showEventTypeDropdown by remember { mutableStateOf(false) }
 
-    // Observar estados - USAR teacherClasses
+    // Observar estados
     val createState by eventViewModel.createState.collectAsState()
     val teacherClasses by classViewModel.teacherClasses.collectAsState()
 
@@ -130,7 +133,6 @@ fun CreateEventScreen(
                 isError = description.isBlank() && createState is SchoolEventUiState.Error
             )
 
-            // Selector de Clase
             ExposedDropdownMenuBox(
                 expanded = showClassDropdown,
                 onExpandedChange = { showClassDropdown = it }
@@ -140,12 +142,15 @@ fun CreateEventScreen(
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Clase (opcional)") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showClassDropdown) },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = showClassDropdown)
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(),
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true),
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
                 )
+
 
                 ExposedDropdownMenu(
                     expanded = showClassDropdown,
@@ -188,10 +193,15 @@ fun CreateEventScreen(
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Tipo de evento") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showEventTypeDropdown) },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = showEventTypeDropdown)
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(),
+                        .menuAnchor(
+                            type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                            enabled = true
+                        ),
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
                 )
 
@@ -302,9 +312,9 @@ fun SimpleDatePickerDialog(
     val calendar = Calendar.getInstance()
     calendar.timeInMillis = initialDate
 
-    var selectedYear by remember { mutableStateOf(calendar.get(Calendar.YEAR)) }
-    var selectedMonth by remember { mutableStateOf(calendar.get(Calendar.MONTH)) }
-    var selectedDay by remember { mutableStateOf(calendar.get(Calendar.DAY_OF_MONTH)) }
+    var selectedYear by remember { mutableIntStateOf(calendar.get(Calendar.YEAR)) }
+    var selectedMonth by remember { mutableIntStateOf(calendar.get(Calendar.MONTH)) }
+    var selectedDay by remember { mutableIntStateOf(calendar.get(Calendar.DAY_OF_MONTH)) }
 
     AlertDialog(
         onDismissRequest = onDismiss,

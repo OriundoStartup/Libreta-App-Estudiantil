@@ -42,6 +42,7 @@ import com.oriundo.lbretaappestudiantil.data.local.models.UserEntity
 
 
 
+
     ],
     version = 1,
     exportSchema = false

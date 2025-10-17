@@ -114,6 +114,7 @@ class AuthRepositoryImpl @Inject constructor(
         studentForm: StudentRegistrationForm
     ): ApiResult<Triple<UserWithProfile, StudentEntity, ClassEntity>> {
         return try {
+
             // Validaciones
             validateParentForm(parentForm)?.let { return it }
             validateStudentForm(studentForm)?.let { return it }
@@ -124,7 +125,7 @@ class AuthRepositoryImpl @Inject constructor(
             }
 
             // Verificar que el código de curso exista
-            val classEntity = classDao.getClassByCode(studentForm.classCode.trim())
+            val classEntity = classDao.getClassByCode(studentForm.classCode.trim().uppercase()) // ← AGREGAR .uppercase()
                 ?: return ApiResult.Error("Código de curso inválido")
 
             // Verificar que el RUT no exista

@@ -1,5 +1,11 @@
 package com.oriundo.lbretaappestudiantil.ui.theme.teacher
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,30 +23,41 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.oriundo.lbretaappestudiantil.data.local.models.StudentEntity
+import com.oriundo.lbretaappestudiantil.ui.theme.Screen
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AuthViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentViewModel
 
@@ -50,10 +67,14 @@ fun ClassStudentsScreen(
     classId: Int,
     onStudentClick: (StudentEntity) -> Unit,
     viewModel: StudentViewModel = hiltViewModel(),
-    navController: NavController? = null  // ← AGREGADO: opcional para back
+    authViewModel: AuthViewModel = hiltViewModel(),
+    navController: NavController? = null
 ) {
     val students by viewModel.studentsByClass.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+    val currentUser by authViewModel.currentUser.collectAsState()
+
+    var isFabMenuExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(classId) {
         viewModel.loadStudentsByClass(classId)
@@ -63,7 +84,7 @@ fun ClassStudentsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Estudiantes") },
-                navigationIcon = {  // ← AGREGADO: Botón back
+                navigationIcon = {
                     navController?.let {
                         IconButton(onClick = { navController.popBackStack() }) {
                             Icon(
@@ -74,6 +95,76 @@ fun ClassStudentsScreen(
                     }
                 }
             )
+        },
+        floatingActionButton = {
+            navController?.let {
+                currentUser?.let { user ->
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Opciones del menú
+                        AnimatedVisibility(
+                            visible = isFabMenuExpanded,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                horizontalAlignment = Alignment.End
+                            ) {
+                                // Opción: Tomar Asistencia
+                                FabMenuItem(
+                                    icon = Icons.Default.CheckCircle,
+                                    label = "Tomar Asistencia",
+                                    onClick = {
+                                        isFabMenuExpanded = false
+                                        navController.navigate(
+                                            Screen.TakeAttendance.createRoute(
+                                                classId = classId,
+                                                teacherId = user.profile.id
+                                            )
+                                        )
+                                    }
+                                )
+
+                                // Opción: Crear Evento
+                                FabMenuItem(
+                                    icon = Icons.Default.Event,
+                                    label = "Crear Evento",
+                                    onClick = {
+                                        isFabMenuExpanded = false
+                                        navController.navigate(
+                                            Screen.CreateEvent.createRoute(
+                                                teacherId = user.profile.id,
+                                                classId = classId
+                                            )
+                                        )
+                                    }
+                                )
+                            }
+                        }
+
+                        // FAB Principal
+                        val rotation by animateFloatAsState(
+                            targetValue = if (isFabMenuExpanded) 45f else 0f,
+                            label = "fab_rotation"
+                        )
+
+                        FloatingActionButton(
+                            onClick = { isFabMenuExpanded = !isFabMenuExpanded },
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = if (isFabMenuExpanded) "Cerrar menú" else "Abrir menú",
+                                modifier = Modifier.rotate(rotation)
+                            )
+                        }
+                    }
+                }
+            }
         }
     ) { padding ->
         when (uiState) {
@@ -90,7 +181,6 @@ fun ClassStudentsScreen(
             }
             else -> {
                 if (students.isEmpty()) {
-                    // ← AGREGADO: Estado vacío más bonito
                     EmptyStudentsView()
                 } else {
                     LazyColumn(
@@ -121,7 +211,39 @@ fun ClassStudentsScreen(
     }
 }
 
-// ← AGREGADO: Vista de estado vacío
+@Composable
+private fun FabMenuItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+        )
+
+        SmallFloatingActionButton(
+            onClick = onClick,
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
 @Composable
 private fun EmptyStudentsView() {
     Box(
@@ -206,7 +328,6 @@ fun StudentListItem(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                // Avatar del estudiante
                 Box(
                     modifier = Modifier
                         .size(56.dp)

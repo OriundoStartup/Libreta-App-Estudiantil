@@ -16,13 +16,15 @@ interface ClassDao {
     @Query("SELECT * FROM classes WHERE id = :classId")
     suspend fun getClassById(classId: Int): ClassEntity?
 
-    @Query("SELECT * FROM classes WHERE class_code = :code AND is_active = 1 LIMIT 1")
+    // ✅ CORREGIDO: Case-insensitive
+    @Query("SELECT * FROM classes WHERE UPPER(class_code) = UPPER(:code) AND is_active = 1 LIMIT 1")
     suspend fun getClassByCode(code: String): ClassEntity?
 
     @Query("SELECT * FROM classes WHERE teacher_id = :teacherId AND is_active = 1 ORDER BY created_at DESC")
     fun getClassesByTeacher(teacherId: Int): Flow<List<ClassEntity>>
 
-    @Query("SELECT COUNT(*) FROM classes WHERE class_code = :code")
+    // ✅ CORREGIDO: Case-insensitive también aquí
+    @Query("SELECT COUNT(*) FROM classes WHERE UPPER(class_code) = UPPER(:code)")
     suspend fun codeExists(code: String): Int
 
     @Query("DELETE FROM classes WHERE id = :classId")

@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -24,7 +25,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -34,30 +34,32 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import com.oriundo.lbretaappestudiantil.data.local.models.AttendanceStatus
 import com.oriundo.lbretaappestudiantil.data.local.models.StudentEntity
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AttendanceViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentViewModel
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TakeAttendanceScreen(
     classId: Int,
     teacherId: Int,
-    onNavigateBack: () -> Unit = {},
+    navController: NavController,
     date: Long = System.currentTimeMillis(),
-    studentViewModel: StudentViewModel = viewModel(),
-    attendanceViewModel: AttendanceViewModel = viewModel()
+    studentViewModel: StudentViewModel = hiltViewModel(),
+    attendanceViewModel: AttendanceViewModel = hiltViewModel()
 ) {
     val students by studentViewModel.studentsByClass.collectAsState()
     var attendanceMap by remember { mutableStateOf<Map<Int, AttendanceStatus>>(emptyMap()) }
 
+    // Cargar estudiantes
     LaunchedEffect(classId) {
         studentViewModel.loadStudentsByClass(classId)
     }
@@ -67,7 +69,7 @@ fun TakeAttendanceScreen(
             TopAppBar(
                 title = { Text("Tomar Asistencia") },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Volver"
@@ -75,62 +77,73 @@ fun TakeAttendanceScreen(
                     }
                 }
             )
-        },
-        bottomBar = {
-            Surface(
-                shadowElevation = 8.dp,
-                color = MaterialTheme.colorScheme.surface
-            ) {
-                Button(
-                    onClick = {
-                        // Guardar asistencia
-                        attendanceMap.forEach { (studentId, status) ->
-                            attendanceViewModel.recordAttendance(
-                                studentId = studentId,
-                                teacherId = teacherId,
-                                date = date,
-                                status = status
-                            )
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    enabled = attendanceMap.size == students.size
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Check,
-                        contentDescription = null
-                    )
-                    Spacer(modifier = Modifier.padding(4.dp))
-                    Text("Guardar Asistencia")
-                }
-            }
         }
-    ) { padding ->
-        LazyColumn(
+    ) { paddingValues ->
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(paddingValues)
         ) {
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-            }
+            // Contenido principal
+            if (students.isEmpty()) {
+                // Estado de carga o vacío
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Cargando estudiantes...")
+                }
+            } else {
+                // Lista de estudiantes
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item { Spacer(modifier = Modifier.height(8.dp)) }
 
-            items(students) { student ->
-                AttendanceItem(
-                    student = student,
-                    selectedStatus = attendanceMap[student.id],
-                    onStatusSelected = { status ->
-                        attendanceMap = attendanceMap + (student.id to status)
+                    items(students) { student ->
+                        AttendanceItem(
+                            student = student,
+                            selectedStatus = attendanceMap[student.id],
+                            onStatusSelected = { status ->
+                                attendanceMap = attendanceMap + (student.id to status)
+                            }
+                        )
                     }
-                )
+
+                    item { Spacer(modifier = Modifier.height(8.dp)) }
+                }
             }
 
-            item {
-                Spacer(modifier = Modifier.height(80.dp))
+            // Botón fijo en la parte inferior
+            Button(
+                onClick = {
+                    attendanceMap.forEach { (studentId, status) ->
+                        attendanceViewModel.recordAttendance(
+                            studentId = studentId,
+                            teacherId = teacherId,
+                            date = date,
+                            status = status
+                        )
+                    }
+                    navController.popBackStack()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                enabled = attendanceMap.size == students.size && students.isNotEmpty()
+            ) {
+                Icon(imageVector = Icons.Filled.Check, contentDescription = null)
+                Spacer(modifier = Modifier.padding(4.dp))
+                Text("Guardar Asistencia (${attendanceMap.size}/${students.size})")
             }
         }
     }
@@ -145,10 +158,7 @@ fun AttendanceItem(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier
@@ -199,26 +209,11 @@ fun AttendanceStatusChip(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val text: String
-    val color: Color
-
-    when (status) {
-        AttendanceStatus.PRESENT -> {
-            text = "Presente"
-            color = MaterialTheme.colorScheme.tertiary
-        }
-        AttendanceStatus.ABSENT -> {
-            text = "Ausente"
-            color = MaterialTheme.colorScheme.error
-        }
-        AttendanceStatus.LATE -> {
-            text = "Tarde"
-            color = MaterialTheme.colorScheme.secondary
-        }
-        AttendanceStatus.JUSTIFIED -> {
-            text = "Justificado"
-            color = MaterialTheme.colorScheme.primary
-        }
+    val (text, color) = when (status) {
+        AttendanceStatus.PRESENT -> "Presente" to MaterialTheme.colorScheme.tertiary
+        AttendanceStatus.ABSENT -> "Ausente" to MaterialTheme.colorScheme.error
+        AttendanceStatus.LATE -> "Tarde" to MaterialTheme.colorScheme.secondary
+        AttendanceStatus.JUSTIFIED -> "Justificado" to MaterialTheme.colorScheme.primary
     }
 
     FilterChip(

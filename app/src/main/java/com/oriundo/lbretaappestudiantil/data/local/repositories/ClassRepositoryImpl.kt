@@ -25,7 +25,7 @@ class ClassRepositoryImpl @Inject constructor(
             if (className.isBlank()) return ApiResult.Error("El nombre del curso es requerido")
             if (schoolName.isBlank()) return ApiResult.Error("El nombre de la escuela es requerido")
 
-            // Generar código único
+            // Generar código único (ya está en mayúsculas)
             val generatedCode = generateUniqueCode()
 
             // Crear entity
@@ -34,7 +34,7 @@ class ClassRepositoryImpl @Inject constructor(
                 className = className.trim(),
                 schoolName = schoolName.trim(),
                 teacherId = teacherId,
-                classCode = generatedCode,
+                classCode = generatedCode, // Ya está en mayúsculas
                 gradeLevel = gradeLevel?.trim(),
                 academicYear = academicYear.toString(),
                 isActive = true,
@@ -65,7 +65,8 @@ class ClassRepositoryImpl @Inject constructor(
 
     override suspend fun getClassByCode(classCode: String): ApiResult<ClassEntity> {
         return try {
-            val classEntity = classDao.getClassByCode(classCode)
+            // ✅ CORREGIDO: Normalizar a mayúsculas
+            val classEntity = classDao.getClassByCode(classCode.trim().uppercase())
             if (classEntity != null) {
                 ApiResult.Success(classEntity)
             } else {
