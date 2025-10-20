@@ -40,6 +40,8 @@ class AnnotationViewModel @Inject constructor(
     private val _unreadAnnotations = MutableStateFlow<List<AnnotationEntity>>(emptyList())
     val unreadAnnotations: StateFlow<List<AnnotationEntity>> = _unreadAnnotations.asStateFlow()
 
+
+
     /**
      * Crea una nueva anotación.
      *
@@ -118,5 +120,11 @@ class AnnotationViewModel @Inject constructor(
 
     fun resetState() {
         _createState.value = AnnotationUiState.Idle
+    }
+
+    fun markAnnotationAsRead(annotationId: Int) {
+        viewModelScope.launch {
+            annotationRepository.markAsRead(annotationId)
+        }
     }
 }

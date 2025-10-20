@@ -25,7 +25,6 @@ class MessageViewModel @Inject constructor( // 5. Inyección del Repository
     private val messageRepository: MessageRepository
 ) : ViewModel() { // 6. Heredamos de ViewModel
 
-    // ELIMINADA: private val messageRepository = RepositoryProvider.provideMessageRepository(application)
 
     private val _sendState = MutableStateFlow<MessageUiState>(MessageUiState.Initial)
     val sendState: StateFlow<MessageUiState> = _sendState.asStateFlow()
@@ -38,6 +37,9 @@ class MessageViewModel @Inject constructor( // 5. Inyección del Repository
 
     private val _unreadCount = MutableStateFlow(0)
     val unreadCount: StateFlow<Int> = _unreadCount.asStateFlow()
+
+    private val _unreadMessages = MutableStateFlow<List<MessageEntity>>(emptyList())
+    val unreadMessages: StateFlow<List<MessageEntity>> = _unreadMessages.asStateFlow()
 
     fun sendMessage(
         senderId: Int,
@@ -100,5 +102,22 @@ class MessageViewModel @Inject constructor( // 5. Inyección del Repository
 
     fun resetSendState() {
         _sendState.value = MessageUiState.Initial
+    }
+
+    fun loadUnreadMessagesForTeacher(teacherId: Int) {
+        viewModelScope.launch {
+            try {
+                messageRepository.getUnreadMessagesForTeacher(teacherId).collect { messages ->
+                    _unreadMessages.value = messages
+                }
+            } catch (e: Exception) {
+                _unreadMessages.value = emptyList()
+            }
+        }
+    }
+    fun markMessageAsRead(messageId: Int) {
+        viewModelScope.launch {
+            messageRepository.markAsRead(messageId)
+        }
     }
 }

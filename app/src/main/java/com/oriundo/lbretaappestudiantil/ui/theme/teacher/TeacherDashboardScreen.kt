@@ -64,27 +64,36 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavHostController
 import com.oriundo.lbretaappestudiantil.domain.model.UserWithProfile
 import com.oriundo.lbretaappestudiantil.ui.theme.AppColors
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ClassViewModel
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.MessageViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TeacherDashboardScreen(
     userWithProfile: UserWithProfile,
+    navController: NavHostController,
     onNavigateToCreateClass: () -> Unit,
     onNavigateToClassDetail: (Int) -> Unit,
     onLogout: () -> Unit,
-    viewModel: ClassViewModel  // ← AGREGADO
+    viewModel: ClassViewModel
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
-    // ← AGREGADO: Observar los cursos del profesor
+    // ✅ AGREGADO: ViewModel para notificaciones
+    val messageViewModel: MessageViewModel = hiltViewModel()
+    val unreadMessages by messageViewModel.unreadMessages.collectAsState()
+
+    // Observar los cursos del profesor
     val teacherClasses by viewModel.teacherClasses.collectAsState()
 
-    // ← AGREGADO: Cargar cursos cuando se monta el composable
+    // ✅ Cargar cursos y mensajes no leídos
     LaunchedEffect(userWithProfile.profile.id) {
         viewModel.loadTeacherClasses(userWithProfile.profile.id)
+        messageViewModel.loadUnreadMessagesForTeacher(userWithProfile.profile.id)
     }
 
     Scaffold(
@@ -105,14 +114,35 @@ fun TeacherDashboardScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* TODO: Notificaciones */ }) {
-                        Badge(
-                            containerColor = MaterialTheme.colorScheme.error
-                        ) {
+                    // ✅ CONECTADO: Botón de notificaciones con badge y navegación
+                    IconButton(onClick = {
+                        navController.navigate(
+                            com.oriundo.lbretaappestudiantil.ui.theme.Screen.TeacherNotifications.createRoute(
+                                userWithProfile.profile.id
+                            )
+                        )
+                    }) {
+                        Box {
                             Icon(
                                 imageVector = Icons.Filled.Notifications,
-                                contentDescription = "Notificaciones"
+                                contentDescription = "Notificaciones",
+                                tint = if (unreadMessages.isNotEmpty())
+                                    MaterialTheme.colorScheme.error
+                                else
+                                    MaterialTheme.colorScheme.onSurface
                             )
+                            if (unreadMessages.isNotEmpty()) {
+                                Badge(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = Color.White,
+                                    modifier = Modifier.align(Alignment.TopEnd)
+                                ) {
+                                    Text(
+                                        text = if (unreadMessages.size > 9) "9+" else unreadMessages.size.toString(),
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -130,14 +160,24 @@ fun TeacherDashboardScreen(
                         ) {
                             DropdownMenuItem(
                                 text = { Text("Mi Perfil") },
-                                onClick = { /* TODO */ },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(
+                                        com.oriundo.lbretaappestudiantil.ui.theme.Screen.TeacherProfile.route
+                                    )
+                                },
                                 leadingIcon = {
                                     Icon(Icons.Filled.Person, null)
                                 }
                             )
                             DropdownMenuItem(
                                 text = { Text("Configuración") },
-                                onClick = { /* TODO */ },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(
+                                        com.oriundo.lbretaappestudiantil.ui.theme.Screen.TeacherSettings.route
+                                    )
+                                },
                                 leadingIcon = {
                                     Icon(Icons.Filled.Settings, null)
                                 }
@@ -195,7 +235,7 @@ fun TeacherDashboardScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Quick Stats - AHORA DINÁMICO
+            // Quick Stats - DINÁMICO
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -204,7 +244,7 @@ fun TeacherDashboardScreen(
             ) {
                 StatCard(
                     title = "Cursos",
-                    value = teacherClasses.size.toString(),  // ← CAMBIADO
+                    value = teacherClasses.size.toString(),
                     icon = Icons.Filled.Class,
                     gradient = AppColors.PrimaryGradient,
                     modifier = Modifier.weight(1f),
@@ -212,7 +252,7 @@ fun TeacherDashboardScreen(
                 )
                 StatCard(
                     title = "Estudiantes",
-                    value = "0",  // TODO: Sumar estudiantes cuando tengas la tabla
+                    value = "0",
                     icon = Icons.Filled.People,
                     gradient = AppColors.SecondaryGradient,
                     modifier = Modifier.weight(1f),
@@ -238,11 +278,18 @@ fun TeacherDashboardScreen(
                 )
                 StatCard(
                     title = "Mensajes",
-                    value = "0",
+                    value = unreadMessages.size.toString(),  // ✅ CONECTADO
                     icon = Icons.AutoMirrored.Filled.Message,
                     gradient = AppColors.ErrorGradient,
                     modifier = Modifier.weight(1f),
-                    onClick = { }
+                    onClick = {
+                        // ✅ CONECTADO: Click navega a notificaciones
+                        navController.navigate(
+                            com.oriundo.lbretaappestudiantil.ui.theme.Screen.TeacherNotifications.createRoute(
+                                userWithProfile.profile.id
+                            )
+                        )
+                    }
                 )
             }
 
@@ -305,7 +352,7 @@ fun TeacherDashboardScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Mis Cursos - AHORA DINÁMICO
+            // Mis Cursos - DINÁMICO
             Column(
                 modifier = Modifier.padding(horizontal = 24.dp)
             ) {
@@ -320,7 +367,7 @@ fun TeacherDashboardScreen(
                         fontWeight = FontWeight.Bold
                     )
 
-                    if (teacherClasses.isNotEmpty()) {  // ← CAMBIADO
+                    if (teacherClasses.isNotEmpty()) {
                         TextButton(onClick = { /* TODO: Ver todos */ }) {
                             Text("Ver todos")
                             Icon(
@@ -334,7 +381,6 @@ fun TeacherDashboardScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // ← CAMBIADO: Mostrar cursos reales o mensaje vacío
                 if (teacherClasses.isEmpty()) {
                     // Estado vacío
                     Card(
@@ -378,7 +424,7 @@ fun TeacherDashboardScreen(
                         ClassCard(
                             className = classEntity.className,
                             schoolName = classEntity.schoolName,
-                            studentCount = 0,  // TODO: Contar estudiantes reales
+                            studentCount = 0,
                             code = classEntity.classCode,
                             recentActivity = "Todo al día",
                             onClick = { onNavigateToClassDetail(classEntity.id) }

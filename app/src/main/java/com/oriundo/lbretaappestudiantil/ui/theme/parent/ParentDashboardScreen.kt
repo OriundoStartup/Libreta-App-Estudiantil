@@ -62,11 +62,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType
 import com.oriundo.lbretaappestudiantil.data.local.models.RequestStatus
 import com.oriundo.lbretaappestudiantil.data.local.models.UrgencyLevel
 import com.oriundo.lbretaappestudiantil.domain.model.StudentWithClass
 import com.oriundo.lbretaappestudiantil.domain.model.UserWithProfile
+import com.oriundo.lbretaappestudiantil.ui.theme.Screen
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AnnotationViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AttendanceViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.MaterialRequestViewModel
@@ -81,6 +83,7 @@ import java.util.Locale
 fun ParentDashboardScreen(
     userWithProfile: UserWithProfile,
     onLogout: () -> Unit,
+    navController: NavController,
     studentViewModel: StudentViewModel = hiltViewModel(),
     annotationViewModel: AnnotationViewModel = hiltViewModel(),
     attendanceViewModel: AttendanceViewModel = hiltViewModel(),
@@ -135,7 +138,13 @@ fun ParentDashboardScreen(
                 },
                 actions = {
                     // Notificaciones con contador real
-                    IconButton(onClick = { /* TODO: Ver notificaciones */ }) {
+                    IconButton(
+                        onClick = {
+                            navController.navigate(
+                                Screen.Notifications.createRoute(parentId = userWithProfile.profile.id)
+                            )
+                        }
+                    ) {
                         if (unreadAnnotations.isNotEmpty()) {
                             BadgedBox(
                                 badge = {
@@ -171,12 +180,18 @@ fun ParentDashboardScreen(
                         ) {
                             DropdownMenuItem(
                                 text = { Text("Mi Perfil") },
-                                onClick = { /* TODO */ },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.ParentProfile.route)
+                                },
                                 leadingIcon = { Icon(Icons.Filled.Person, null) }
                             )
                             DropdownMenuItem(
                                 text = { Text("Configuración") },
-                                onClick = { /* TODO */ },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.ParentSettings.route)
+                                },
                                 leadingIcon = { Icon(Icons.Filled.Settings, null) }
                             )
                             HorizontalDivider()

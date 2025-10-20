@@ -33,4 +33,13 @@ interface MessageDao {
 
     @Query("SELECT COUNT(*) FROM messages WHERE recipient_id = :userId AND is_read = 0")
     fun getUnreadCount(userId: Int): Flow<Int>
+
+    @Query("""
+        SELECT * FROM messages 
+        WHERE recipient_id = :teacherId 
+        AND is_read = 0 
+        ORDER BY sent_date DESC
+    """)
+    fun getUnreadMessagesForTeacher(teacherId: Int): Flow<List<MessageEntity>>
+
 }

@@ -14,14 +14,20 @@ import com.oriundo.lbretaappestudiantil.ui.theme.auth.LoginScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.auth.ParentRegisterScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.auth.RoleSelectionScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.auth.TeacherRegisterScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.parent.NotificationsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentDashboardScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentProfileScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentSettingsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.ClassStudentsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateAnnotationScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateClassScreen
-import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TakeAttendanceScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateEventScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.teacher.NotificationsScreenTeacher
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.StudentDetailScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TakeAttendanceScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherDashboardScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherProfileScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherSettingsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AuthViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ClassViewModel
 
@@ -34,6 +40,10 @@ sealed class Screen(val route: String) {
     object TeacherDashboard : Screen("teacher_dashboard")
     object ParentDashboard : Screen("parent_dashboard")
     object CreateClass : Screen("create_class")
+    object TeacherProfile : Screen("teacher_profile")
+    object TeacherSettings : Screen("teacher_settings")
+    object ParentProfile : Screen("parent_profile")
+    object ParentSettings : Screen("parent_settings")
 
     object ClassStudents : Screen("class_students/{classId}") {
         fun createRoute(classId: Int) = "class_students/$classId"
@@ -53,6 +63,13 @@ sealed class Screen(val route: String) {
     }
     object TakeAttendance : Screen("take_attendance/{classId}/{teacherId}") {
         fun createRoute(classId: Int, teacherId: Int) = "take_attendance/$classId/$teacherId"
+    }
+    object Notifications : Screen("notifications/{parentId}") {
+        fun createRoute(parentId: Int) = "notifications/$parentId"
+    }
+
+    object TeacherNotifications : Screen("teacher_notifications/{teacherId}") {
+        fun createRoute(teacherId: Int) = "teacher_notifications/$teacherId"
     }
 }
 
@@ -136,6 +153,7 @@ fun AppNavigation(
             currentUser?.let { user ->
                 TeacherDashboardScreen(
                     userWithProfile = user,
+                    navController = navController,  // ← ESTE PARÁMETRO DEBE ESTAR
                     onNavigateToCreateClass = {
                         navController.navigate(Screen.CreateClass.route)
                     },
@@ -157,6 +175,7 @@ fun AppNavigation(
             currentUser?.let { user ->
                 ParentDashboardScreen(
                     userWithProfile = user,
+                    navController = navController,  // ✅ AGREGADO
                     onLogout = {
                         authViewModel.logout()
                         navController.navigate(Screen.RoleSelection.route) {
@@ -273,5 +292,69 @@ fun AppNavigation(
                 navController = navController
             )
         }
+        // Notifications Screen (Parents)
+        composable(
+            route = Screen.Notifications.route,
+            arguments = listOf(
+                navArgument("parentId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val parentId = backStackEntry.arguments?.getInt("parentId") ?: 0
+
+            NotificationsScreen(
+                parentId = parentId,
+                navController = navController
+            )
+        }
+
+        // Notifications Screen (Teachers)
+        composable(
+            route = Screen.TeacherNotifications.route,
+            arguments = listOf(
+                navArgument("teacherId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val teacherId = backStackEntry.arguments?.getInt("teacherId") ?: 0
+
+            NotificationsScreenTeacher(
+                teacherId = teacherId,
+                navController = navController
+            )
+
+        }
+        // Perfil Profesor
+        composable(Screen.TeacherProfile.route) {
+            currentUser?.let { user ->
+                TeacherProfileScreen(
+                    userWithProfile = user,
+                    navController = navController
+                )
+            }
+        }
+
+// Configuración Profesor
+        composable(Screen.TeacherSettings.route) {
+            TeacherSettingsScreen(
+                navController = navController
+            )
+        }
+
+// Perfil Padre
+        composable(Screen.ParentProfile.route) {
+            currentUser?.let { user ->
+                ParentProfileScreen(
+                    userWithProfile = user,
+                    navController = navController
+                )
+            }
+        }
+
+// Configuración Padre
+        composable(Screen.ParentSettings.route) {
+            ParentSettingsScreen(
+                navController = navController
+            )
+        }
+
     }
 }

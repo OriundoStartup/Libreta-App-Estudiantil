@@ -66,4 +66,7 @@ class MessageRepositoryImpl@Inject constructor(
     override fun getUnreadCount(userId: Int): Flow<Int> {
         return messageDao.getUnreadCount(userId)
     }
+    override fun getUnreadMessagesForTeacher(teacherId: Int): Flow<List<MessageEntity>> {
+        return messageDao.getUnreadMessagesForTeacher(teacherId)
+    }
 }
