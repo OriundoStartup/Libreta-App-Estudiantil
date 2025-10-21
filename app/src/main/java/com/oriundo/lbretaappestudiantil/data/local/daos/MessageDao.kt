@@ -40,6 +40,14 @@ interface MessageDao {
         AND is_read = 0 
         ORDER BY sent_date DESC
     """)
+
     fun getUnreadMessagesForTeacher(teacherId: Int): Flow<List<MessageEntity>>
+    // ✅ NUEVO - Para obtener mensajes enviados por el profesor
+    @Query("""
+    SELECT * FROM messages 
+    WHERE sender_id = :teacherId 
+    ORDER BY sent_date DESC
+""")
+    fun getSentMessagesByTeacher(teacherId: Int): Flow<List<MessageEntity>>
 
 }

@@ -118,4 +118,29 @@ class StudentRepositoryImpl @Inject constructor(
     override fun getParentsByStudent(studentId: Int): Flow<List<ProfileEntity>> {
         return studentParentRelationDao.getParentsByStudent(studentId)
     }
+    override fun getAllStudentsWithClass(): Flow<List<StudentWithClass>> {
+        return studentDao.getAllStudentsWithClassAndParent().map { dtoList ->
+            dtoList.mapNotNull { dto ->
+                val classEntity = classDao.getClassById(dto.classId)
+                classEntity?.let {
+                    StudentWithClass(
+                        student = StudentEntity(
+                            id = dto.id,
+                            classId = dto.classId,
+                            rut = dto.rut,
+                            firstName = dto.firstName,
+                            lastName = dto.lastName,
+                            birthDate = dto.birthDate,
+                            photoUrl = dto.photoUrl,
+                            enrollmentDate = dto.enrollmentDate,
+                            isActive = dto.isActive,
+                            notes = dto.notes
+                        ),
+                        classEntity = it,
+                        primaryParentId = dto.primaryParentId // ✅ Incluye el parentId
+                    )
+                }
+            }
+        }
+    }
 }

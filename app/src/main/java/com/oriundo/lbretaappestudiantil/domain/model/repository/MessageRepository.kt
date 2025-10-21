@@ -18,4 +18,6 @@ interface MessageRepository {
     suspend fun markAsRead(messageId: Int): ApiResult<Unit>
     fun getUnreadCount(userId: Int): Flow<Int>
     fun getUnreadMessagesForTeacher(teacherId: Int): Flow<List<MessageEntity>>
+    fun getSentMessagesByTeacher(teacherId: Int): Flow<List<MessageEntity>>
+
 }

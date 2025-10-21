@@ -71,6 +71,13 @@ sealed class Screen(val route: String) {
     object TeacherNotifications : Screen("teacher_notifications/{teacherId}") {
         fun createRoute(teacherId: Int) = "teacher_notifications/$teacherId"
     }
+    object TeacherMessages : Screen("teacher_messages/{teacherId}") {
+        fun createRoute(teacherId: Int) = "teacher_messages/$teacherId"
+    }
+
+    object SendMessage : Screen("send_message/{teacherId}") {
+        fun createRoute(teacherId: Int) = "send_message/$teacherId"
+    }
 }
 
 @Composable

@@ -69,4 +69,8 @@ class MessageRepositoryImpl@Inject constructor(
     override fun getUnreadMessagesForTeacher(teacherId: Int): Flow<List<MessageEntity>> {
         return messageDao.getUnreadMessagesForTeacher(teacherId)
     }
+    override fun getSentMessagesByTeacher(teacherId: Int): Flow<List<MessageEntity>> {
+        return messageDao.getSentMessagesByTeacher(teacherId)
+    }
+
 }

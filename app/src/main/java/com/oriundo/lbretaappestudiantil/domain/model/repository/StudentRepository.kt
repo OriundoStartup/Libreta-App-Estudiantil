@@ -27,4 +27,6 @@ interface StudentRepository {
         isPrimary: Boolean
     ): ApiResult<Unit>
     fun getParentsByStudent(studentId: Int): Flow<List<ProfileEntity>>
+    // ✅ NUEVO - Para obtener todos los estudiantes con sus clases (selector de mensajes)
+    fun getAllStudentsWithClass(): Flow<List<StudentWithClass>>
 }

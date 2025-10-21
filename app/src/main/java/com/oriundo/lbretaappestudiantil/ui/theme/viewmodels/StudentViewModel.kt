@@ -28,7 +28,7 @@ class StudentViewModel @Inject constructor( // 6. Inyección del Repository
     private val studentRepository: StudentRepository // Se inyecta la interfaz
 ) : ViewModel() { // 7. Heredamos de ViewModel
 
-    // ELIMINADA: private val studentRepository = RepositoryProvider.provideStudentDao(database = LibretAppDatabase.getDatabase(application))
+    //  private val studentRepository = RepositoryProvider.provideStudentDao(database = LibretAppDatabase.getDatabase(application))
 
     private val _uiState = MutableStateFlow<StudentUiState>(StudentUiState.Initial)
     val uiState: StateFlow<StudentUiState> = _uiState.asStateFlow()
@@ -41,6 +41,19 @@ class StudentViewModel @Inject constructor( // 6. Inyección del Repository
 
     private val _selectedStudent = MutableStateFlow<StudentEntity?>(null)
     val selectedStudent: StateFlow<StudentEntity?> = _selectedStudent.asStateFlow()
+
+    // ✅ NUEVO - Para selector de estudiantes en envío de mensajes
+    private val _allStudents = MutableStateFlow<List<StudentWithClass>>(emptyList())
+    val allStudents: StateFlow<List<StudentWithClass>> = _allStudents.asStateFlow()
+
+    fun loadAllStudents() {
+        viewModelScope.launch {
+            // Necesitarás agregar este método al StudentRepository también
+            studentRepository.getAllStudentsWithClass().collect { students ->
+                _allStudents.value = students
+            }
+        }
+    }
 
     fun loadStudentsByClass(classId: Int) {
         viewModelScope.launch {

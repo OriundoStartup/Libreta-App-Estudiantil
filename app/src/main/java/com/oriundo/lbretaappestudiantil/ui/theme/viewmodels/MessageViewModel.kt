@@ -1,17 +1,16 @@
 package com.oriundo.lbretaappestudiantil.ui.theme.viewmodels
 
-import androidx.lifecycle.ViewModel // 1. Usamos ViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.oriundo.lbretaappestudiantil.data.local.models.MessageEntity
-// Se elimina la importación del obsoleto RepositoryProvider
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
-import com.oriundo.lbretaappestudiantil.domain.model.repository.MessageRepository // Importamos la interfaz del Repository
-import dagger.hilt.android.lifecycle.HiltViewModel // 2. Importación clave de Hilt
+import com.oriundo.lbretaappestudiantil.domain.model.repository.MessageRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import javax.inject.Inject // 3. Importación para Inyección
+import javax.inject.Inject
 
 sealed class MessageUiState {
     object Initial : MessageUiState()
@@ -20,11 +19,10 @@ sealed class MessageUiState {
     data class Error(val message: String) : MessageUiState()
 }
 
-@HiltViewModel // 4. Anotación para que Hilt sepa cómo construir este ViewModel
-class MessageViewModel @Inject constructor( // 5. Inyección del Repository
+@HiltViewModel
+class MessageViewModel @Inject constructor(
     private val messageRepository: MessageRepository
-) : ViewModel() { // 6. Heredamos de ViewModel
-
+) : ViewModel() {
 
     private val _sendState = MutableStateFlow<MessageUiState>(MessageUiState.Initial)
     val sendState: StateFlow<MessageUiState> = _sendState.asStateFlow()
@@ -40,6 +38,22 @@ class MessageViewModel @Inject constructor( // 5. Inyección del Repository
 
     private val _unreadMessages = MutableStateFlow<List<MessageEntity>>(emptyList())
     val unreadMessages: StateFlow<List<MessageEntity>> = _unreadMessages.asStateFlow()
+
+    // ✅ Para historial de mensajes enviados
+    private val _sentMessages = MutableStateFlow<List<MessageEntity>>(emptyList())
+    val sentMessages: StateFlow<List<MessageEntity>> = _sentMessages.asStateFlow()
+
+    fun loadSentMessagesByTeacher(teacherId: Int) {
+        viewModelScope.launch {
+            try {
+                messageRepository.getSentMessagesByTeacher(teacherId).collect { messages ->
+                    _sentMessages.value = messages
+                }
+            } catch (e: Exception) {
+                _sentMessages.value = emptyList()
+            }
+        }
+    }
 
     fun sendMessage(
         senderId: Int,
@@ -61,7 +75,32 @@ class MessageViewModel @Inject constructor( // 5. Inyección del Repository
                 parentMessageId = parentMessageId
             )
 
-            // CORRECCIÓN del bloque 'when': Se hace limpio y exhaustivo
+            _sendState.value = when (result) {
+                is ApiResult.Success -> MessageUiState.Success(result.data)
+                is ApiResult.Error -> MessageUiState.Error(result.message)
+                ApiResult.Loading -> MessageUiState.Loading
+            }
+        }
+    }
+
+    // ✅ NUEVO - Método específico para enviar mensaje a padres
+    fun sendMessageToParent(
+        teacherId: Int,
+        parentId: Int,
+        subject: String,
+        content: String
+    ) {
+        viewModelScope.launch {
+            _sendState.value = MessageUiState.Loading
+
+            val result = messageRepository.sendMessage(
+                senderId = teacherId,
+                recipientId = parentId,
+                studentId = null,
+                subject = subject,
+                content = content
+            )
+
             _sendState.value = when (result) {
                 is ApiResult.Success -> MessageUiState.Success(result.data)
                 is ApiResult.Error -> MessageUiState.Error(result.message)
@@ -115,6 +154,7 @@ class MessageViewModel @Inject constructor( // 5. Inyección del Repository
             }
         }
     }
+
     fun markMessageAsRead(messageId: Int) {
         viewModelScope.launch {
             messageRepository.markAsRead(messageId)

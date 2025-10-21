@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.oriundo.lbretaappestudiantil.data.local.models.StudentEntity
+import com.oriundo.lbretaappestudiantil.data.local.models.StudentWithClassAndParentDto
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -37,6 +38,23 @@ interface StudentDao {
         WHERE spr.parent_id = :parentId
     """)
     fun getStudentsByParent(parentId: Int): Flow<List<StudentEntity>>
+    // ✅ NUEVO - Para obtener todos los estudiantes con clase y apoderado principal
+    @Query("""
+    SELECT 
+        s.*,
+        c.id as class_id,
+        c.class_name as class_name,
+        c.school_name as school_name,
+        c.class_code as class_code,
+        c.teacher_id as teacher_id,
+        spr.parent_id as primary_parent_id
+    FROM students s
+    INNER JOIN classes c ON s.class_id = c.id
+    LEFT JOIN student_parent_relation spr ON s.id = spr.student_id AND spr.is_primary = 1
+    WHERE s.is_active = 1
+    ORDER BY c.class_name, s.last_name, s.first_name
+""")
+    fun getAllStudentsWithClassAndParent(): Flow<List<StudentWithClassAndParentDto>>
 
     // MÉTODOS ELIMINADOS: linkParentToStudent y registerStudent
     // Estos deben ser implementados en el StudentRepository, no aquí.
