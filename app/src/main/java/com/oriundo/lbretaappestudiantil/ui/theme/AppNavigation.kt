@@ -1,5 +1,4 @@
 package com.oriundo.lbretaappestudiantil.ui.theme
-
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -14,16 +13,20 @@ import com.oriundo.lbretaappestudiantil.ui.theme.auth.LoginScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.auth.ParentRegisterScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.auth.RoleSelectionScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.auth.TeacherRegisterScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.parent.ConversationThreadScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.NotificationsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentDashboardScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentProfileScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentSendMessageScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentSettingsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.ClassStudentsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateAnnotationScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateClassScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateEventScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.NotificationsScreenTeacher
+import com.oriundo.lbretaappestudiantil.ui.theme.teacher.SendMessageScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.StudentDetailScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.teacher.StudentHistoryScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TakeAttendanceScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherDashboardScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherProfileScreen
@@ -31,55 +34,133 @@ import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherSettingsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AuthViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ClassViewModel
 
-// Rutas de navegación
-sealed class Screen(val route: String) {
-    object RoleSelection : Screen("role_selection")
-    object Login : Screen("login")
-    object TeacherRegister : Screen("teacher_register")
-    object ParentRegister : Screen("parent_register")
-    object TeacherDashboard : Screen("teacher_dashboard")
-    object ParentDashboard : Screen("parent_dashboard")
-    object CreateClass : Screen("create_class")
-    object TeacherProfile : Screen("teacher_profile")
-    object TeacherSettings : Screen("teacher_settings")
-    object ParentProfile : Screen("parent_profile")
-    object ParentSettings : Screen("parent_settings")
+// ============================================================================
+// DEFINICIÓN DE RUTAS DE NAVEGACIÓN
+// ============================================================================
 
+/**
+ * Sealed class que define todas las rutas de navegación de la aplicación.
+ * Cada objeto representa una pantalla con su ruta y parámetros asociados.
+ */
+sealed class Screen(val route: String) {
+
+    // ========================================
+    // RUTAS DE AUTENTICACIÓN
+    // ========================================
+
+    /** Pantalla de selección de rol (Profesor/Apoderado) */
+    object RoleSelection : Screen("role_selection")
+
+    /** Pantalla de inicio de sesión */
+    object Login : Screen("login")
+
+    /** Pantalla de registro para profesores */
+    object TeacherRegister : Screen("teacher_register")
+
+    /** Pantalla de registro para apoderados */
+    object ParentRegister : Screen("parent_register")
+
+    // ========================================
+    // RUTAS DE PROFESOR
+    // ========================================
+
+    /** Dashboard principal del profesor */
+    object TeacherDashboard : Screen("teacher_dashboard")
+
+    /** Perfil del profesor */
+    object TeacherProfile : Screen("teacher_profile")
+
+    /** Configuración del profesor */
+    object TeacherSettings : Screen("teacher_settings")
+
+    /** Crear nueva clase */
+    object CreateClass : Screen("create_class")
+
+    /** Ver estudiantes de una clase específica */
     object ClassStudents : Screen("class_students/{classId}") {
         fun createRoute(classId: Int) = "class_students/$classId"
     }
 
+    /** Ver detalles de un estudiante */
     object StudentDetail : Screen("student_detail/{studentId}/{classId}") {
         fun createRoute(studentId: Int, classId: Int) = "student_detail/$studentId/$classId"
     }
 
+    /** Crear anotación para un estudiante */
     object CreateAnnotation : Screen("create_annotation/{studentId}/{classId}/{teacherId}") {
         fun createRoute(studentId: Int, classId: Int, teacherId: Int) =
             "create_annotation/$studentId/$classId/$teacherId"
     }
 
+    /** Crear evento escolar */
     object CreateEvent : Screen("create_event/{teacherId}/{classId}") {
         fun createRoute(teacherId: Int, classId: Int) = "create_event/$teacherId/$classId"
     }
+
+    /** Tomar asistencia de la clase */
     object TakeAttendance : Screen("take_attendance/{classId}/{teacherId}") {
         fun createRoute(classId: Int, teacherId: Int) = "take_attendance/$classId/$teacherId"
     }
-    object Notifications : Screen("notifications/{parentId}") {
-        fun createRoute(parentId: Int) = "notifications/$parentId"
-    }
 
+    /** Notificaciones del profesor */
     object TeacherNotifications : Screen("teacher_notifications/{teacherId}") {
         fun createRoute(teacherId: Int) = "teacher_notifications/$teacherId"
     }
+
+    /** Bandeja de mensajes del profesor (sin uso actualmente) */
     object TeacherMessages : Screen("teacher_messages/{teacherId}") {
         fun createRoute(teacherId: Int) = "teacher_messages/$teacherId"
     }
 
+    /** Enviar mensaje a apoderados (profesor) */
     object SendMessage : Screen("send_message/{teacherId}") {
         fun createRoute(teacherId: Int) = "send_message/$teacherId"
     }
+
+    /** Ver historial completo del estudiante */
+    object StudentHistory : Screen("student_history/{studentId}/{classId}") {
+        fun createRoute(studentId: Int, classId: Int) = "student_history/$studentId/$classId"
+    }
+
+    // ========================================
+    // RUTAS DE APODERADO
+    // ========================================
+
+    /** Dashboard principal del apoderado */
+    object ParentDashboard : Screen("parent_dashboard")
+
+    /** Perfil del apoderado */
+    object ParentProfile : Screen("parent_profile")
+
+    /** Configuración del apoderado */
+    object ParentSettings : Screen("parent_settings")
+
+    /** Notificaciones del apoderado */
+    object Notifications : Screen("notifications/{parentId}") {
+        fun createRoute(parentId: Int) = "notifications/$parentId"
+    }
+
+    /** Conversación individual con un profesor */
+    object ParentConversation : Screen("parent_conversation/{parentId}/{teacherId}/{studentId}") {
+        fun createRoute(parentId: Int, teacherId: Int, studentId: Int?) =
+            "parent_conversation/$parentId/$teacherId/${studentId ?: 0}"
+    }
+
+    /** Enviar nuevo mensaje a un profesor (apoderado) */
+    object ParentSendMessage : Screen("parent_send_message/{parentId}") {
+        fun createRoute(parentId: Int) = "parent_send_message/$parentId"
+    }
 }
 
+// ============================================================================
+// CONFIGURACIÓN DE NAVEGACIÓN
+// ============================================================================
+
+/**
+ * Composable principal que configura toda la navegación de la aplicación.
+ *
+ * @param navController Controlador de navegación de Jetpack Compose
+ */
 @Composable
 fun AppNavigation(
     navController: NavHostController = rememberNavController()
@@ -91,6 +172,12 @@ fun AppNavigation(
         navController = navController,
         startDestination = Screen.RoleSelection.route
     ) {
+
+        // ====================================================================
+        // PANTALLAS DE AUTENTICACIÓN
+        // ====================================================================
+
+        // Selección de rol
         composable(Screen.RoleSelection.route) {
             RoleSelectionScreen(
                 onNavigateToTeacherRegister = {
@@ -105,6 +192,7 @@ fun AppNavigation(
             )
         }
 
+        // Login
         composable(Screen.Login.route) {
             LoginScreen(
                 onNavigateToRegister = {
@@ -126,6 +214,7 @@ fun AppNavigation(
             )
         }
 
+        // Registro de profesor
         composable(Screen.TeacherRegister.route) {
             TeacherRegisterScreen(
                 onNavigateBack = {
@@ -140,6 +229,7 @@ fun AppNavigation(
             )
         }
 
+        // Registro de apoderado
         composable(Screen.ParentRegister.route) {
             ParentRegisterScreen(
                 onNavigateBack = {
@@ -154,13 +244,18 @@ fun AppNavigation(
             )
         }
 
+        // ====================================================================
+        // PANTALLAS PRINCIPALES - DASHBOARDS
+        // ====================================================================
+
+        // Dashboard del profesor
         composable(Screen.TeacherDashboard.route) {
             val classViewModel: ClassViewModel = hiltViewModel()
 
             currentUser?.let { user ->
                 TeacherDashboardScreen(
                     userWithProfile = user,
-                    navController = navController,  // ← ESTE PARÁMETRO DEBE ESTAR
+                    navController = navController,
                     onNavigateToCreateClass = {
                         navController.navigate(Screen.CreateClass.route)
                     },
@@ -178,11 +273,12 @@ fun AppNavigation(
             }
         }
 
+        // Dashboard del apoderado
         composable(Screen.ParentDashboard.route) {
             currentUser?.let { user ->
                 ParentDashboardScreen(
                     userWithProfile = user,
-                    navController = navController,  // ✅ AGREGADO
+                    navController = navController,
                     onLogout = {
                         authViewModel.logout()
                         navController.navigate(Screen.RoleSelection.route) {
@@ -193,6 +289,11 @@ fun AppNavigation(
             }
         }
 
+        // ====================================================================
+        // GESTIÓN DE CLASES Y ESTUDIANTES
+        // ====================================================================
+
+        // Crear clase
         composable(Screen.CreateClass.route) {
             val classViewModel: ClassViewModel = hiltViewModel()
 
@@ -208,6 +309,7 @@ fun AppNavigation(
             )
         }
 
+        // Ver estudiantes de una clase
         composable(
             route = Screen.ClassStudents.route,
             arguments = listOf(
@@ -229,6 +331,7 @@ fun AppNavigation(
             )
         }
 
+        // Detalle de estudiante
         composable(
             route = Screen.StudentDetail.route,
             arguments = listOf(
@@ -245,7 +348,31 @@ fun AppNavigation(
                 navController = navController
             )
         }
+        // Historial del estudiante
+        composable(
+            route = Screen.StudentHistory.route,
+            arguments = listOf(
+                navArgument("studentId") { type = NavType.IntType },
+                navArgument("classId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val studentId = backStackEntry.arguments?.getInt("studentId") ?: 0
+            val classId = backStackEntry.arguments?.getInt("classId") ?: 0
 
+            StudentHistoryScreen(
+                studentId = studentId,
+                classId = classId,
+                navController = navController
+            )
+        }
+
+
+
+        // ====================================================================
+        // ANOTACIONES Y EVENTOS
+        // ====================================================================
+
+        // Crear anotación
         composable(
             route = Screen.CreateAnnotation.route,
             arguments = listOf(
@@ -269,6 +396,7 @@ fun AppNavigation(
             )
         }
 
+        // Crear evento
         composable(
             route = Screen.CreateEvent.route,
             arguments = listOf(
@@ -283,6 +411,12 @@ fun AppNavigation(
                 teacherId = teacherId
             )
         }
+
+        // ====================================================================
+        // ASISTENCIA
+        // ====================================================================
+
+        // Tomar asistencia
         composable(
             route = Screen.TakeAttendance.route,
             arguments = listOf(
@@ -299,7 +433,12 @@ fun AppNavigation(
                 navController = navController
             )
         }
-        // Notifications Screen (Parents)
+
+        // ====================================================================
+        // NOTIFICACIONES
+        // ====================================================================
+
+        // Notificaciones de apoderado
         composable(
             route = Screen.Notifications.route,
             arguments = listOf(
@@ -314,7 +453,7 @@ fun AppNavigation(
             )
         }
 
-        // Notifications Screen (Teachers)
+        // Notificaciones de profesor
         composable(
             route = Screen.TeacherNotifications.route,
             arguments = listOf(
@@ -327,9 +466,66 @@ fun AppNavigation(
                 teacherId = teacherId,
                 navController = navController
             )
-
         }
-        // Perfil Profesor
+
+        // ====================================================================
+        // SISTEMA DE MENSAJERÍA
+        // ====================================================================
+
+        // Enviar mensaje (Profesor → Apoderados)
+        composable(
+            route = Screen.SendMessage.route,
+            arguments = listOf(
+                navArgument("teacherId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val teacherId = backStackEntry.arguments?.getInt("teacherId") ?: 0
+
+            SendMessageScreen(
+                teacherId = teacherId,
+                navController = navController
+            )
+        }
+
+        // Conversación individual (Apoderado ↔ Profesor)
+        composable(
+            route = Screen.ParentConversation.route,
+            arguments = listOf(
+                navArgument("parentId") { type = NavType.IntType },
+                navArgument("teacherId") { type = NavType.IntType },
+                navArgument("studentId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val parentId = backStackEntry.arguments?.getInt("parentId") ?: 0
+            val teacherId = backStackEntry.arguments?.getInt("teacherId") ?: 0
+
+            ConversationThreadScreen(
+                parentId = parentId,
+                teacherId = teacherId,
+                navController = navController
+            )
+        }
+
+        // Enviar nuevo mensaje (Apoderado → Profesor)
+        composable(
+            route = Screen.ParentSendMessage.route,
+            arguments = listOf(
+                navArgument("parentId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val parentId = backStackEntry.arguments?.getInt("parentId") ?: 0
+
+            ParentSendMessageScreen(
+                parentId = parentId,
+                navController = navController
+            )
+        }
+
+        // ====================================================================
+        // PERFILES Y CONFIGURACIÓN
+        // ====================================================================
+
+        // Perfil del profesor
         composable(Screen.TeacherProfile.route) {
             currentUser?.let { user ->
                 TeacherProfileScreen(
@@ -339,14 +535,14 @@ fun AppNavigation(
             }
         }
 
-// Configuración Profesor
+        // Configuración del profesor
         composable(Screen.TeacherSettings.route) {
             TeacherSettingsScreen(
                 navController = navController
             )
         }
 
-// Perfil Padre
+        // Perfil del apoderado
         composable(Screen.ParentProfile.route) {
             currentUser?.let { user ->
                 ParentProfileScreen(
@@ -356,12 +552,11 @@ fun AppNavigation(
             }
         }
 
-// Configuración Padre
+        // Configuración del apoderado
         composable(Screen.ParentSettings.route) {
             ParentSettingsScreen(
                 navController = navController
             )
         }
-
     }
 }

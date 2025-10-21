@@ -1,19 +1,16 @@
 package com.oriundo.lbretaappestudiantil.ui.theme.viewmodels
 
-import androidx.lifecycle.ViewModel // 1. Usamos ViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.oriundo.lbretaappestudiantil.data.local.models.ProfileEntity
-// Se elimina la importación de RepositoryProvider
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
-import com.oriundo.lbretaappestudiantil.domain.model.repository.ProfileRepository // Importamos la interfaz
-import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ProfileUiState.*
-import dagger.hilt.android.lifecycle.HiltViewModel // 2. Importación de Hilt
+import com.oriundo.lbretaappestudiantil.domain.model.repository.ProfileRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import javax.inject.Inject // 3. Importación para Inyección
-
+import javax.inject.Inject
 
 sealed class ProfileUiState {
     object Initial : ProfileUiState()
@@ -22,48 +19,46 @@ sealed class ProfileUiState {
     data class Error(val message: String) : ProfileUiState()
 }
 
-@HiltViewModel // 4. Anotación para que Hilt sepa cómo construir
-class ProfileViewModel @Inject constructor( // 5. Inyección del Repository
+@HiltViewModel
+class ProfileViewModel @Inject constructor(
     private val profileRepository: ProfileRepository
-) : ViewModel() { // 6. Heredamos de ViewModel
+) : ViewModel() {
 
-    // ELIMINADA: private val profileRepository = RepositoryProvider.provideProfileRepository(application)
-
-    private val _uiState = MutableStateFlow<ProfileUiState>(Initial)
+    private val _uiState = MutableStateFlow<ProfileUiState>(ProfileUiState.Initial)
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
 
     private val _currentProfile = MutableStateFlow<ProfileEntity?>(null)
     val currentProfile: StateFlow<ProfileEntity?> = _currentProfile.asStateFlow()
 
-    fun loadProfile(profileId: Int) {
-        viewModelScope.launch {
-            _uiState.value = Loading
+    // ✅ MODIFICADO - Ahora devuelve ApiResult<ProfileEntity>
+    suspend fun loadProfile(profileId: Int): ApiResult<ProfileEntity> {
+        _uiState.value = ProfileUiState.Loading
 
-            when (val result = profileRepository.getProfileById(profileId)) {
-                // CORRECCIÓN: Se elimina el <*>, ya que el tipo se infiere correctamente.
-                is ApiResult.Success -> {
-                    _currentProfile.value = result.data
-                    _uiState.value = Success(result.data)
-                }
-                is ApiResult.Error -> {
-                    _uiState.value = Error(result.message)
-                }
-                ApiResult.Loading -> {} // No hacemos nada, el estado ya es Loading
+        return when (val result = profileRepository.getProfileById(profileId)) {
+            is ApiResult.Success -> {
+                _currentProfile.value = result.data
+                _uiState.value = ProfileUiState.Success(result.data)
+                result
             }
+            is ApiResult.Error -> {
+                _uiState.value = ProfileUiState.Error(result.message)
+                result
+            }
+            ApiResult.Loading -> ApiResult.Loading
         }
     }
 
     fun loadProfileByUserId(userId: Int) {
         viewModelScope.launch {
-            _uiState.value = Loading
+            _uiState.value = ProfileUiState.Loading
 
             when (val result = profileRepository.getProfileByUserId(userId)) {
                 is ApiResult.Success -> {
                     _currentProfile.value = result.data
-                    _uiState.value = Success(result.data)
+                    _uiState.value = ProfileUiState.Success(result.data)
                 }
                 is ApiResult.Error -> {
-                    _uiState.value = Error(result.message)
+                    _uiState.value = ProfileUiState.Error(result.message)
                 }
                 ApiResult.Loading -> {}
             }
@@ -77,12 +72,11 @@ class ProfileViewModel @Inject constructor( // 5. Inyección del Repository
             when (val result = profileRepository.updateProfile(profile)) {
                 is ApiResult.Success -> {
                     _currentProfile.value = profile
-                    _uiState.value = Success(profile)
+                    _uiState.value = ProfileUiState.Success(profile)
                 }
                 is ApiResult.Error -> {
-                    _uiState.value = Error(result.message)
+                    _uiState.value = ProfileUiState.Error(result.message)
                 }
-                // CORRECCIÓN: Se eliminan las ramas duplicadas e incorrectas.
                 ApiResult.Loading -> {}
             }
         }
@@ -101,6 +95,6 @@ class ProfileViewModel @Inject constructor( // 5. Inyección del Repository
     }
 
     fun resetState() {
-        _uiState.value = Initial
+        _uiState.value = ProfileUiState.Initial
     }
 }

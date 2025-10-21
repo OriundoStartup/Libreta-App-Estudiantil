@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChildCare
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
@@ -64,14 +63,12 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType
-import com.oriundo.lbretaappestudiantil.data.local.models.RequestStatus
-import com.oriundo.lbretaappestudiantil.data.local.models.UrgencyLevel
 import com.oriundo.lbretaappestudiantil.domain.model.StudentWithClass
 import com.oriundo.lbretaappestudiantil.domain.model.UserWithProfile
 import com.oriundo.lbretaappestudiantil.ui.theme.Screen
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AnnotationViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AttendanceViewModel
-import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.MaterialRequestViewModel
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.MessageViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.SchoolEventViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentViewModel
 import java.text.SimpleDateFormat
@@ -88,7 +85,7 @@ fun ParentDashboardScreen(
     annotationViewModel: AnnotationViewModel = hiltViewModel(),
     attendanceViewModel: AttendanceViewModel = hiltViewModel(),
     schoolEventViewModel: SchoolEventViewModel = hiltViewModel(),
-    materialRequestViewModel: MaterialRequestViewModel = hiltViewModel()
+    messageViewModel: MessageViewModel = hiltViewModel() // ✅ NUEVO
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -99,13 +96,15 @@ fun ParentDashboardScreen(
     val unreadAnnotations by annotationViewModel.unreadAnnotations.collectAsState()
     val attendanceStats by attendanceViewModel.attendanceStats.collectAsState()
     val eventsByClass by schoolEventViewModel.eventsByClass.collectAsState()
-    val materialRequests by materialRequestViewModel.requestsByStudent.collectAsState()
     val annotationsByStudent by annotationViewModel.annotationsByStudent.collectAsState()
+    val unreadMessagesCount by messageViewModel.unreadCount.collectAsState() // ✅ NUEVO
 
     // Cargar datos del padre
     LaunchedEffect(userWithProfile.profile.id) {
         studentViewModel.loadStudentsByParent(userWithProfile.profile.id)
         annotationViewModel.loadUnreadAnnotationsForParent(userWithProfile.profile.id)
+        messageViewModel.loadUnreadCount(userWithProfile.profile.id) // ✅ NUEVO
+        messageViewModel.loadConversationsForParent(userWithProfile.profile.id) // ✅ NUEVO
     }
 
     // Cargar datos del estudiante seleccionado
@@ -114,7 +113,6 @@ fun ParentDashboardScreen(
             val selectedStudent = studentsByParent[selectedStudentIndex]
             attendanceViewModel.loadAttendanceByStudent(selectedStudent.student.id)
             schoolEventViewModel.loadEventsByClass(selectedStudent.classEntity.id)
-            materialRequestViewModel.loadRequestsByStudent(selectedStudent.student.id)
             annotationViewModel.loadAnnotationsByStudent(selectedStudent.student.id)
         }
     }
@@ -243,7 +241,7 @@ fun ParentDashboardScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // Tabs de navegación
+                // Tabs de navegación - ✅ ACTUALIZADO
                 PrimaryScrollableTabRow(
                     selectedTabIndex = selectedTab,
                     modifier = Modifier.padding(horizontal = 24.dp),
@@ -284,16 +282,29 @@ fun ParentDashboardScreen(
                             }
                         }
                     }
+                    // ✅ TAB ACTUALIZADO - Reemplaza "Materiales" por "Comunicaciones"
                     Tab(
                         selected = selectedTab == 2,
                         onClick = { selectedTab = 2 },
                         modifier = Modifier.clip(RoundedCornerShape(12.dp))
                     ) {
-                        Text(
-                            text = "Materiales",
-                            modifier = Modifier.padding(16.dp),
-                            fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal
-                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Text(
+                                text = "Comunicaciones",
+                                fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal
+                            )
+                            if (unreadMessagesCount > 0) {
+                                Badge(
+                                    containerColor = MaterialTheme.colorScheme.primary
+                                ) {
+                                    Text("$unreadMessagesCount")
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -315,8 +326,10 @@ fun ParentDashboardScreen(
                         1 -> AnotacionesContent(
                             annotations = annotationsByStudent
                         )
-                        2 -> MaterialesContent(
-                            requests = materialRequests
+                        // ✅ REEMPLAZADO - MaterialesContent por ComunicacionesContent
+                        2 -> ComunicacionesContent(
+                            parentId = userWithProfile.profile.id,
+                            navController = navController
                         )
                     }
                 }
@@ -489,59 +502,6 @@ private fun EmptyAnnotationsView() {
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = "No hay anotaciones aún",
-                style = MaterialTheme.typography.titleMedium
-            )
-        }
-    }
-}
-
-@Composable
-fun MaterialesContent(
-    requests: List<com.oriundo.lbretaappestudiantil.data.local.models.MaterialRequestEntity>
-) {
-    Column(
-        modifier = Modifier.padding(horizontal = 24.dp)
-    ) {
-        Text(
-            text = if (requests.isEmpty()) "Sin Solicitudes" else "Solicitudes de Materiales",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (requests.isEmpty()) {
-            EmptyMaterialsView()
-        } else {
-            requests.forEach { request ->
-                MaterialRequestCard(request = request)
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyMaterialsView() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Inventory,
-                contentDescription = null,
-                modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "No hay solicitudes de materiales",
                 style = MaterialTheme.typography.titleMedium
             )
         }
@@ -807,89 +767,6 @@ fun EventCard(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                     fontWeight = FontWeight.Medium
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun MaterialRequestCard(
-    request: com.oriundo.lbretaappestudiantil.data.local.models.MaterialRequestEntity
-) {
-    val urgencyColor = when (request.urgency) {
-        UrgencyLevel.HIGH -> MaterialTheme.colorScheme.error
-        UrgencyLevel.MEDIUM -> MaterialTheme.colorScheme.secondary
-        UrgencyLevel.LOW -> MaterialTheme.colorScheme.tertiary
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Inventory,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = request.material,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = "Cantidad: ${request.quantity}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    request.deadlineDate?.let {
-                        Text(
-                            text = "Para: ${SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(it))}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Chip(
-                    text = "Urgencia: ${request.urgency.name}",
-                    color = urgencyColor.copy(alpha = 0.2f),
-                    textColor = urgencyColor
-                )
-                Chip(
-                    text = request.status.name,
-                    color = if (request.status == RequestStatus.CONFIRMED)
-                        MaterialTheme.colorScheme.tertiaryContainer
-                    else
-                        MaterialTheme.colorScheme.surfaceVariant,
-                    textColor = if (request.status == RequestStatus.CONFIRMED)
-                        MaterialTheme.colorScheme.tertiary
-                    else
-                        MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

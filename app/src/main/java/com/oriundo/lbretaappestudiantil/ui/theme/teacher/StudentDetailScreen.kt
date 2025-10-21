@@ -12,14 +12,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -36,41 +37,53 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.oriundo.lbretaappestudiantil.data.local.models.StudentEntity
+import com.oriundo.lbretaappestudiantil.ui.theme.AppAvatar
+import com.oriundo.lbretaappestudiantil.ui.theme.AppShapes
+import com.oriundo.lbretaappestudiantil.ui.theme.AvatarType
 import com.oriundo.lbretaappestudiantil.ui.theme.Screen
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AuthViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentViewModel
 
-// StudentDetailScreen.kt
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StudentDetailScreen(
     studentId: Int,
     classId: Int,
     navController: NavController,
-    viewModel: StudentViewModel = hiltViewModel()
+    studentViewModel: StudentViewModel = hiltViewModel(),
+    authViewModel: AuthViewModel = hiltViewModel()
 ) {
-    val student by viewModel.selectedStudent.collectAsState()
-    val teacherId = 1 // TODO: Obtener del auth actual
+    val student by studentViewModel.selectedStudent.collectAsState()
+    val currentUser by authViewModel.currentUser.collectAsState()
+    val teacherId = currentUser?.profile?.id ?: 0
 
     LaunchedEffect(studentId) {
-        viewModel.loadStudentById(studentId)
+        studentViewModel.loadStudentById(studentId)
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(student?.fullName ?: "Estudiante") },
+                title = {
+                    Text(
+                        text = student?.fullName ?: "Estudiante",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             )
         }
     ) { padding ->
@@ -78,7 +91,8 @@ fun StudentDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             student?.let { studentData ->
@@ -104,19 +118,28 @@ fun StudentDetailScreen(
                         )
                     }
                 )
-
+                // - Ver historial Del alumno
                 ActionCard(
                     title = "Ver Historial",
                     description = "Consulta anotaciones y asistencia",
                     icon = Icons.Default.History,
-                    onClick = { /* TODO */ }
+                    onClick = {
+                        navController.navigate(
+                            Screen.StudentHistory.createRoute(studentId, classId)
+                        )
+                    }
                 )
 
+                //- Enviar mensaje al apoderado
                 ActionCard(
                     title = "Enviar Mensaje",
                     description = "Comunicarse con los apoderados",
                     icon = Icons.AutoMirrored.Filled.Message,
-                    onClick = { /* TODO */ }
+                    onClick = {
+                        navController.navigate(
+                            Screen.SendMessage.createRoute(teacherId)
+                        )
+                    }
                 )
             }
         }
@@ -127,29 +150,23 @@ fun StudentDetailScreen(
 private fun StudentInfoCard(student: StudentEntity) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = AppShapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
-        )
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
             modifier = Modifier.padding(20.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.primary),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Default.Person,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(40.dp)
-                )
-            }
+            // ✅ NORMALIZADO - Usa AppAvatar
+            AppAvatar(
+                type = AvatarType.STUDENT,
+                size = 72.dp,
+                iconSize = 36.dp
+            )
 
             Column {
                 Text(
@@ -160,7 +177,8 @@ private fun StudentInfoCard(student: StudentEntity) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "RUT: ${student.rut}",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
                 Text(
                     text = "ID: ${student.id}",
@@ -183,6 +201,7 @@ private fun ActionCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
+        shape = AppShapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
@@ -196,7 +215,7 @@ private fun ActionCard(
             Box(
                 modifier = Modifier
                     .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(AppShapes.small)
                     .background(MaterialTheme.colorScheme.secondaryContainer),
                 contentAlignment = Alignment.Center
             ) {

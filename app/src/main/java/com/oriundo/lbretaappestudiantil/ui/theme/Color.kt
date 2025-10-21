@@ -39,6 +39,28 @@ object AppColors {
         )
     )
 
+    // ✅ NUEVOS - Gradientes para avatares (AGREGAR ESTOS)
+    val StudentAvatarGradient = Brush.horizontalGradient(
+        colors = listOf(
+            Color(0xFFEC4899), // Pink
+            Color(0xFFF59E0B)  // Amber
+        )
+    )
+
+    val TeacherAvatarGradient = Brush.horizontalGradient(
+        colors = listOf(
+            Color(0xFF6366F1), // Indigo
+            Color(0xFF8B5CF6)  // Purple
+        )
+    )
+
+    val ParentAvatarGradient = Brush.horizontalGradient(
+        colors = listOf(
+            Color(0xFF06B6D4), // Cyan
+            Color(0xFF3B82F6)  // Blue
+        )
+    )
+
     // Colores sólidos
     val Primary = Color(0xFF6366F1)
     val Secondary = Color(0xFF06B6D4)
