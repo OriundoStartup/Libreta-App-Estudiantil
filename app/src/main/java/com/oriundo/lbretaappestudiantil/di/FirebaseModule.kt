@@ -1,8 +1,5 @@
 package com.oriundo.lbretaappestudiantil.di
 
-// Archivo: com.oriundo.lbretaappestudiantil.di.FirebaseModule.kt
-
-
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.Module
@@ -26,7 +23,4 @@ object FirebaseModule {
     fun provideFirebaseFirestore(): FirebaseFirestore {
         return FirebaseFirestore.getInstance()
     }
-
-
-
 }

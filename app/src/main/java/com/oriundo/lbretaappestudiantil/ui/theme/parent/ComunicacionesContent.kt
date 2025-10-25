@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -11,8 +12,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Message
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -55,12 +56,16 @@ fun ComunicacionesContent(
         messageViewModel.loadConversationsForParent(parentId)
     }
 
-    Box(modifier = Modifier.fillMaxWidth()) {
+    // 1. Box con fillMaxSize para ocupar toda la pantalla y contener el FloatingActionButton
+    Box(modifier = Modifier.fillMaxSize()) { // CAMBIO CLAVE: Usamos fillMaxSize en el Box
+
+        // 2. Column principal para el título y el contenido desplazable.
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize() // CAMBIO CLAVE: Debe ocupar todo el espacio vertical.
                 .padding(horizontal = 24.dp)
         ) {
+            // Título (Altura fija)
             Text(
                 text = "Comunicaciones",
                 style = MaterialTheme.typography.titleLarge,
@@ -69,6 +74,7 @@ fun ComunicacionesContent(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Contenedor principal para la lista
             when (conversationsState) {
                 is MessagesListUiState.Loading -> {
                     Box(
@@ -103,8 +109,14 @@ fun ComunicacionesContent(
                         }
                     }
 
+                    // 3. Column interno que debe tener el desplazamiento.
+                    // Al usar .weight(1f), le decimos que ocupe el resto del espacio vertical
+                    // disponible, lo cual le da una altura FINITA necesaria para .verticalScroll().
                     Column(
-                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f) // OCUPA EL ESPACIO RESTANTE
+                            .verticalScroll(rememberScrollState()), // APLICAMOS EL DESPLAZAMIENTO AQUÍ
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         conversationsByTeacher.forEach { (teacherId, messagesWithTeacher) ->
@@ -133,18 +145,22 @@ fun ComunicacionesContent(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(100.dp))
+                        // NOTA: Quité el Spacer(Modifier.height(100.dp)) dentro del Column desplazable
+                        // para evitar problemas con el padding del BottomEnd del FloatingActionButton.
+                        // Si necesitas padding extra, añádelo al Modifier.padding(bottom=...) del Column desplazable.
                     }
                 }
 
                 is MessagesListUiState.Empty -> {
-                    EmptyMessagesView()
+                    // Nota: Aquí EmptyMessagesView también debe respetar la altura del contenedor
+                    EmptyMessagesView(modifier = Modifier.weight(1f))
                 }
 
                 is MessagesListUiState.Error -> {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .weight(1f) // 👈 OCUPA EL ESPACIO RESTANTE
                             .height(200.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -160,7 +176,7 @@ fun ComunicacionesContent(
             }
         }
 
-        // ✅ NUEVO - Botón flotante para nuevo mensaje
+        // Botón flotante para nuevo mensaje
         FloatingActionButton(
             onClick = {
                 navController.navigate(
@@ -180,11 +196,12 @@ fun ComunicacionesContent(
         }
     }
 }
-
+//... (El resto de la función EmptyMessagesView no requiere cambios,
+//    pero es bueno añadir un parámetro modifier)
 @Composable
-private fun EmptyMessagesView() {
+private fun EmptyMessagesView(modifier: Modifier = Modifier) { // Añadimos el parámetro Modifier
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(), // Usamos el modifier pasado
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
@@ -197,7 +214,7 @@ private fun EmptyMessagesView() {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Icon(
-                imageVector = Icons.Filled.Message,
+                imageVector = Icons.AutoMirrored.Filled.Message,
                 contentDescription = null,
                 modifier = Modifier.size(64.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)

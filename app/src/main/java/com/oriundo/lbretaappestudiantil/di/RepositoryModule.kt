@@ -9,10 +9,8 @@ import com.oriundo.lbretaappestudiantil.data.local.daos.ProfileDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.SchoolEventDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.StudentDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.StudentParentRelationDao
-import com.oriundo.lbretaappestudiantil.data.local.daos.UserDao
 import com.oriundo.lbretaappestudiantil.data.local.repositories.AnnotationRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.AttendanceRepositoryImpl
-import com.oriundo.lbretaappestudiantil.data.local.repositories.AuthRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.ClassRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.MaterialRequestRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.MessageRepositoryImpl
@@ -21,7 +19,6 @@ import com.oriundo.lbretaappestudiantil.data.local.repositories.SchoolEventRepos
 import com.oriundo.lbretaappestudiantil.data.local.repositories.StudentRepositoryImpl
 import com.oriundo.lbretaappestudiantil.domain.model.repository.AnnotationRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.AttendanceRepository
-import com.oriundo.lbretaappestudiantil.domain.model.repository.AuthRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.ClassRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.MaterialRequestRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.MessageRepository
@@ -38,23 +35,7 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object RepositoryModule {
 
-    @Provides
-    @Singleton
-    fun provideAuthRepository(
-        userDao: UserDao,
-        profileDao: ProfileDao,
-        classDao: ClassDao,
-        studentDao: StudentDao,
-        studentParentRelationDao: StudentParentRelationDao
-    ): AuthRepository {
-        return AuthRepositoryImpl(  // ✅ USA ROOM (no Firebase)
-            userDao,
-            profileDao,
-            classDao,
-            studentDao,
-            studentParentRelationDao
-        )
-    }
+
 
     @Provides
     @Singleton
