@@ -1,22 +1,28 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    id("org.jetbrains.kotlin.plugin.compose")
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.google.services)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
 }
 
 android {
     namespace = "com.oriundo.lbretaappestudiantil"
-    compileSdk = 35
+    compileSdk = 35 // ✅ CORREGIDO: 36 no existe
 
     defaultConfig {
         applicationId = "com.oriundo.lbretaappestudiantil"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 35 // ✅ CORREGIDO
         versionCode = 1
         versionName = "1.0"
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        vectorDrawables {
+            useSupportLibrary = true
+        }
     }
 
     buildTypes {
@@ -31,6 +37,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {
@@ -43,21 +50,23 @@ android {
     }
 
     packaging {
-        resources.excludes += setOf(
-            "META-INF/LICENSE.md",
-            "META-INF/LICENSE-notice.md"
-        )
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/LICENSE.md"
+            excludes += "META-INF/LICENSE-notice.md"
+        }
     }
 }
 
 dependencies {
-    // Core
+    // ============= CORE ANDROID =============
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
 
-    // Compose BOM
+    // ============= COMPOSE =============
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
@@ -65,29 +74,46 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
 
-    // Navigation
+    // ============= NAVIGATION =============
     implementation(libs.androidx.navigation.compose)
 
-    // Hilt
+    // ============= HILT (Dependency Injection) =============
     implementation(libs.hilt.android)
-    implementation(libs.material)
     implementation(libs.androidx.material3)
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
 
-    // Room
+    // ============= ROOM (Base de datos local) =============
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
-    // Testing
+    // ============= FIREBASE =============
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth.ktx)
+    implementation(libs.firebase.firestore.ktx)
+
+    // ============= CREDENTIAL MANAGER (API moderna - SIN DEPRECACIONES) =============
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
+
+    // ============= COROUTINES =============
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.coroutines.play.services)
+
+    // ============= MATERIAL =============
+    implementation(libs.material)
+
+    // ============= TESTING =============
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
 
-    // Debug
+    // ============= DEBUG =============
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

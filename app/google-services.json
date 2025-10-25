@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "362206226811",
+    "project_id": "libreta-comunicaciones-17c5f",
+    "storage_bucket": "libreta-comunicaciones-17c5f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:362206226811:android:e4136f08eb20d64055b5de",
+        "android_client_info": {
+          "package_name": "com.oriundo.lbretaappestudiantil"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "362206226811-p1hmv0e42hgeic1s5138sk6cj0paif43.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.oriundo.lbretaappestudiantil",
+            "certificate_hash": "991f1552a60fa76f7b693809566f49e8736920f2"
+          }
+        },
+        {
+          "client_id": "362206226811-d6s2dpivfotbtipnpbq1v073ktmc8uog.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDvx-vqV6z6w85Ix9jK3eiUEbkCMq-Na-M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "362206226811-d6s2dpivfotbtipnpbq1v073ktmc8uog.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -56,4 +56,7 @@ data class ProfileEntity(
 ) {
     val fullName: String
         get() = "$firstName $lastName"
+
+    val isProfileComplete: Boolean
+        get() = firstName.isNotBlank() && lastName.isNotBlank() && phone.isNullOrBlank().not()
 }

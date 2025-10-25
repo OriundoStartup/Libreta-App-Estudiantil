@@ -372,6 +372,7 @@ private fun EmptyStudentsView(modifier: Modifier = Modifier) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun StudentSelector(
     students: List<StudentWithClass>,

@@ -19,5 +19,7 @@ interface AuthRepository {
     suspend fun logout()
     suspend fun isEmailRegistered(email: String): Boolean
     suspend fun getCurrentUser(): UserWithProfile?
+    //Google login
+    suspend fun loginWithGoogle(isTeacher: Boolean): ApiResult<UserWithProfile>
 }
 

@@ -22,10 +22,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="com.oriundo.lbretaappestudiantil" />
+                  <option name="mobileSdkAppId" value="1:362206226811:android:e4136f08eb20d64055b5de" />
+                  <option name="projectId" value="libreta-comunicaciones-17c5f" />
+                  <option name="projectNumber" value="362206226811" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

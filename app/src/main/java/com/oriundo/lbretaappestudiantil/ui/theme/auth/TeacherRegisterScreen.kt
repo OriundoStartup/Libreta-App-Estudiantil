@@ -1,6 +1,5 @@
 package com.oriundo.lbretaappestudiantil.ui.theme.auth
 
-
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -44,9 +43,22 @@ fun TeacherRegisterScreen(
 
     val uiState by viewModel.uiState.collectAsState()
 
+    // Estado para deshabilitar campos si se autenticó con Google
+    val isGoogleAuthenticated = uiState is AuthUiState.AwaitingProfileCompletion
+
     LaunchedEffect(uiState) {
-        if (uiState is AuthUiState.Success) {
-            onRegisterSuccess((uiState as AuthUiState.Success).userWithProfile as UserWithProfile)
+        when (val state = uiState) {
+            is AuthUiState.Success -> {
+                onRegisterSuccess(state.userWithProfile)
+            }
+            is AuthUiState.AwaitingProfileCompletion -> {
+                // Precargar datos de Google
+                email = state.tempUser.user.email
+                firstName = state.tempUser.profile.firstName
+                lastName = state.tempUser.profile.lastName
+                phone = state.tempUser.profile.phone ?: phone
+            }
+            else -> {}
         }
     }
 
@@ -148,6 +160,65 @@ fun TeacherRegisterScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // ============================================================================
+            // 🔥 BOTÓN GOOGLE SIGN-IN (NUEVO)
+            // ============================================================================
+            Button(
+                onClick = {
+                    viewModel.loginWithGoogle(isTeacher = true)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                enabled = uiState !is AuthUiState.Loading && !isGoogleAuthenticated,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF4285F4), // Azul de Google
+                    contentColor = Color.White
+                )
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.School, null, modifier = Modifier.size(24.dp))
+                    Text("Registrarse con Google", fontWeight = FontWeight.Medium)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Separador "O"
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(1.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                )
+                Text(
+                    text = " O usa Email/Contraseña ",
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(1.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+            // ============================================================================
+            // 🔥 FIN GOOGLE SIGN-IN
+            // ============================================================================
+
             // Sección: Datos Personales
             Text(
                 text = "Datos Personales",
@@ -171,7 +242,8 @@ fun TeacherRegisterScreen(
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                singleLine = true
+                singleLine = true,
+                enabled = !isGoogleAuthenticated // 🔥 Deshabilitar si ya autenticó con Google
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -188,7 +260,8 @@ fun TeacherRegisterScreen(
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                singleLine = true
+                singleLine = true,
+                enabled = !isGoogleAuthenticated // 🔥 Deshabilitar si ya autenticó con Google
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -206,7 +279,8 @@ fun TeacherRegisterScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                singleLine = true
+                singleLine = true,
+                enabled = !isGoogleAuthenticated // 🔥 Deshabilitar si ya autenticó con Google
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -214,7 +288,7 @@ fun TeacherRegisterScreen(
             OutlinedTextField(
                 value = address,
                 onValueChange = { address = it },
-                label = { Text("Dirección (opcional)") },
+                label = { Text("Dirección (Opcional)") },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Filled.Home,
@@ -230,7 +304,7 @@ fun TeacherRegisterScreen(
 
             // Sección: Credenciales
             Text(
-                text = "Credenciales de Acceso",
+                text = "Credenciales",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.primary
@@ -251,7 +325,8 @@ fun TeacherRegisterScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                singleLine = true
+                singleLine = true,
+                enabled = !isGoogleAuthenticated // 🔥 Deshabilitar si ya autenticó con Google
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -270,7 +345,8 @@ fun TeacherRegisterScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                singleLine = true
+                singleLine = true,
+                enabled = !isGoogleAuthenticated // 🔥 Deshabilitar si ya autenticó con Google
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -293,7 +369,8 @@ fun TeacherRegisterScreen(
                 } else null,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                singleLine = true
+                singleLine = true,
+                enabled = !isGoogleAuthenticated // 🔥 Deshabilitar si ya autenticó con Google
             )
 
             // Password requirements
@@ -365,14 +442,15 @@ fun TeacherRegisterScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                enabled = email.isNotBlank() &&
+                // 🔥 LÓGICA MEJORADA: Permite registro con Google O con formulario manual
+                enabled = (isGoogleAuthenticated || (email.isNotBlank() &&
                         password.isNotBlank() &&
                         confirmPassword.isNotBlank() &&
+                        password == confirmPassword &&
+                        password.length >= 6)) &&
                         firstName.isNotBlank() &&
                         lastName.isNotBlank() &&
                         phone.isNotBlank() &&
-                        password == confirmPassword &&
-                        password.length >= 6 &&
                         uiState !is AuthUiState.Loading,
                 shape = RoundedCornerShape(16.dp)
             ) {
@@ -424,7 +502,9 @@ fun TeacherRegisterScreen(
     }
 }
 
-// Función movida FUERA del composable principal
+// ============================================================================
+// COMPONENTE AUXILIAR
+// ============================================================================
 @Composable
 private fun TeacherPasswordRequirement(
     text: String,

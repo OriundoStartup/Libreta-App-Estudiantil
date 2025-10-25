@@ -125,7 +125,7 @@ class AuthRepositoryImpl @Inject constructor(
             }
 
             // Verificar que el código de curso exista
-            val classEntity = classDao.getClassByCode(studentForm.classCode.trim().uppercase()) // ← AGREGAR .uppercase()
+            val classEntity = classDao.getClassByCode(studentForm.classCode.trim().uppercase())
                 ?: return ApiResult.Error("Código de curso inválido")
 
             // Verificar que el RUT no exista
@@ -133,10 +133,14 @@ class AuthRepositoryImpl @Inject constructor(
                 return ApiResult.Error("El RUT del estudiante ya está registrado")
             }
 
+            // ✅ VALIDAR QUE PASSWORD NO SEA NULL (para registro manual)
+            val password = parentForm.password
+                ?: return ApiResult.Error("La contraseña es requerida")
+
             // Crear usuario apoderado
             val user = UserEntity(
                 email = parentForm.email.trim().lowercase(),
-                passwordHash = hashPassword(parentForm.password)
+                passwordHash = hashPassword(password) // ✅ Ahora password es String, no String?
             )
             val userId = userDao.insertUser(user).toInt()
 
@@ -196,7 +200,16 @@ class AuthRepositoryImpl @Inject constructor(
         return currentUserWithProfile
     }
 
-    // Validaciones
+    override suspend fun loginWithGoogle(isTeacher: Boolean): ApiResult<UserWithProfile> {
+        // Esta es la implementación de Room/Local, la cual no soporta Google Sign-In.
+        // Retornamos un error para manejarlo limpiamente en el ViewModel/UI.
+        return ApiResult.Error("El inicio de sesión con Google no está disponible con la base de datos local (Room).")
+    }
+
+    // ============================================================================
+    // VALIDACIONES
+    // ============================================================================
+
     private fun validateTeacherForm(form: TeacherRegistrationForm): ApiResult.Error? {
         if (form.email.isBlank()) return ApiResult.Error("El email es requerido")
         if (!isValidEmail(form.email)) return ApiResult.Error("Email inválido")
@@ -209,15 +222,27 @@ class AuthRepositoryImpl @Inject constructor(
         return null
     }
 
+    // ✅ CORREGIDO: Validación para ParentForm con password nullable
     private fun validateParentForm(form: ParentRegistrationForm): ApiResult.Error? {
+        // Validar email
         if (form.email.isBlank()) return ApiResult.Error("El email es requerido")
         if (!isValidEmail(form.email)) return ApiResult.Error("Email inválido")
-        if (form.password.isBlank()) return ApiResult.Error("La contraseña es requerida")
-        if (form.password.length < 6) return ApiResult.Error("La contraseña debe tener al menos 6 caracteres")
-        if (form.password != form.confirmPassword) return ApiResult.Error("Las contraseñas no coinciden")
+
+        // ✅ Validar password solo si NO es null (caso Google Sign-In)
+        form.password?.let { password ->
+            if (password.isBlank()) return ApiResult.Error("La contraseña no puede estar vacía")
+            if (password.length < 6) return ApiResult.Error("La contraseña debe tener al menos 6 caracteres")
+
+            // Validar confirmPassword
+            if (form.confirmPassword == null) return ApiResult.Error("Debes confirmar la contraseña")
+            if (password != form.confirmPassword) return ApiResult.Error("Las contraseñas no coinciden")
+        }
+
+        // Validar otros campos
         if (form.firstName.isBlank()) return ApiResult.Error("El nombre es requerido")
         if (form.lastName.isBlank()) return ApiResult.Error("El apellido es requerido")
         if (form.phone.isBlank()) return ApiResult.Error("El teléfono es requerido")
+
         return null
     }
 
@@ -241,6 +266,7 @@ class AuthRepositoryImpl @Inject constructor(
         // Aquí puedes agregar validación completa del dígito verificador
     }
 
+    // ✅ CORREGIDO: hashPassword ahora solo acepta String (no nullable)
     private fun hashPassword(password: String): String {
         val bytes = password.toByteArray()
         val md = MessageDigest.getInstance("SHA-256")

@@ -47,12 +47,12 @@ object RepositoryModule {
         studentDao: StudentDao,
         studentParentRelationDao: StudentParentRelationDao
     ): AuthRepository {
-        return AuthRepositoryImpl(
-            userDao = userDao,
-            profileDao = profileDao,
-            classDao = classDao,
-            studentDao = studentDao,
-            studentParentRelationDao = studentParentRelationDao
+        return AuthRepositoryImpl(  // ✅ USA ROOM (no Firebase)
+            userDao,
+            profileDao,
+            classDao,
+            studentDao,
+            studentParentRelationDao
         )
     }
 
