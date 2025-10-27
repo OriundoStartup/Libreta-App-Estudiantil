@@ -25,8 +25,6 @@ import com.oriundo.lbretaappestudiantil.data.local.models.StudentEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.StudentParentRelation
 import com.oriundo.lbretaappestudiantil.data.local.models.UserEntity
 
-
-
 @Database(
     entities = [
         UserEntity::class,
@@ -39,12 +37,8 @@ import com.oriundo.lbretaappestudiantil.data.local.models.UserEntity
         MaterialRequestEntity::class,
         MessageEntity::class,
         SchoolEventEntity::class
-
-
-
-
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -60,6 +54,4 @@ abstract class LibretAppDatabase : RoomDatabase() {
     abstract fun materialRequestDao(): MaterialRequestDao
     abstract fun messageDao(): MessageDao
     abstract fun schoolEventDao(): SchoolEventDao
-
-
 }

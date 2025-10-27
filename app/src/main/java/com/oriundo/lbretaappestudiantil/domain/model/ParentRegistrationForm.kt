@@ -7,5 +7,6 @@ data class ParentRegistrationForm(
     val firstName: String,
     val lastName: String,
     val phone: String,
+    val classCode: String,
     val address: String? = null
 )

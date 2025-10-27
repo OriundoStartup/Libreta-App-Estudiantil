@@ -1,6 +1,7 @@
 package com.oriundo.lbretaappestudiantil.ui.theme.parent
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,12 +13,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.Message
+import androidx.compose.material.icons.automirrored.filled.Note
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ChildCare
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Info
@@ -28,9 +30,9 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -39,82 +41,60 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
-import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType
 import com.oriundo.lbretaappestudiantil.domain.model.StudentWithClass
 import com.oriundo.lbretaappestudiantil.domain.model.UserWithProfile
+import com.oriundo.lbretaappestudiantil.ui.theme.AppColors
 import com.oriundo.lbretaappestudiantil.ui.theme.Screen
-import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AnnotationViewModel
-import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AttendanceViewModel
-import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.MessageViewModel
-import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.SchoolEventViewModel
-import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ParentDashboardViewModel
+
+
+// ============================================================================
+// PANTALLA PRINCIPAL
+// ============================================================================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ParentDashboardScreen(
     userWithProfile: UserWithProfile,
-    onLogout: () -> Unit,
     navController: NavController,
-    studentViewModel: StudentViewModel = hiltViewModel(),
-    annotationViewModel: AnnotationViewModel = hiltViewModel(),
-    attendanceViewModel: AttendanceViewModel = hiltViewModel(),
-    schoolEventViewModel: SchoolEventViewModel = hiltViewModel(),
-    messageViewModel: MessageViewModel = hiltViewModel() // ✅ NUEVO
+    onLogout: () -> Unit,
+    // ✅ CORRECCIÓN 1: La firma debe aceptar studentId y classId con sus tipos explícitos
+    onNavigateToChildDetail: (studentId: Int, classId: Int) -> Unit,
+    viewModel: ParentDashboardViewModel = hiltViewModel()
 ) {
     var showMenu by remember { mutableStateOf(false) }
-    var selectedTab by remember { mutableIntStateOf(0) }
-    var selectedStudentIndex by remember { mutableIntStateOf(0) }
 
-    // Estados de datos reales
-    val studentsByParent by studentViewModel.studentsByParent.collectAsState()
-    val unreadAnnotations by annotationViewModel.unreadAnnotations.collectAsState()
-    val attendanceStats by attendanceViewModel.attendanceStats.collectAsState()
-    val eventsByClass by schoolEventViewModel.eventsByClass.collectAsState()
-    val annotationsByStudent by annotationViewModel.annotationsByStudent.collectAsState()
-    val unreadMessagesCount by messageViewModel.unreadCount.collectAsState() // ✅ NUEVO
+    val state by viewModel.dashboardState.collectAsState()
 
-    // Cargar datos del padre
+    val studentCount = state.students.size
+    val totalAnnotations = state.unreadAnnotations.size
+    val unreadMessagesCount = state.pendingMaterialRequests.size
+    val totalAbsences = 0
+
     LaunchedEffect(userWithProfile.profile.id) {
-        studentViewModel.loadStudentsByParent(userWithProfile.profile.id)
-        annotationViewModel.loadUnreadAnnotationsForParent(userWithProfile.profile.id)
-        messageViewModel.loadUnreadCount(userWithProfile.profile.id) // ✅ NUEVO
-        messageViewModel.loadConversationsForParent(userWithProfile.profile.id) // ✅ NUEVO
-    }
-
-    // Cargar datos del estudiante seleccionado
-    LaunchedEffect(selectedStudentIndex, studentsByParent) {
-        if (studentsByParent.isNotEmpty() && selectedStudentIndex < studentsByParent.size) {
-            val selectedStudent = studentsByParent[selectedStudentIndex]
-            attendanceViewModel.loadAttendanceByStudent(selectedStudent.student.id)
-            schoolEventViewModel.loadEventsByClass(selectedStudent.classEntity.id)
-            annotationViewModel.loadAnnotationsByStudent(selectedStudent.student.id)
-        }
+        viewModel.loadDashboard(userWithProfile.profile.id)
     }
 
     Scaffold(
@@ -128,39 +108,43 @@ fun ParentDashboardScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Apoderado",
+                            text = "Padre / Apoderado",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 },
                 actions = {
-                    // Notificaciones con contador real
-                    IconButton(
-                        onClick = {
-                            navController.navigate(
-                                Screen.Notifications.createRoute(parentId = userWithProfile.profile.id)
+                    // Botón de notificaciones con badge
+                    IconButton(onClick = {
+                        // FIX: Navegación corregida a Screen.Notifications
+                        navController.navigate(
+                            Screen.Notifications.createRoute(
+                                userWithProfile.profile.id
                             )
-                        }
-                    ) {
-                        if (unreadAnnotations.isNotEmpty()) {
-                            BadgedBox(
-                                badge = {
-                                    Badge {
-                                        Text("${unreadAnnotations.size}")
-                                    }
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Notifications,
-                                    contentDescription = "Notificaciones"
-                                )
-                            }
-                        } else {
+                        )
+                    }) {
+                        Box {
                             Icon(
                                 imageVector = Icons.Filled.Notifications,
-                                contentDescription = "Notificaciones"
+                                contentDescription = "Notificaciones",
+                                tint = if (unreadMessagesCount > 0)
+                                    MaterialTheme.colorScheme.error
+                                else
+                                    MaterialTheme.colorScheme.onSurface
                             )
+                            if (unreadMessagesCount > 0) {
+                                Badge(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = Color.White,
+                                    modifier = Modifier.align(Alignment.TopEnd)
+                                ) {
+                                    Text(
+                                        text = if (unreadMessagesCount > 9) "9+" else unreadMessagesCount.toString(),
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -182,7 +166,9 @@ fun ParentDashboardScreen(
                                     showMenu = false
                                     navController.navigate(Screen.ParentProfile.route)
                                 },
-                                leadingIcon = { Icon(Icons.Filled.Person, null) }
+                                leadingIcon = {
+                                    Icon(Icons.Filled.Person, null)
+                                }
                             )
                             DropdownMenuItem(
                                 text = { Text("Configuración") },
@@ -190,9 +176,15 @@ fun ParentDashboardScreen(
                                     showMenu = false
                                     navController.navigate(Screen.ParentSettings.route)
                                 },
-                                leadingIcon = { Icon(Icons.Filled.Settings, null) }
+                                leadingIcon = {
+                                    Icon(Icons.Filled.Settings, null)
+                                }
                             )
-                            HorizontalDivider()
+                            HorizontalDivider(
+                                Modifier,
+                                DividerDefaults.Thickness,
+                                DividerDefaults.color
+                            )
                             DropdownMenuItem(
                                 text = { Text("Cerrar sesión") },
                                 onClick = {
@@ -217,559 +209,401 @@ fun ParentDashboardScreen(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
+        },
+        floatingActionButton = {
+            // No Floating Action Button
         }
     ) { padding ->
-        if (studentsByParent.isEmpty()) {
-            // Estado vacío
-            EmptyStudentsView(modifier = Modifier.padding(padding))
-        } else {
-            Column(
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Quick Stats - DINÁMICO
+            Row(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .verticalScroll(rememberScrollState())
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // Tarjeta 1: Hijos
+                StatCard(
+                    title = "Hijos",
+                    value = studentCount.toString(),
+                    icon = Icons.Filled.ChildCare,
+                    gradient = AppColors.PrimaryGradient,
+                    modifier = Modifier.weight(1f),
+                    onClick = { /* TODO: Ver detalle de hijos */ }
+                )
+                // Tarjeta 2: Anotaciones
+                StatCard(
+                    title = "Anotaciones",
+                    value = totalAnnotations.toString(),
+                    icon = Icons.Filled.Description,
+                    gradient = AppColors.SuccessGradient,
+                    modifier = Modifier.weight(1f),
+                    onClick = { /* TODO: Ver anotaciones */ }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Tarjeta 3: Faltas/Ausencias
+                StatCard(
+                    title = "Faltas",
+                    value = totalAbsences.toString(),
+                    icon = Icons.Filled.Warning,
+                    gradient = AppColors.ErrorGradient,
+                    modifier = Modifier.weight(1f),
+                    onClick = { /* TODO: Ver faltas */ }
+                )
+                // Tarjeta 4: Mensajes
+                StatCard(
+                    title = "Mensajes",
+                    value = unreadMessagesCount.toString(),
+                    icon = Icons.AutoMirrored.Filled.Message,
+                    gradient = AppColors.SecondaryGradient,
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        // FIX: Se usa Screen.Notifications
+                        navController.navigate(
+                            Screen.Notifications.createRoute(
+                                userWithProfile.profile.id
+                            )
+                        )
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Quick Actions
+            Column(
+                modifier = Modifier.padding(horizontal = 24.dp)
+            ) {
+                Text(
+                    text = "Acciones Rápidas",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Selector de estudiante si hay más de uno
-                if (studentsByParent.size > 1) {
-                    StudentSelector(
-                        students = studentsByParent,
-                        selectedIndex = selectedStudentIndex,
-                        onStudentSelected = { selectedStudentIndex = it }
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-
-                // Tabs de navegación - ✅ ACTUALIZADO
-                PrimaryScrollableTabRow(
-                    selectedTabIndex = selectedTab,
-                    modifier = Modifier.padding(horizontal = 24.dp),
-                    containerColor = Color.Transparent,
-                    edgePadding = 0.dp
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Tab(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        modifier = Modifier.clip(RoundedCornerShape(12.dp))
-                    ) {
-                        Text(
-                            text = "Resumen",
-                            modifier = Modifier.padding(16.dp),
-                            fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal
-                        )
-                    }
-                    Tab(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        modifier = Modifier.clip(RoundedCornerShape(12.dp))
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            Text(
-                                text = "Anotaciones",
-                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal
-                            )
-                            if (unreadAnnotations.isNotEmpty()) {
-                                Badge(
-                                    containerColor = MaterialTheme.colorScheme.error
-                                ) {
-                                    Text("${unreadAnnotations.size}")
-                                }
-                            }
-                        }
-                    }
-                    // ✅ TAB ACTUALIZADO - Reemplaza "Materiales" por "Comunicaciones"
-                    Tab(
-                        selected = selectedTab == 2,
-                        onClick = { selectedTab = 2 },
-                        modifier = Modifier.clip(RoundedCornerShape(12.dp))
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            Text(
-                                text = "Comunicaciones",
-                                fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal
-                            )
-                            if (unreadMessagesCount > 0) {
-                                Badge(
-                                    containerColor = MaterialTheme.colorScheme.primary
-                                ) {
-                                    Text("$unreadMessagesCount")
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Contenido según tab seleccionado
-                val currentStudent = if (studentsByParent.isNotEmpty() && selectedStudentIndex < studentsByParent.size) {
-                    studentsByParent[selectedStudentIndex]
-                } else null
-
-                currentStudent?.let { student ->
-                    when (selectedTab) {
-                        0 -> ResumenContent(
-                            student = student,
-                            attendanceStats = attendanceStats,
-                            upcomingEvents = eventsByClass,
-                            pendingAnnotations = unreadAnnotations.size
-                        )
-                        1 -> AnotacionesContent(
-                            annotations = annotationsByStudent
-                        )
-                        // ✅ REEMPLAZADO - MaterialesContent por ComunicacionesContent
-                        2 -> ComunicacionesContent(
-                            parentId = userWithProfile.profile.id,
-                            navController = navController
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(100.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyStudentsView(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.padding(32.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Filled.ChildCare,
-                contentDescription = null,
-                modifier = Modifier.size(80.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-            )
-            Text(
-                text = "No hay estudiantes vinculados",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Contacta a la escuela para vincular a tu hijo/a",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun StudentSelector(
-    students: List<StudentWithClass>,
-    selectedIndex: Int,
-    onStudentSelected: (Int) -> Unit
-) {
-    PrimaryScrollableTabRow(
-        selectedTabIndex = selectedIndex,
-        modifier = Modifier.padding(horizontal = 24.dp),
-        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        edgePadding = 0.dp
-    ) {
-        students.forEachIndexed { index, studentWithClass ->
-            Tab(
-                selected = selectedIndex == index,
-                onClick = { onStudentSelected(index) },
-                modifier = Modifier.clip(RoundedCornerShape(12.dp))
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = studentWithClass.student.firstName,
-                        fontWeight = if (selectedIndex == index) FontWeight.Bold else FontWeight.Normal
+                    QuickActionCard(
+                        title = "Notas",
+                        icon = Icons.Filled.Star,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        onClick = { /* TODO */ },
+                        modifier = Modifier.weight(1f)
                     )
-                    Text(
-                        text = studentWithClass.classEntity.className,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    QuickActionCard(
+                        title = "Asistencia",
+                        icon = Icons.AutoMirrored.Filled.Note,
+                        color = MaterialTheme.colorScheme.primary,
+                        onClick = { /* TODO */ },
+                        modifier = Modifier.weight(1f)
                     )
                 }
-            }
-        }
-    }
-}
 
-@Composable
-fun ResumenContent(
-    student: StudentWithClass,
-    attendanceStats: com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AttendanceStats,
-    upcomingEvents: List<com.oriundo.lbretaappestudiantil.data.local.models.SchoolEventEntity>,
-    pendingAnnotations: Int
-) {
-    Column(
-        modifier = Modifier.padding(horizontal = 24.dp)
-    ) {
-        Text(
-            text = "Información del Estudiante",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Tarjeta del estudiante con datos reales
-        StudentCard(
-            studentName = student.student.fullName,
-            className = student.classEntity.className,
-            schoolName = student.classEntity.schoolName,
-            attendance = attendanceStats.attendancePercentage,
-            pendingAnnotations = pendingAnnotations
-        )
-
-        if (upcomingEvents.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                text = "Próximos Eventos",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            upcomingEvents.take(5).forEach { event ->
-                EventCard(event = event)
                 Spacer(modifier = Modifier.height(12.dp))
-            }
-        }
-    }
-}
 
-@Composable
-fun AnotacionesContent(
-    annotations: List<com.oriundo.lbretaappestudiantil.data.local.models.AnnotationEntity>
-) {
-    Column(
-        modifier = Modifier.padding(horizontal = 24.dp)
-    ) {
-        Text(
-            text = if (annotations.isEmpty()) "Sin Anotaciones" else "Últimas Anotaciones",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (annotations.isEmpty()) {
-            EmptyAnnotationsView()
-        } else {
-            annotations.forEach { annotation ->
-                AnnotationCard(annotation = annotation)
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyAnnotationsView() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Description,
-                contentDescription = null,
-                modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "No hay anotaciones aún",
-                style = MaterialTheme.typography.titleMedium
-            )
-        }
-    }
-}
-
-// Componentes de UI
-
-@Composable
-fun StudentCard(
-    studentName: String,
-    className: String,
-    schoolName: String,
-    attendance: Int,
-    pendingAnnotations: Int
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(
-                                    Color(0xFFEC4899),
-                                    Color(0xFFF59E0B)
-                                )
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.ChildCare,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(32.dp)
+                    QuickActionCard(
+                        title = "Calendario",
+                        icon = Icons.Filled.CalendarMonth,
+                        color = MaterialTheme.colorScheme.secondary,
+                        onClick = { /* TODO */ },
+                        modifier = Modifier.weight(1f)
                     )
-                }
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = studentName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = className,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = schoolName,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    QuickActionCard(
+                        title = "Comunicados",
+                        icon = Icons.Filled.Info,
+                        color = MaterialTheme.colorScheme.error,
+                        onClick = { /* TODO */ },
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // Mis Hijos - DINÁMICO
+            Column(
+                modifier = Modifier.padding(horizontal = 24.dp)
             ) {
-                Chip(
-                    text = "Asistencia $attendance%",
-                    color = MaterialTheme.colorScheme.tertiaryContainer,
-                    textColor = MaterialTheme.colorScheme.tertiary
-                )
-                if (pendingAnnotations > 0) {
-                    Chip(
-                        text = "$pendingAnnotations nuevas",
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        textColor = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun Chip(
-    text: String,
-    color: Color,
-    textColor: Color
-) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = color),
-        shape = RoundedCornerShape(8.dp)
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = textColor,
-            fontWeight = FontWeight.Medium
-        )
-    }
-}
-
-@Composable
-fun AnnotationCard(
-    annotation: com.oriundo.lbretaappestudiantil.data.local.models.AnnotationEntity
-) {
-    val (color, icon) = when (annotation.type) {
-        AnnotationType.POSITIVE -> Pair(
-            MaterialTheme.colorScheme.tertiaryContainer,
-            Icons.Filled.Star
-        )
-        AnnotationType.NEGATIVE -> Pair(
-            MaterialTheme.colorScheme.errorContainer,
-            Icons.Filled.Warning
-        )
-        AnnotationType.NEUTRAL -> Pair(
-            MaterialTheme.colorScheme.surfaceVariant,
-            Icons.Filled.Info
-        )
-        AnnotationType.GENERAL -> Pair(
-            MaterialTheme.colorScheme.primaryContainer,
-            Icons.Filled.Description
-        )
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(color),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = when (annotation.type) {
-                        AnnotationType.POSITIVE -> MaterialTheme.colorScheme.tertiary
-                        AnnotationType.NEGATIVE -> MaterialTheme.colorScheme.error
-                        AnnotationType.NEUTRAL -> MaterialTheme.colorScheme.onSurfaceVariant
-                        AnnotationType.GENERAL -> MaterialTheme.colorScheme.primary
-                    },
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-
-            Column(modifier = Modifier.weight(1f)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = annotation.title,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = if (!annotation.isRead) FontWeight.Bold else FontWeight.Normal
+                        text = "Mis Hijos",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
                     )
-                    if (!annotation.isRead) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary)
-                        )
+
+                    if (state.students.isNotEmpty()) {
+                        TextButton(onClick = { /* TODO: Ver todos */ }) {
+                            Text("Ver todos")
+                            Icon(
+                                imageVector = Icons.Filled.ChevronRight,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
-                Text(
-                    text = annotation.description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (state.students.isEmpty()) {
+                    // Estado vacío
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(48.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.ChildCare,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "No tienes hijos asociados",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Contacta a la escuela para asociar un estudiante.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    // Lista de hijos reales
+                    state.students.forEach { student ->
+                        StudentCard(
+                            studentWithClass = student,
+                            // ✅ CORRECCIÓN 2: Pasamos ambos IDs al hacer clic
+                            onClick = {
+                                onNavigateToChildDetail(
+                                    student.student.id,
+                                    student.classEntity.id
+                                )
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(100.dp))
+        }
+    }
+}
+
+
+// ============================================================================
+// COMPONENTES AUXILIARES
+// ============================================================================
+
+@Composable
+fun StatCard(
+    title: String,
+    value: String,
+    icon: ImageVector,
+    gradient: Brush,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {}
+) {
+    Card(
+        modifier = modifier
+            .height(120.dp)
+            .clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.medium,
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(gradient)
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.8f),
+                    modifier = Modifier.size(32.dp)
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-                        .format(Date(annotation.date)),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Column {
+                    Text(
+                        text = value,
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.9f)
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-fun EventCard(
-    event: com.oriundo.lbretaappestudiantil.data.local.models.SchoolEventEntity
+fun QuickActionCard(
+    title: String,
+    icon: ImageVector,
+    color: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        modifier = modifier
+            .height(100.dp)
+            .clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = color.copy(alpha = 0.1f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size(32.dp)
+            )
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = color,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
+fun StudentCard(
+    studentWithClass: StudentWithClass,
+    onClick: () -> Unit
+) {
+    // Definición temporal de actividad reciente, ya que no existe en el modelo base.
+    val recentActivity = "Actividad reciente no cargada"
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.medium,
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                    .size(56.dp)
+                    .background(
+                        MaterialTheme.colorScheme.primaryContainer,
+                        MaterialTheme.shapes.small
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Filled.CalendarMonth,
+                    imageVector = Icons.Filled.ChildCare,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(28.dp)
                 )
             }
 
-            Column(modifier = Modifier.weight(1f)) {
+            Spacer(modifier = Modifier.weight(1f).padding(horizontal = 16.dp))
+
+            Column(
+                modifier = Modifier.weight(4f)
+            ) {
                 Text(
-                    text = event.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
+                    text = "${studentWithClass.student.firstName} ${studentWithClass.student.lastName}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
                 Text(
-                    text = event.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2
-                )
-                Text(
-                    text = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-                        .format(Date(event.eventDate)),
+                    // Usamos la propiedad correcta 'className'
+                    text = "Curso: ${studentWithClass.classEntity.className}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            }
 
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                ),
-                shape = RoundedCornerShape(8.dp)
-            ) {
+                Spacer(modifier = Modifier.height(8.dp))
+
                 Text(
-                    text = event.eventType.name,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    // Usamos la variable local temporal para compilar
+                    text = "Última actividad: $recentActivity",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.secondary,
                     fontWeight = FontWeight.Medium
                 )
             }
+
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = "Ver detalles",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp)
+            )
         }
     }
 }

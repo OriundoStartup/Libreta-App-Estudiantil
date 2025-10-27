@@ -44,7 +44,6 @@ data class ProfileEntity(
     @ColumnInfo(name = "photo_url")
     val photoUrl: String? = null,
 
-    // Roles como flags - un usuario puede tener ambos roles
     @ColumnInfo(name = "is_teacher")
     val isTeacher: Boolean = false,
 
@@ -52,11 +51,21 @@ data class ProfileEntity(
     val isParent: Boolean = false,
 
     @ColumnInfo(name = "created_at")
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+
+    // ✅ NUEVOS CAMPOS DE SINCRONIZACIÓN
+    @ColumnInfo(name = "firestore_id")
+    val firestoreId: String? = null,  // ID del documento en Firestore
+
+    @ColumnInfo(name = "sync_status")
+    val syncStatus: SyncStatus = SyncStatus.PENDING,
+
+    @ColumnInfo(name = "firebase_uid")
+    val firebaseUid: String?,
+
+    @ColumnInfo(name = "last_synced_at")
+    val lastSyncedAt: Long? = null
 ) {
     val fullName: String
         get() = "$firstName $lastName"
-
-    val isProfileComplete: Boolean
-        get() = firstName.isNotBlank() && lastName.isNotBlank() && phone.isNullOrBlank().not()
 }

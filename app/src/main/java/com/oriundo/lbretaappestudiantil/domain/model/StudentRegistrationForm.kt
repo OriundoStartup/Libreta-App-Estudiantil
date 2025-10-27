@@ -1,7 +1,7 @@
 package com.oriundo.lbretaappestudiantil.domain.model
 
 data class StudentRegistrationForm(
-    val classCode: String,
+    val classCode: String = "",
     val studentRut: String,
     val studentFirstName: String,
     val studentLastName: String,

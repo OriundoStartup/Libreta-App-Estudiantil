@@ -1,5 +1,6 @@
 package com.oriundo.lbretaappestudiantil.di
 
+
 import com.oriundo.lbretaappestudiantil.data.local.firebase.FirebaseAuthRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.AuthRepository
 import dagger.Binds

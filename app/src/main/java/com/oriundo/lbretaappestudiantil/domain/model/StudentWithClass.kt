@@ -6,6 +6,7 @@ package com.oriundo.lbretaappestudiantil.domain.model
 data class StudentWithClass(
     val student: com.oriundo.lbretaappestudiantil.data.local.models.StudentEntity,
     val classEntity: com.oriundo.lbretaappestudiantil.data.local.models.ClassEntity,
-    val primaryParentId: Int? = null
+    val primaryParentId: Int? = null,
+    val recentActivity: String? = "Todo al día"
 
 )

@@ -1,5 +1,7 @@
 package com.oriundo.lbretaappestudiantil.data.local.repositories
 
+import com.google.firebase.auth.FirebaseAuth
+import com.oriundo.lbretaappestudiantil.data.local.LocalDatabaseRepository
 import com.oriundo.lbretaappestudiantil.data.local.daos.ClassDao
 import com.oriundo.lbretaappestudiantil.data.local.models.ClassEntity
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
@@ -10,7 +12,10 @@ import javax.inject.Singleton
 
 @Singleton
 class ClassRepositoryImpl @Inject constructor(
-    private val classDao: ClassDao
+    private val classDao: ClassDao,
+    private val localDatabaseRepository: LocalDatabaseRepository,
+    private val firebaseAuth: FirebaseAuth,
+
 ) : ClassRepository {
 
     override suspend fun createClass(
@@ -21,20 +26,20 @@ class ClassRepositoryImpl @Inject constructor(
         academicYear: Int
     ): ApiResult<Pair<ClassEntity, String>> {
         return try {
-            // Validaciones
+            // 1. Validaciones
             if (className.isBlank()) return ApiResult.Error("El nombre del curso es requerido")
             if (schoolName.isBlank()) return ApiResult.Error("El nombre de la escuela es requerido")
 
-            // Generar código único (ya está en mayúsculas)
+            // 2. Generar código único
             val generatedCode = generateUniqueCode()
 
-            // Crear entity
+            // 3. Crear entity en Room
             val classEntity = ClassEntity(
                 id = 0,
                 className = className.trim(),
                 schoolName = schoolName.trim(),
                 teacherId = teacherId,
-                classCode = generatedCode, // Ya está en mayúsculas
+                classCode = generatedCode,
                 gradeLevel = gradeLevel?.trim(),
                 academicYear = academicYear.toString(),
                 isActive = true,
@@ -43,6 +48,14 @@ class ClassRepositoryImpl @Inject constructor(
 
             val classId = classDao.insertClass(classEntity).toInt()
             val createdClass = classEntity.copy(id = classId)
+
+            // 4. ✅ SINCRONIZAR A FIRESTORE EN SEGUNDO PLANO
+
+            val firebaseUser = firebaseAuth.currentUser
+            if (firebaseUser != null) {
+                // Intentar sincronizar, pero no bloquear si falla
+                localDatabaseRepository.syncClassToFirestore(firebaseUser.uid, createdClass)
+            }
 
             ApiResult.Success(Pair(createdClass, generatedCode))
         } catch (e: Exception) {
@@ -65,7 +78,6 @@ class ClassRepositoryImpl @Inject constructor(
 
     override suspend fun getClassByCode(classCode: String): ApiResult<ClassEntity> {
         return try {
-            // ✅ CORREGIDO: Normalizar a mayúsculas
             val classEntity = classDao.getClassByCode(classCode.trim().uppercase())
             if (classEntity != null) {
                 ApiResult.Success(classEntity)
@@ -84,6 +96,13 @@ class ClassRepositoryImpl @Inject constructor(
     override suspend fun updateClass(classEntity: ClassEntity): ApiResult<Unit> {
         return try {
             classDao.updateClass(classEntity)
+
+            // ✅ Sincronizar a Firestore si está disponible
+            val firebaseUser = firebaseAuth.currentUser
+            if (firebaseUser != null) {
+                localDatabaseRepository.syncClassToFirestore(firebaseUser.uid, classEntity)
+            }
+
             ApiResult.Success(Unit)
         } catch (e: Exception) {
             ApiResult.Error("Error al actualizar curso: ${e.message}", e)

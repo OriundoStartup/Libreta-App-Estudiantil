@@ -1,5 +1,7 @@
 package com.oriundo.lbretaappestudiantil.di
 
+import com.google.firebase.auth.FirebaseAuth
+import com.oriundo.lbretaappestudiantil.data.local.LocalDatabaseRepository
 import com.oriundo.lbretaappestudiantil.data.local.daos.AnnotationDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.AttendanceDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.ClassDao
@@ -48,9 +50,15 @@ object RepositoryModule {
     @Provides
     @Singleton
     fun provideClassRepository(
-        classDao: ClassDao
+        classDao: ClassDao,
+        localDatabaseRepository: LocalDatabaseRepository, // 👈 AGREGADO
+        firebaseAuth: FirebaseAuth // 👈 AGREGADO
     ): ClassRepository {
-        return ClassRepositoryImpl(classDao)
+        return ClassRepositoryImpl(
+            classDao,
+            localDatabaseRepository, // 👈 PASANDO EL VALOR
+            firebaseAuth           // 👈 PASANDO EL VALOR
+        )
     }
 
     @Provides
@@ -106,4 +114,7 @@ object RepositoryModule {
     ): SchoolEventRepository {
         return SchoolEventRepositoryImpl(schoolEventDao)
     }
+
+
+
 }

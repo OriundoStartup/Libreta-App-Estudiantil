@@ -9,6 +9,7 @@ import com.oriundo.lbretaappestudiantil.data.local.models.ClassEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.ProfileEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.StudentEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.StudentParentRelation
+import com.oriundo.lbretaappestudiantil.data.local.models.SyncStatus
 import com.oriundo.lbretaappestudiantil.data.local.models.UserEntity
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
 import com.oriundo.lbretaappestudiantil.domain.model.LoginCredentials
@@ -34,28 +35,23 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun login(credentials: LoginCredentials): ApiResult<UserWithProfile> {
         return try {
-            // Validar campos
             if (credentials.email.isBlank() || credentials.password.isBlank()) {
                 return ApiResult.Error("Email y contraseña son requeridos")
             }
 
-            // Buscar usuario
             val normalizedEmail = credentials.email.trim().lowercase()
             val user = userDao.getUserByEmail(normalizedEmail)
                 ?: return ApiResult.Error("Email o contraseña incorrectos")
 
-            // Verificar contraseña
             val passwordHash = hashPassword(credentials.password)
             if (user.passwordHash != passwordHash) {
                 return ApiResult.Error("Email o contraseña incorrectos")
             }
 
-            // Verificar que el usuario esté activo
             if (!user.isActive) {
                 return ApiResult.Error("Usuario desactivado")
             }
 
-            // Obtener perfil
             val profile = profileDao.getProfileByUserId(user.id)
                 ?: return ApiResult.Error("Perfil no encontrado")
 
@@ -70,30 +66,35 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun registerTeacher(form: TeacherRegistrationForm): ApiResult<UserWithProfile> {
         return try {
-            // Validaciones
             validateTeacherForm(form)?.let { return it }
 
-            // Verificar que el email no exista
             if (isEmailRegistered(form.email)) {
                 return ApiResult.Error("El email ya está registrado")
             }
 
-            // Crear usuario
             val user = UserEntity(
                 email = form.email.trim().lowercase(),
-                passwordHash = hashPassword(form.password)
+                passwordHash = hashPassword(form.password),
+                firebaseUid = null, // ✅ Para registro local, no tenemos Firebase UID
+                syncStatus = SyncStatus.PENDING,
+                lastSyncedAt = null
             )
             val userId = userDao.insertUser(user).toInt()
 
-            // Crear perfil
+            // ✅ CORREGIDO: Todos los parámetros de ProfileEntity incluidos
             val profile = ProfileEntity(
                 userId = userId,
                 firstName = form.firstName.trim(),
                 lastName = form.lastName.trim(),
                 phone = form.phone.trim(),
                 address = form.address?.trim(),
+                photoUrl = null,
                 isTeacher = true,
-                isParent = false
+                isParent = false,
+                firestoreId = null,
+                syncStatus = SyncStatus.PENDING,
+                firebaseUid = null, // ✅ ESTE ERA EL PARÁMETRO FALTANTE
+                lastSyncedAt = null
             )
             val profileId = profileDao.insertProfile(profile).toInt()
 
@@ -114,49 +115,49 @@ class AuthRepositoryImpl @Inject constructor(
         studentForm: StudentRegistrationForm
     ): ApiResult<Triple<UserWithProfile, StudentEntity, ClassEntity>> {
         return try {
-
-            // Validaciones
             validateParentForm(parentForm)?.let { return it }
             validateStudentForm(studentForm)?.let { return it }
 
-            // Verificar que el email no exista
             if (isEmailRegistered(parentForm.email)) {
                 return ApiResult.Error("El email ya está registrado")
             }
 
-            // Verificar que el código de curso exista
             val classEntity = classDao.getClassByCode(studentForm.classCode.trim().uppercase())
                 ?: return ApiResult.Error("Código de curso inválido")
 
-            // Verificar que el RUT no exista
             if (studentDao.rutExists(studentForm.studentRut.trim()) > 0) {
                 return ApiResult.Error("El RUT del estudiante ya está registrado")
             }
 
-            // ✅ VALIDAR QUE PASSWORD NO SEA NULL (para registro manual)
             val password = parentForm.password
                 ?: return ApiResult.Error("La contraseña es requerida")
 
-            // Crear usuario apoderado
             val user = UserEntity(
                 email = parentForm.email.trim().lowercase(),
-                passwordHash = hashPassword(password) // ✅ Ahora password es String, no String?
+                passwordHash = hashPassword(password),
+                firebaseUid = null, // ✅ Para registro local
+                syncStatus = SyncStatus.PENDING,
+                lastSyncedAt = null
             )
             val userId = userDao.insertUser(user).toInt()
 
-            // Crear perfil apoderado
+            // ✅ CORREGIDO: Todos los parámetros de ProfileEntity incluidos
             val profile = ProfileEntity(
                 userId = userId,
                 firstName = parentForm.firstName.trim(),
                 lastName = parentForm.lastName.trim(),
                 phone = parentForm.phone.trim(),
                 address = parentForm.address?.trim(),
+                photoUrl = null,
                 isTeacher = false,
-                isParent = true
+                isParent = true,
+                firestoreId = null,
+                syncStatus = SyncStatus.PENDING,
+                firebaseUid = null, // ✅ ESTE ERA EL PARÁMETRO FALTANTE
+                lastSyncedAt = null
             )
             val profileId = profileDao.insertProfile(profile).toInt()
 
-            // Crear estudiante
             val student = StudentEntity(
                 classId = classEntity.id,
                 rut = studentForm.studentRut.trim(),
@@ -166,7 +167,6 @@ class AuthRepositoryImpl @Inject constructor(
             )
             val studentId = studentDao.insertStudent(student).toInt()
 
-            // Crear relación apoderado-estudiante
             val relation = StudentParentRelation(
                 studentId = studentId,
                 parentId = profileId,
@@ -201,8 +201,6 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override suspend fun loginWithGoogle(isTeacher: Boolean): ApiResult<UserWithProfile> {
-        // Esta es la implementación de Room/Local, la cual no soporta Google Sign-In.
-        // Retornamos un error para manejarlo limpiamente en el ViewModel/UI.
         return ApiResult.Error("El inicio de sesión con Google no está disponible con la base de datos local (Room).")
     }
 
@@ -222,27 +220,20 @@ class AuthRepositoryImpl @Inject constructor(
         return null
     }
 
-    // ✅ CORREGIDO: Validación para ParentForm con password nullable
     private fun validateParentForm(form: ParentRegistrationForm): ApiResult.Error? {
-        // Validar email
         if (form.email.isBlank()) return ApiResult.Error("El email es requerido")
         if (!isValidEmail(form.email)) return ApiResult.Error("Email inválido")
 
-        // ✅ Validar password solo si NO es null (caso Google Sign-In)
         form.password?.let { password ->
             if (password.isBlank()) return ApiResult.Error("La contraseña no puede estar vacía")
             if (password.length < 6) return ApiResult.Error("La contraseña debe tener al menos 6 caracteres")
-
-            // Validar confirmPassword
             if (form.confirmPassword == null) return ApiResult.Error("Debes confirmar la contraseña")
             if (password != form.confirmPassword) return ApiResult.Error("Las contraseñas no coinciden")
         }
 
-        // Validar otros campos
         if (form.firstName.isBlank()) return ApiResult.Error("El nombre es requerido")
         if (form.lastName.isBlank()) return ApiResult.Error("El apellido es requerido")
         if (form.phone.isBlank()) return ApiResult.Error("El teléfono es requerido")
-
         return null
     }
 
@@ -260,13 +251,10 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     private fun isValidRut(rut: String): Boolean {
-        // Implementación básica de validación de RUT chileno
         val cleanRut = rut.replace(".", "").replace("-", "")
         return cleanRut.length >= 2
-        // Aquí puedes agregar validación completa del dígito verificador
     }
 
-    // ✅ CORREGIDO: hashPassword ahora solo acepta String (no nullable)
     private fun hashPassword(password: String): String {
         val bytes = password.toByteArray()
         val md = MessageDigest.getInstance("SHA-256")

@@ -27,4 +27,20 @@ interface ProfileDao {
 
     @Query("SELECT * FROM profiles WHERE is_parent = 1")
     fun getAllParents(): Flow<List<ProfileEntity>>
+
+    /**
+     * ✅ NUEVO: Para depuración y verificación
+     */
+    @Query("SELECT * FROM profiles")
+    suspend fun getAllProfiles(): List<ProfileEntity>
+
+    @Query("DELETE FROM profiles WHERE id = :profileId")
+    suspend fun deleteProfile(profileId: Int)
+
+    /**
+     * ✅ NUEVO: Verificar si existe un perfil para un usuario
+     */
+    @Query("SELECT COUNT(*) FROM profiles WHERE user_id = :userId")
+    suspend fun profileExistsForUser(userId: Int): Int
+
 }

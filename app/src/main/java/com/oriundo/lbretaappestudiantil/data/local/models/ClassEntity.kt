@@ -38,10 +38,10 @@ data class ClassEntity(
     val teacherId: Int,
 
     @ColumnInfo(name = "class_code")
-    val classCode: String, // Código único para que apoderados registren estudiantes
+    val classCode: String,
 
     @ColumnInfo(name = "grade_level")
-    val gradeLevel: String? = null, // "1° Básico", "2° Básico", etc.
+    val gradeLevel: String? = null,
 
     @ColumnInfo(name = "academic_year")
     val academicYear: String,
@@ -50,5 +50,15 @@ data class ClassEntity(
     val isActive: Boolean = true,
 
     @ColumnInfo(name = "created_at")
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+
+    // ✅ NUEVOS CAMPOS DE SINCRONIZACIÓN
+    @ColumnInfo(name = "firestore_id")
+    val firestoreId: String? = null,
+
+    @ColumnInfo(name = "sync_status")
+    val syncStatus: SyncStatus = SyncStatus.PENDING,
+
+    @ColumnInfo(name = "last_synced_at")
+    val lastSyncedAt: Long? = null
 )

@@ -32,7 +32,7 @@ data class StudentEntity(
     val classId: Int,
 
     @ColumnInfo(name = "rut")
-    val rut: String, // RUT único del estudiante
+    val rut: String,
 
     @ColumnInfo(name = "first_name")
     val firstName: String,
@@ -53,7 +53,17 @@ data class StudentEntity(
     val isActive: Boolean = true,
 
     @ColumnInfo(name = "notes")
-    val notes: String? = null
+    val notes: String? = null,
+
+    // ✅ NUEVOS CAMPOS DE SINCRONIZACIÓN
+    @ColumnInfo(name = "firestore_id")
+    val firestoreId: String? = null,
+
+    @ColumnInfo(name = "sync_status")
+    val syncStatus: SyncStatus = SyncStatus.PENDING,
+
+    @ColumnInfo(name = "last_synced_at")
+    val lastSyncedAt: Long? = null
 ) {
     val fullName: String
         get() = "$firstName $lastName"

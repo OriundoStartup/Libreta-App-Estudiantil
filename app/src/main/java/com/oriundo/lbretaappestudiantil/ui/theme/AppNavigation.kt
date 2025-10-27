@@ -284,6 +284,11 @@ fun AppNavigation(
                         navController.navigate(Screen.RoleSelection.route) {
                             popUpTo(0) { inclusive = true }
                         }
+                    },
+                    // ✅ CORRECCIÓN 1: El callback ahora recibe ambos IDs (studentId y classId)
+                    onNavigateToChildDetail = { studentId, classId ->
+                        // Y ambos IDs son usados para crear la ruta del detalle
+                        navController.navigate(Screen.StudentDetail.createRoute(studentId, classId))
                     }
                 )
             }

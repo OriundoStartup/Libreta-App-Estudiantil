@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -66,7 +67,6 @@ import com.oriundo.lbretaappestudiantil.ui.theme.AppColors
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AuthUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AuthViewModel
 
-
 // ============================================================================
 // FUNCIONES AUXILIARES
 // ============================================================================
@@ -87,7 +87,7 @@ fun RelationshipChip(
         modifier = modifier,
         colors = FilterChipDefaults.filterChipColors(
             selectedContainerColor = MaterialTheme.colorScheme.secondary,
-            selectedLabelColor = MaterialTheme.colorScheme.onSecondary // ✅ CORREGIDO
+            selectedLabelColor = MaterialTheme.colorScheme.onSecondary
         )
     )
 }
@@ -109,7 +109,6 @@ fun ParentPasswordRequirement(text: String, isMet: Boolean) {
         )
     }
 }
-
 
 // ============================================================================
 // PANTALLA PRINCIPAL
@@ -170,7 +169,7 @@ fun ParentRegisterScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(24.dp)
-                .padding(bottom = 48.dp) // ✅ Padding extra para evitar que quede tapado por la barra de navegación
+                .padding(bottom = 48.dp)
         ) {
             // Header con botón de regresar
             Row(
@@ -480,7 +479,7 @@ fun ParentRegisterScreen(
                                 // Código de clase
                                 OutlinedTextField(
                                     value = classCode,
-                                    onValueChange = { classCode = it.uppercase() }, // ✅ Convertir a mayúsculas automáticamente
+                                    onValueChange = { classCode = it.uppercase() },
                                     label = { Text("Código de Clase") },
                                     modifier = Modifier.fillMaxWidth(),
                                     singleLine = true,
@@ -579,10 +578,9 @@ fun ParentRegisterScreen(
 
                                 Spacer(modifier = Modifier.height(32.dp))
 
-                                // Botón de retroceso
+                                // Botones de navegación
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Button(
                                         onClick = { currentStep = 1 },
@@ -604,7 +602,9 @@ fun ParentRegisterScreen(
                                         }
                                     }
 
-                                    // Botón de registro - ✅ CORREGIDO CON CONTENIDO
+                                    Spacer(modifier = Modifier.width(16.dp))
+
+                                    // ✅ CORREGIDO: Ahora incluye classCode en ParentRegistrationForm
                                     Button(
                                         onClick = {
                                             val parentForm = ParentRegistrationForm(
@@ -614,6 +614,7 @@ fun ParentRegisterScreen(
                                                 firstName = firstName,
                                                 lastName = lastName,
                                                 phone = phone,
+                                                classCode = classCode, // ✅ AQUÍ ESTÁ LA CORRECCIÓN
                                                 address = address.ifBlank { null }
                                             )
 
@@ -663,14 +664,14 @@ fun ParentRegisterScreen(
             }
         }
 
-        // ✅ Mensaje de error fijo en la parte inferior (fuera del scroll)
+        // Mensaje de error fijo en la parte inferior
         if (uiState is AuthUiState.Error) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
                     .padding(16.dp)
-                    .padding(bottom = 32.dp), // ✅ Extra padding para la barra de navegación
+                    .padding(bottom = 32.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.errorContainer
                 ),

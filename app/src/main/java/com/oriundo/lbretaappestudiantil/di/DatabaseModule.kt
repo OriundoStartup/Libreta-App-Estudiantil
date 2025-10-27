@@ -97,4 +97,7 @@ object DatabaseModule {
     fun provideSchoolEventDao(database: LibretAppDatabase): SchoolEventDao {
         return database.schoolEventDao()
     }
+
+
+
 }

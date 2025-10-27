@@ -4,9 +4,6 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-/**
- * Tabla base de usuarios - Almacena credenciales de autenticación
- */
 @Entity(tableName = "users")
 data class UserEntity(
     @PrimaryKey(autoGenerate = true)
@@ -22,5 +19,16 @@ data class UserEntity(
     val createdAt: Long = System.currentTimeMillis(),
 
     @ColumnInfo(name = "is_active")
-    val isActive: Boolean = true
+    val isActive: Boolean = true,
+
+    // ✅ NUEVOS CAMPOS DE SINCRONIZACIÓN
+    @ColumnInfo(name = "firebase_uid")
+    val firebaseUid: String? = null,  // UID de Firebase Auth
+
+    @ColumnInfo(name = "sync_status")
+    val syncStatus: SyncStatus = SyncStatus.PENDING,
+
+    @ColumnInfo(name = "last_synced_at")
+    val lastSyncedAt: Long? = null,
+
 )
