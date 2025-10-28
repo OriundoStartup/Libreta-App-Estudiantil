@@ -64,7 +64,7 @@ import com.oriundo.lbretaappestudiantil.domain.model.ParentRegistrationForm
 import com.oriundo.lbretaappestudiantil.domain.model.StudentRegistrationForm
 import com.oriundo.lbretaappestudiantil.domain.model.UserWithProfile
 import com.oriundo.lbretaappestudiantil.ui.theme.AppColors
-import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AuthUiState
+import com.oriundo.lbretaappestudiantil.ui.theme.states.AuthUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AuthViewModel
 
 // ============================================================================
@@ -143,18 +143,30 @@ fun ParentRegisterScreen(
     // Estado para deshabilitar campos (si se autenticó con Google)
     val isGoogleAuthenticated = uiState is AuthUiState.AwaitingProfileCompletion
 
+    // ============================================================================
+// REEMPLAZAR EL LaunchedEffect EXISTENTE EN ParentRegisterScreen.kt
+// ============================================================================
+
     LaunchedEffect(uiState) {
         when (val state = uiState) {
             is AuthUiState.Success -> {
+                // ✅ Usuario autenticado completamente → Ir al Dashboard
                 onRegisterSuccess(state.userWithProfile)
             }
             is AuthUiState.AwaitingProfileCompletion -> {
-                // Precargar datos de Google
+                // ✅ Usuario de Google nuevo - Pre-cargar datos
                 email = state.tempUser.user.email
                 firstName = state.tempUser.profile.firstName
                 lastName = state.tempUser.profile.lastName
-                phone = state.tempUser.profile.phone ?: phone
-                currentStep = 2
+                phone = state.tempUser.profile.phone ?: ""
+                address = state.tempUser.profile.address ?: ""
+
+                // NO avanzar automáticamente - el usuario debe completar manualmente
+                // El botón de Google se deshabilitará automáticamente con isGoogleAuthenticated
+            }
+            is AuthUiState.AwaitingPasswordSetup -> {
+                // ✅ NUEVO: Perfil completado, ahora redirigir a SetPasswordScreen
+                // Esto lo manejamos en AppNavigation.kt
             }
             else -> {}
         }
@@ -326,7 +338,8 @@ fun ParentRegisterScreen(
                                 // Botón Google Sign-In
                                 Button(
                                     onClick = {
-                                        viewModel.loginWithGoogle(isTeacher = false)
+                                        // ✅ CORREGIDO: Usar registerWithGoogle en lugar de loginWithGoogle
+                                        viewModel.registerWithGoogle(isTeacher = false)
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()

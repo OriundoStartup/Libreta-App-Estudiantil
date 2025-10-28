@@ -1,5 +1,6 @@
 package com.oriundo.lbretaappestudiantil.ui.theme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -12,6 +13,7 @@ import androidx.navigation.navArgument
 import com.oriundo.lbretaappestudiantil.ui.theme.auth.LoginScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.auth.ParentRegisterScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.auth.RoleSelectionScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.auth.SetPasswordScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.auth.TeacherRegisterScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ConversationThreadScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.NotificationsScreen
@@ -19,6 +21,7 @@ import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentDashboardScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentProfileScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentSendMessageScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentSettingsScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.states.AuthUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.ClassStudentsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateAnnotationScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateClassScreen
@@ -43,6 +46,8 @@ import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ClassViewModel
  * Cada objeto representa una pantalla con su ruta y parámetros asociados.
  */
 sealed class Screen(val route: String) {
+    /** ✅ NUEVO: Pantalla para establecer contraseña después de Google Auth */
+    object SetPassword : Screen("set_password")
 
     // ========================================
     // RUTAS DE AUTENTICACIÓN
@@ -192,8 +197,22 @@ fun AppNavigation(
             )
         }
 
-        // Login
         composable(Screen.Login.route) {
+            val loginViewModel: AuthViewModel = hiltViewModel()
+            val loginUiState by loginViewModel.uiState.collectAsState()
+
+            // ✅ NUEVO: Manejar redirección a SetPassword desde Login
+            LaunchedEffect(loginUiState) {
+                when (val state = loginUiState) {
+                    is AuthUiState.AwaitingPasswordSetup -> {
+                        navController.navigate(Screen.SetPassword.route) {
+                            popUpTo(Screen.Login.route) { inclusive = false }
+                        }
+                    }
+                    else -> {}
+                }
+            }
+
             LoginScreen(
                 onNavigateToRegister = {
                     navController.popBackStack()
@@ -210,7 +229,7 @@ fun AppNavigation(
                         popUpTo(Screen.RoleSelection.route) { inclusive = true }
                     }
                 },
-                viewModel = authViewModel
+                viewModel = loginViewModel
             )
         }
 
@@ -230,7 +249,21 @@ fun AppNavigation(
         }
 
         // Registro de apoderado
+        // Registro de apoderado
         composable(Screen.ParentRegister.route) {
+            val parentRegisterViewModel: AuthViewModel = hiltViewModel()
+            val parentRegisterUiState by parentRegisterViewModel.uiState.collectAsState()
+
+            // ✅ NUEVO: Detectar cuando necesita establecer contraseña
+            LaunchedEffect(parentRegisterUiState) {
+                if (parentRegisterUiState is AuthUiState.AwaitingPasswordSetup) {
+                    navController.navigate(Screen.SetPassword.route) {
+                        // No permitir volver atrás con el botón de atrás
+                        popUpTo(Screen.ParentRegister.route) { inclusive = true }
+                    }
+                }
+            }
+
             ParentRegisterScreen(
                 onNavigateBack = {
                     navController.popBackStack()
@@ -240,8 +273,35 @@ fun AppNavigation(
                         popUpTo(Screen.RoleSelection.route) { inclusive = true }
                     }
                 },
-                viewModel = authViewModel
+                viewModel = parentRegisterViewModel
             )
+        }
+        // ✅ NUEVO: Pantalla de establecer contraseña
+        composable(Screen.SetPassword.route) {
+            val setPasswordViewModel: AuthViewModel = hiltViewModel()
+            val currentUserForPassword by setPasswordViewModel.currentUser.collectAsState()
+
+            currentUserForPassword?.let { user ->
+                SetPasswordScreen(
+                    userWithProfile = user,
+                    isOptional = false, // Hacer obligatorio
+                    onPasswordSet = {
+                        // Navegar al Dashboard después de establecer contraseña
+                        navController.navigate(Screen.ParentDashboard.route) {
+                            popUpTo(Screen.RoleSelection.route) { inclusive = true }
+                        }
+                    },
+                    onSkip = null, // No permitir saltar si es obligatorio
+                    viewModel = setPasswordViewModel
+                )
+            } ?: run {
+                // Si no hay usuario, volver al inicio
+                LaunchedEffect(Unit) {
+                    navController.navigate(Screen.RoleSelection.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            }
         }
 
         // ====================================================================

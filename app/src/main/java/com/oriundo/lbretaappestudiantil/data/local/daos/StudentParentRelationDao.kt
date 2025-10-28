@@ -30,4 +30,15 @@ interface StudentParentRelationDao {
 
     @Query("SELECT * FROM student_parent_relation WHERE student_id = :studentId AND parent_id = :parentId")
     suspend fun getRelation(studentId: Int, parentId: Int): StudentParentRelation?
+
+    /**
+     * ✅ AÑADIDO: Método para contar relaciones.
+     * La anotación @Query resuelve el error KSP "abstract DAO method must be annotated...".
+     */
+    @Query("""
+        SELECT COUNT(spr.student_id) FROM student_parent_relation spr
+        INNER JOIN students s ON spr.student_id = s.id 
+        WHERE spr.parent_id = :parentId AND s.is_active = 1
+    """)
+    suspend fun countRelationsByParentId(parentId: Int): Int
 }

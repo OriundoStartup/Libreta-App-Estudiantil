@@ -33,6 +33,10 @@ class AuthRepositoryImpl @Inject constructor(
 
     private var currentUserWithProfile: UserWithProfile? = null
 
+    // =====================================================
+    // LOGIN MANUAL
+    // =====================================================
+
     override suspend fun login(credentials: LoginCredentials): ApiResult<UserWithProfile> {
         return try {
             if (credentials.email.isBlank() || credentials.password.isBlank()) {
@@ -64,6 +68,10 @@ class AuthRepositoryImpl @Inject constructor(
         }
     }
 
+    // =====================================================
+    // REGISTRO DE PROFESOR
+    // =====================================================
+
     override suspend fun registerTeacher(form: TeacherRegistrationForm): ApiResult<UserWithProfile> {
         return try {
             validateTeacherForm(form)?.let { return it }
@@ -75,13 +83,12 @@ class AuthRepositoryImpl @Inject constructor(
             val user = UserEntity(
                 email = form.email.trim().lowercase(),
                 passwordHash = hashPassword(form.password),
-                firebaseUid = null, // ✅ Para registro local, no tenemos Firebase UID
+                firebaseUid = null,
                 syncStatus = SyncStatus.PENDING,
                 lastSyncedAt = null
             )
             val userId = userDao.insertUser(user).toInt()
 
-            // ✅ CORREGIDO: Todos los parámetros de ProfileEntity incluidos
             val profile = ProfileEntity(
                 userId = userId,
                 firstName = form.firstName.trim(),
@@ -93,7 +100,7 @@ class AuthRepositoryImpl @Inject constructor(
                 isParent = false,
                 firestoreId = null,
                 syncStatus = SyncStatus.PENDING,
-                firebaseUid = null, // ✅ ESTE ERA EL PARÁMETRO FALTANTE
+                firebaseUid = null,
                 lastSyncedAt = null
             )
             val profileId = profileDao.insertProfile(profile).toInt()
@@ -109,6 +116,10 @@ class AuthRepositoryImpl @Inject constructor(
             ApiResult.Error("Error al registrar profesor: ${e.message}", e)
         }
     }
+
+    // =====================================================
+    // REGISTRO DE APODERADO
+    // =====================================================
 
     override suspend fun registerParent(
         parentForm: ParentRegistrationForm,
@@ -135,13 +146,12 @@ class AuthRepositoryImpl @Inject constructor(
             val user = UserEntity(
                 email = parentForm.email.trim().lowercase(),
                 passwordHash = hashPassword(password),
-                firebaseUid = null, // ✅ Para registro local
+                firebaseUid = null,
                 syncStatus = SyncStatus.PENDING,
                 lastSyncedAt = null
             )
             val userId = userDao.insertUser(user).toInt()
 
-            // ✅ CORREGIDO: Todos los parámetros de ProfileEntity incluidos
             val profile = ProfileEntity(
                 userId = userId,
                 firstName = parentForm.firstName.trim(),
@@ -153,7 +163,7 @@ class AuthRepositoryImpl @Inject constructor(
                 isParent = true,
                 firestoreId = null,
                 syncStatus = SyncStatus.PENDING,
-                firebaseUid = null, // ✅ ESTE ERA EL PARÁMETRO FALTANTE
+                firebaseUid = null,
                 lastSyncedAt = null
             )
             val profileId = profileDao.insertProfile(profile).toInt()
@@ -188,6 +198,58 @@ class AuthRepositoryImpl @Inject constructor(
         }
     }
 
+    // =====================================================
+    // GOOGLE SIGN-IN (NO SOPORTADO EN ROOM)
+    // =====================================================
+
+    override suspend fun loginWithGoogle(isTeacher: Boolean): ApiResult<UserWithProfile> {
+        return ApiResult.Error(
+            "El inicio de sesión con Google no está disponible con la base de datos local (Room). " +
+                    "Esta funcionalidad solo está disponible con Firebase."
+        )
+    }
+
+
+    override suspend fun registerWithGoogle(isTeacher: Boolean): ApiResult<UserWithProfile> {
+        return ApiResult.Error(
+            "El registro con Google no está disponible con la base de datos local (Room). " +
+                    "Esta funcionalidad solo está disponible con Firebase."
+        )
+    }
+
+
+    // =====================================================
+    // ✅ NUEVOS MÉTODOS REQUERIDOS POR LA INTERFAZ
+    // =====================================================
+
+    /**
+     * Vincular contraseña a cuenta de Google.
+     * NO SOPORTADO en implementación local (Room).
+     * Este método solo funciona con FirebaseAuthRepository.
+     */
+    override suspend fun linkPasswordToGoogleAccount(
+        email: String,
+        password: String
+    ): ApiResult<UserWithProfile> {
+        return ApiResult.Error(
+            "La vinculación de contraseña a cuentas de Google no está disponible con la base de datos local (Room). " +
+                    "Esta funcionalidad solo está disponible con Firebase."
+        )
+    }
+
+    /**
+     * Verificar si el usuario tiene contraseña vinculada.
+     * En implementación local (Room), todos los usuarios tienen contraseña.
+     */
+    override suspend fun hasPasswordLinked(): Boolean {
+        // En Room, todos los usuarios registrados tienen contraseña
+        return currentUserWithProfile != null
+    }
+
+    // =====================================================
+    // OTROS MÉTODOS
+    // =====================================================
+
     override suspend fun logout() {
         currentUserWithProfile = null
     }
@@ -200,13 +262,9 @@ class AuthRepositoryImpl @Inject constructor(
         return currentUserWithProfile
     }
 
-    override suspend fun loginWithGoogle(isTeacher: Boolean): ApiResult<UserWithProfile> {
-        return ApiResult.Error("El inicio de sesión con Google no está disponible con la base de datos local (Room).")
-    }
-
-    // ============================================================================
+    // =====================================================
     // VALIDACIONES
-    // ============================================================================
+    // =====================================================
 
     private fun validateTeacherForm(form: TeacherRegistrationForm): ApiResult.Error? {
         if (form.email.isBlank()) return ApiResult.Error("El email es requerido")
@@ -246,6 +304,10 @@ class AuthRepositoryImpl @Inject constructor(
         return null
     }
 
+    // =====================================================
+    // UTILIDADES
+    // =====================================================
+
     private fun isValidEmail(email: String): Boolean {
         return android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
     }
@@ -261,4 +323,5 @@ class AuthRepositoryImpl @Inject constructor(
         val digest = md.digest(bytes)
         return digest.fold("") { str, it -> str + "%02x".format(it) }
     }
+
 }

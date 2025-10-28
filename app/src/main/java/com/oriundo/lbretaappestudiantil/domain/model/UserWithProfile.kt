@@ -8,5 +8,6 @@ import com.oriundo.lbretaappestudiantil.data.local.models.ProfileEntity
  */
 data class UserWithProfile(
     val user: UserEntity,
-    val profile: ProfileEntity
+    val profile: ProfileEntity,
+
 )
