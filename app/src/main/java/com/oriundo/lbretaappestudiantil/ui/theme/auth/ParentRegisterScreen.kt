@@ -68,7 +68,7 @@ import com.oriundo.lbretaappestudiantil.ui.theme.states.AuthUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AuthViewModel
 
 // ============================================================================
-// FUNCIONES AUXILIARES
+// FUNCIONES AUXILIARES (Sin cambios)
 // ============================================================================
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -140,27 +140,23 @@ fun ParentRegisterScreen(
 
     val uiState by viewModel.uiState.collectAsState()
 
-    // ✅ NUEVO: Variable para saber si usó Google
     var isUsingGoogle by remember { mutableStateOf(false) }
 
-    // ✅ MODIFICADO: LaunchedEffect para manejar estados
+    // LaunchedEffect (Sin cambios)
     LaunchedEffect(uiState) {
         when (val state = uiState) {
             is AuthUiState.GoogleAuthPending -> {
-                // ✅ Usuario autenticó con Google - Pre-cargar datos
                 email = state.email
                 val nameParts = state.displayName.split(" ", limit = 2)
                 firstName = nameParts.firstOrNull() ?: ""
                 lastName = nameParts.getOrNull(1) ?: ""
                 isUsingGoogle = true
-
-                // NO avanzar automáticamente - el usuario completa manualmente
             }
             is AuthUiState.Success -> {
                 onRegisterSuccess(state.userWithProfile)
             }
             is AuthUiState.AwaitingPasswordSetup -> {
-                // La navegación a SetPassword se maneja en AppNavigation.kt
+                // Esta pantalla ya no navegará aquí, pero se mantiene por si otro flujo lo usa
             }
             else -> {}
         }
@@ -177,7 +173,7 @@ fun ParentRegisterScreen(
                 .padding(24.dp)
                 .padding(bottom = 48.dp)
         ) {
-            // Header con botón de regresar
+            // Header con botón de regresar (Sin cambios)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -200,7 +196,7 @@ fun ParentRegisterScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Indicador de progreso
+            // Indicador de progreso (Sin cambios)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -266,25 +262,23 @@ fun ParentRegisterScreen(
                 ) { step ->
                     when (step) {
                         1 -> {
-                            // ✅ PASO 1: Solo recopilar datos (NO crear en Firebase)
+                            // PASO 1
                             Column {
                                 Text(
                                     "Paso 1: Información del Apoderado",
                                     style = MaterialTheme.typography.headlineSmall,
                                     fontWeight = FontWeight.Bold
                                 )
-
+                                // ... (Textos sin cambios)
                                 Spacer(modifier = Modifier.height(8.dp))
-
                                 Text(
                                     "Ingresa tus datos personales",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-
                                 Spacer(modifier = Modifier.height(24.dp))
 
-                                // Campos de nombre y apellido
+                                // Campos de nombre y apellido (Sin cambios)
                                 OutlinedTextField(
                                     value = firstName,
                                     onValueChange = { firstName = it },
@@ -293,9 +287,7 @@ fun ParentRegisterScreen(
                                     singleLine = true,
                                     shape = RoundedCornerShape(12.dp)
                                 )
-
                                 Spacer(modifier = Modifier.height(16.dp))
-
                                 OutlinedTextField(
                                     value = lastName,
                                     onValueChange = { lastName = it },
@@ -304,9 +296,7 @@ fun ParentRegisterScreen(
                                     singleLine = true,
                                     shape = RoundedCornerShape(12.dp)
                                 )
-
                                 Spacer(modifier = Modifier.height(16.dp))
-
                                 OutlinedTextField(
                                     value = phone,
                                     onValueChange = { phone = it },
@@ -315,9 +305,7 @@ fun ParentRegisterScreen(
                                     singleLine = true,
                                     shape = RoundedCornerShape(12.dp)
                                 )
-
                                 Spacer(modifier = Modifier.height(16.dp))
-
                                 OutlinedTextField(
                                     value = address,
                                     onValueChange = { address = it },
@@ -329,7 +317,7 @@ fun ParentRegisterScreen(
 
                                 Spacer(modifier = Modifier.height(24.dp))
 
-                                // ✅ MODIFICADO: Botón Google Sign-In ahora usa authenticateWithGoogleOnly
+                                // Botón Google Sign-In (Sin cambios)
                                 Button(
                                     onClick = {
                                         viewModel.authenticateWithGoogleOnly(isTeacher = false)
@@ -355,7 +343,7 @@ fun ParentRegisterScreen(
 
                                 Spacer(modifier = Modifier.height(24.dp))
 
-                                // Separador "O"
+                                // Separador "O" (Sin cambios)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -390,7 +378,7 @@ fun ParentRegisterScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     singleLine = true,
                                     shape = RoundedCornerShape(12.dp),
-                                    enabled = !isUsingGoogle
+                                    enabled = !isUsingGoogle // Correcto: deshabilitado si Google lo llenó
                                 )
 
                                 Spacer(modifier = Modifier.height(16.dp))
@@ -403,7 +391,8 @@ fun ParentRegisterScreen(
                                     singleLine = true,
                                     visualTransformation = PasswordVisualTransformation(),
                                     shape = RoundedCornerShape(12.dp),
-                                    enabled = !isUsingGoogle
+                                    // ✅ MODIFICACIÓN 1: Habilitar siempre
+                                    enabled = true
                                 )
 
                                 Spacer(modifier = Modifier.height(16.dp))
@@ -416,10 +405,11 @@ fun ParentRegisterScreen(
                                     singleLine = true,
                                     visualTransformation = PasswordVisualTransformation(),
                                     shape = RoundedCornerShape(12.dp),
-                                    enabled = !isUsingGoogle
+                                    // ✅ MODIFICACIÓN 2: Habilitar siempre
+                                    enabled = true
                                 )
 
-                                // Validación de contraseña
+                                // Validación de contraseña (Sin cambios)
                                 if (password.isNotBlank()) {
                                     Spacer(modifier = Modifier.height(16.dp))
                                     Column(
@@ -436,16 +426,19 @@ fun ParentRegisterScreen(
                                 Spacer(modifier = Modifier.height(32.dp))
 
                                 // Botón para continuar
+                                // ✅ MODIFICACIÓN 3: Lógica de habilitación actualizada
+                                // Ahora siempre se requiere una contraseña válida.
+                                val passwordIsValid = password.length >= 6 &&
+                                        password == confirmPassword &&
+                                        confirmPassword.isNotBlank()
+
                                 Button(
                                     onClick = { currentStep = 2 },
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(56.dp),
-                                    enabled = (isUsingGoogle || (email.isNotBlank() &&
-                                            password.isNotBlank() &&
-                                            confirmPassword.isNotBlank() &&
-                                            password == confirmPassword &&
-                                            password.length >= 6)) &&
+                                    enabled = email.isNotBlank() &&
+                                            passwordIsValid && // <-- La contraseña ahora es siempre obligatoria
                                             firstName.isNotBlank() &&
                                             lastName.isNotBlank() &&
                                             phone.isNotBlank() &&
@@ -464,16 +457,14 @@ fun ParentRegisterScreen(
                         }
 
                         2 -> {
-                            // ✅ PASO 2: Recopilar datos del estudiante y REGISTRAR
+                            // PASO 2 (Sin cambios en la UI, solo en la lógica del botón)
                             Column {
                                 Text(
                                     "Paso 2: Información del Estudiante",
                                     style = MaterialTheme.typography.headlineSmall,
                                     fontWeight = FontWeight.Bold
                                 )
-
                                 Spacer(modifier = Modifier.height(8.dp))
-
                                 Text(
                                     "Ingresa los datos de tu hijo/a o estudiante",
                                     style = MaterialTheme.typography.bodyMedium,
@@ -482,7 +473,7 @@ fun ParentRegisterScreen(
 
                                 Spacer(modifier = Modifier.height(24.dp))
 
-                                // Código de clase
+                                // Todos los campos de estudiante (Sin cambios)
                                 OutlinedTextField(
                                     value = classCode,
                                     onValueChange = { classCode = it.uppercase() },
@@ -492,10 +483,7 @@ fun ParentRegisterScreen(
                                     shape = RoundedCornerShape(12.dp),
                                     supportingText = { Text("Se convertirá automáticamente a mayúsculas") }
                                 )
-
                                 Spacer(modifier = Modifier.height(16.dp))
-
-                                // RUT del estudiante
                                 OutlinedTextField(
                                     value = studentRut,
                                     onValueChange = { studentRut = it },
@@ -504,10 +492,7 @@ fun ParentRegisterScreen(
                                     singleLine = true,
                                     shape = RoundedCornerShape(12.dp)
                                 )
-
                                 Spacer(modifier = Modifier.height(16.dp))
-
-                                // Nombre del estudiante
                                 OutlinedTextField(
                                     value = studentFirstName,
                                     onValueChange = { studentFirstName = it },
@@ -516,10 +501,7 @@ fun ParentRegisterScreen(
                                     singleLine = true,
                                     shape = RoundedCornerShape(12.dp)
                                 )
-
                                 Spacer(modifier = Modifier.height(16.dp))
-
-                                // Apellido del estudiante
                                 OutlinedTextField(
                                     value = studentLastName,
                                     onValueChange = { studentLastName = it },
@@ -528,18 +510,15 @@ fun ParentRegisterScreen(
                                     singleLine = true,
                                     shape = RoundedCornerShape(12.dp)
                                 )
-
                                 Spacer(modifier = Modifier.height(24.dp))
 
-                                // Tipo de relación
+                                // Tipo de relación (Sin cambios)
                                 Text(
                                     "Relación con el estudiante",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.SemiBold
                                 )
-
                                 Spacer(modifier = Modifier.height(12.dp))
-
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -559,9 +538,7 @@ fun ParentRegisterScreen(
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
-
                                 Spacer(modifier = Modifier.height(8.dp))
-
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -584,7 +561,7 @@ fun ParentRegisterScreen(
 
                                 Spacer(modifier = Modifier.height(32.dp))
 
-                                // Botones de navegación
+                                // Botones de navegación (Sin cambios en el botón "Atrás")
                                 Row(
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
@@ -610,13 +587,16 @@ fun ParentRegisterScreen(
 
                                     Spacer(modifier = Modifier.width(16.dp))
 
-                                    // ✅ MODIFICADO: Botón "Finalizar" ahora SÍ crea en Firebase
+                                    // Botón "Finalizar" (Lógica interna sin cambios,
+                                    // pero ahora 'password' siempre estará lleno)
                                     Button(
                                         onClick = {
                                             val parentForm = ParentRegistrationForm(
                                                 email = email,
-                                                password = password.ifBlank { null },
-                                                confirmPassword = confirmPassword.ifBlank { null },
+                                                // ✅ MODIFICACIÓN 4: 'password' ahora SÍ tendrá valor
+                                                // si se usa Google, porque el Paso 1 lo exigió.
+                                                password = password,
+                                                confirmPassword = confirmPassword,
                                                 firstName = firstName,
                                                 lastName = lastName,
                                                 phone = phone,
@@ -634,7 +614,6 @@ fun ParentRegisterScreen(
                                                 isPrimary = true
                                             )
 
-                                            // ✅ CLAVE: Pasar el token de Google si existe
                                             viewModel.registerParentWithAllData(
                                                 parentForm = parentForm,
                                                 studentForm = studentForm,
@@ -677,7 +656,7 @@ fun ParentRegisterScreen(
             }
         }
 
-        // Mensaje de error fijo en la parte inferior
+        // Mensaje de error (Sin cambios)
         if (uiState is AuthUiState.Error) {
             Card(
                 modifier = Modifier

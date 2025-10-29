@@ -39,7 +39,7 @@ class FirebaseAuthRepository @Inject constructor(
     private val credentialManager = CredentialManager.create(context)
 
     // =====================================================
-    // LOGIN CON GOOGLE (SOLO USUARIOS REGISTRADOS)
+    // LOGIN CON GOOGLE (Sin cambios)
     // =====================================================
     override suspend fun loginWithGoogle(isTeacher: Boolean): ApiResult<UserWithProfile> {
         return try {
@@ -66,22 +66,18 @@ class FirebaseAuthRepository @Inject constructor(
             val firebaseUser = authResult.user
                 ?: return ApiResult.Error("Usuario de Firebase no encontrado")
 
-            // ✅ CRÍTICO: Verificar si el usuario ya existe en Firestore
             val userDoc = firestore.collection("users")
                 .document(firebaseUser.uid)
                 .get()
                 .await()
 
             if (!userDoc.exists()) {
-                // ⛔ Usuario NUEVO - NO permitir login, debe registrarse primero
-                auth.signOut() // Cerrar sesión de Firebase
+                auth.signOut()
                 return ApiResult.Error(
                     "Esta cuenta de Google no está registrada. Por favor, regístrate primero."
                 )
             }
 
-            // ✅ Usuario EXISTENTE - Permitir login
-            // Sincronizar a Room
             localDatabaseRepository.syncAllUserDataFromFirestore(firebaseUser.uid)
 
             val localUser = localDatabaseRepository.getUserByFirebaseUid(firebaseUser.uid)
@@ -95,13 +91,8 @@ class FirebaseAuthRepository @Inject constructor(
     }
 
     // =====================================================
-    // REGISTRO CON GOOGLE (CREAR USUARIO NUEVO - SOLO PROFESORES)
+    // REGISTRO CON GOOGLE (PROFESORES) (Sin cambios)
     // =====================================================
-
-    /**
-     * Método específico para REGISTRO con Google de PROFESORES.
-     * Para apoderados, usar registerParentWithGoogle() con token.
-     */
     override suspend fun registerWithGoogle(isTeacher: Boolean): ApiResult<UserWithProfile> {
         return try {
             val googleIdOption = GetGoogleIdOption.Builder()
@@ -127,21 +118,18 @@ class FirebaseAuthRepository @Inject constructor(
             val firebaseUser = authResult.user
                 ?: return ApiResult.Error("Usuario de Firebase no encontrado")
 
-            // Verificar si el usuario ya existe
             val userDoc = firestore.collection("users")
                 .document(firebaseUser.uid)
                 .get()
                 .await()
 
             if (userDoc.exists()) {
-                // ⚠️ Usuario YA REGISTRADO
                 auth.signOut()
                 return ApiResult.Error(
                     "Esta cuenta de Google ya está registrada. Puedes iniciar sesión directamente."
                 )
             }
 
-            // ✅ Usuario NUEVO - Crear documento básico (solo para profesores)
             val userData = createBasicUserData(
                 email = firebaseUser.email ?: "",
                 displayName = firebaseUser.displayName ?: "",
@@ -154,7 +142,6 @@ class FirebaseAuthRepository @Inject constructor(
                 .set(userData)
                 .await()
 
-            // Sincronizar a Room
             localDatabaseRepository.syncAllUserDataFromFirestore(firebaseUser.uid)
 
             val localUser = localDatabaseRepository.getUserByFirebaseUid(firebaseUser.uid)
@@ -168,11 +155,12 @@ class FirebaseAuthRepository @Inject constructor(
     }
 
     // =====================================================
-    // ✅ NUEVO: REGISTRO DE APODERADO CON GOOGLE (CON TOKEN)
+    // ✅ MODIFICADO: REGISTRO DE APODERADO CON GOOGLE (CON TOKEN Y CONTRASEÑA)
     // =====================================================
 
     /**
-     * ✅ NUEVO: Registra apoderado con Google usando un token existente.
+     * ✅ MODIFICADO: Registra apoderado con Google usando un token existente
+     * y vincula la contraseña proporcionada en el mismo paso.
      * Este método SÍ crea en Firebase (se llama desde el Paso 2).
      */
     suspend fun registerParentWithGoogle(
@@ -180,10 +168,19 @@ class FirebaseAuthRepository @Inject constructor(
         studentForm: StudentRegistrationForm,
         googleIdToken: String
     ): ApiResult<Triple<UserWithProfile, StudentEntity, ClassEntity>> {
+
+        // ✅ MODIFICACIÓN 1: Obtener la contraseña del formulario
+        val password = parentForm.password
+
+        // Validar que la contraseña venga, ya que el Paso 1 ahora la exige
+        if (password == null || password.isBlank()) {
+            return ApiResult.Error("La contraseña es requerida para el registro con Google.")
+        }
+
         return try {
             // 1. Autenticar con Firebase usando el token
-            val firebaseCredential = GoogleAuthProvider.getCredential(googleIdToken, null)
-            val authResult = auth.signInWithCredential(firebaseCredential).await()
+            val googleCredential = GoogleAuthProvider.getCredential(googleIdToken, null)
+            val authResult = auth.signInWithCredential(googleCredential).await()
             val firebaseUser = authResult.user
                 ?: return ApiResult.Error("Usuario de Firebase no encontrado")
 
@@ -198,6 +195,25 @@ class FirebaseAuthRepository @Inject constructor(
                 return ApiResult.Error("Esta cuenta de Google ya está registrada.")
             }
 
+            // ✅ MODIFICACIÓN 2: Vincular la contraseña INMEDIATAMENTE
+            try {
+                // Crear credencial de email/password
+                val emailCredential = EmailAuthProvider.getCredential(parentForm.email, password)
+
+                // Vincular la credencial a la cuenta de Google recién autenticada
+                firebaseUser.linkWithCredential(emailCredential).await()
+
+            } catch (linkException: Exception) {
+                // Si el enlace falla (p.ej., contraseña débil, email en uso), deshacer todo
+                firebaseUser.delete().await() // Borrar usuario de Auth
+                auth.signOut()
+                return when (linkException) {
+                    is FirebaseAuthUserCollisionException -> ApiResult.Error("Este email ya está registrado con otra cuenta")
+                    is FirebaseAuthWeakPasswordException -> ApiResult.Error("La contraseña es demasiado débil. Debe tener al menos 6 caracteres")
+                    else -> ApiResult.Error("Error vinculando contraseña: ${linkException.message}")
+                }
+            }
+
             // 3. Crear documento completo del apoderado en Firestore
             val userData = buildMap<String, Any> {
                 put("email", firebaseUser.email ?: parentForm.email)
@@ -210,7 +226,8 @@ class FirebaseAuthRepository @Inject constructor(
                 put("isTeacher", false)
                 put("isParent", true)
                 put("createdAt", System.currentTimeMillis())
-                put("hasPassword", false)
+                // ✅ MODIFICACIÓN 3: Marcar que SÍ tiene contraseña
+                put("hasPassword", true)
             }
 
             firestore.collection("users")
@@ -218,7 +235,7 @@ class FirebaseAuthRepository @Inject constructor(
                 .set(userData)
                 .await()
 
-            // 4. Crear estudiante en Firestore
+            // 4. Crear estudiante en Firestore (sin cambios)
             val studentData = createStudentData(
                 rut = studentForm.studentRut,
                 firstName = studentForm.studentFirstName,
@@ -236,10 +253,10 @@ class FirebaseAuthRepository @Inject constructor(
 
             studentDocRef.set(studentData).await()
 
-            // 5. Sincronizar todo a Room
+            // 5. Sincronizar todo a Room (sin cambios)
             localDatabaseRepository.syncAllUserDataFromFirestore(firebaseUser.uid)
 
-            // 6. Obtener datos sincronizados
+            // 6. Obtener datos sincronizados (sin cambios)
             val localUser = localDatabaseRepository.getUserByFirebaseUid(firebaseUser.uid)
                 ?: return ApiResult.Error("No se pudo obtener el usuario")
 
@@ -252,12 +269,13 @@ class FirebaseAuthRepository @Inject constructor(
             ApiResult.Success(Triple(localUser, studentEntity, classEntity))
 
         } catch (e: Exception) {
+            // Captura general por si algo falla (p.ej. signInWithCredential)
             ApiResult.Error("Error en registro con Google: ${e.message}", e)
         }
     }
 
     // =====================================================
-    // REGISTRO DE PROFESOR
+    // REGISTRO DE PROFESOR (Sin cambios)
     // =====================================================
     override suspend fun registerTeacher(form: TeacherRegistrationForm): ApiResult<UserWithProfile> {
         return try {
@@ -290,7 +308,7 @@ class FirebaseAuthRepository @Inject constructor(
     }
 
     // =====================================================
-    // REGISTRO DE APODERADO (EMAIL/PASSWORD)
+    // REGISTRO DE APODERADO (EMAIL/PASSWORD) (Sin cambios)
     // =====================================================
     override suspend fun registerParent(
         parentForm: ParentRegistrationForm,
@@ -362,7 +380,7 @@ class FirebaseAuthRepository @Inject constructor(
     }
 
     // =====================================================
-    // LOGIN MANUAL
+    // LOGIN MANUAL (Sin cambios)
     // =====================================================
     override suspend fun login(credentials: LoginCredentials): ApiResult<UserWithProfile> {
         return try {
@@ -386,14 +404,8 @@ class FirebaseAuthRepository @Inject constructor(
     }
 
     // =====================================================
-    // VINCULAR CONTRASEÑA A CUENTA DE GOOGLE
-    // =====================================================
-
-    /**
-     * Vincula una contraseña a una cuenta existente de Google.
-     * Esto permite que el usuario pueda hacer login con Email/Password
-     * además de Google Sign-In.
-     */
+    // VINCULAR CONTRASEÑA A CUENTA DE GOOGLE (Sin cambios)
+    // =implements ===================================
     override suspend fun linkPasswordToGoogleAccount(
         email: String,
         password: String
@@ -402,7 +414,6 @@ class FirebaseAuthRepository @Inject constructor(
             val currentUser = auth.currentUser
                 ?: return ApiResult.Error("No hay usuario autenticado")
 
-            // Verificar que el usuario se autenticó con Google
             val hasGoogleProvider = currentUser.providerData.any {
                 it.providerId == "google.com"
             }
@@ -411,32 +422,25 @@ class FirebaseAuthRepository @Inject constructor(
                 return ApiResult.Error("El usuario no se autenticó con Google")
             }
 
-            // Verificar que no tenga ya el proveedor de email/password
             val hasEmailProvider = currentUser.providerData.any {
                 it.providerId == "password"
             }
 
             if (hasEmailProvider) {
-                // Ya tiene contraseña vinculada
                 val localUser = localDatabaseRepository.getUserByFirebaseUid(currentUser.uid)
                     ?: return ApiResult.Error("Usuario no encontrado localmente")
 
                 return ApiResult.Success(localUser)
             }
 
-            // Crear credencial de email/password
             val credential = EmailAuthProvider.getCredential(email, password)
-
-            // Vincular la credencial a la cuenta existente
             currentUser.linkWithCredential(credential).await()
 
-            // Actualizar en Firestore (agregar flag hasPassword)
             firestore.collection("users")
                 .document(currentUser.uid)
                 .update("hasPassword", true)
                 .await()
 
-            // Sincronizar datos actualizados
             localDatabaseRepository.syncAllUserDataFromFirestore(currentUser.uid)
 
             val localUser = localDatabaseRepository.getUserByFirebaseUid(currentUser.uid)
@@ -453,9 +457,9 @@ class FirebaseAuthRepository @Inject constructor(
         }
     }
 
-    /**
-     * Verifica si el usuario actual tiene una contraseña vinculada
-     */
+    // =====================================================
+    // OTROS MÉTODOS (Sin cambios)
+    // =====================================================
     override suspend fun hasPasswordLinked(): Boolean {
         return try {
             val currentUser = auth.currentUser ?: return false
@@ -464,10 +468,6 @@ class FirebaseAuthRepository @Inject constructor(
             false
         }
     }
-
-    // =====================================================
-    // OTROS MÉTODOS
-    // =====================================================
 
     override suspend fun logout() {
         auth.signOut()
@@ -492,12 +492,8 @@ class FirebaseAuthRepository @Inject constructor(
     }
 
     // =====================================================
-    // FUNCIONES AUXILIARES PARA CREAR DATOS DE FIRESTORE
+    // FUNCIONES AUXILIARES (Sin cambios)
     // =====================================================
-
-    /**
-     * Crea los datos básicos de un usuario nuevo de Google
-     */
     private fun createBasicUserData(
         email: String,
         displayName: String,
@@ -505,12 +501,9 @@ class FirebaseAuthRepository @Inject constructor(
         isTeacher: Boolean
     ): Map<String, Any> = buildMap {
         put("email", email)
-
-        // Separar nombre completo en firstName y lastName
         val nameParts = displayName.split(" ", limit = 2)
         put("firstName", nameParts.firstOrNull() ?: "")
         put("lastName", nameParts.getOrNull(1) ?: "")
-
         photoUrl?.let { put("photoUrl", it) }
         put("isTeacher", isTeacher)
         put("isParent", !isTeacher)
@@ -518,9 +511,6 @@ class FirebaseAuthRepository @Inject constructor(
         put("hasPassword", false)
     }
 
-    /**
-     * Crea los datos completos de un profesor
-     */
     private fun createTeacherData(
         email: String,
         firstName: String,
@@ -539,9 +529,6 @@ class FirebaseAuthRepository @Inject constructor(
         put("hasPassword", true)
     }
 
-    /**
-     * Crea los datos de un estudiante
-     */
     private fun createStudentData(
         rut: String,
         firstName: String,

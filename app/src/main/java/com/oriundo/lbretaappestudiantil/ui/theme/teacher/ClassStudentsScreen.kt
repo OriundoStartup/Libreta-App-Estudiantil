@@ -57,8 +57,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.oriundo.lbretaappestudiantil.data.local.models.StudentEntity
 import com.oriundo.lbretaappestudiantil.ui.theme.Screen
+import com.oriundo.lbretaappestudiantil.ui.theme.states.StudentUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AuthViewModel
-import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)

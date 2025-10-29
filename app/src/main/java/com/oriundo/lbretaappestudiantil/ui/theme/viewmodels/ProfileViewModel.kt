@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.oriundo.lbretaappestudiantil.data.local.models.ProfileEntity
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
 import com.oriundo.lbretaappestudiantil.domain.model.repository.ProfileRepository
+import com.oriundo.lbretaappestudiantil.ui.theme.states.ProfileUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,12 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-sealed class ProfileUiState {
-    object Initial : ProfileUiState()
-    object Loading : ProfileUiState()
-    data class Success(val profile: ProfileEntity) : ProfileUiState()
-    data class Error(val message: String) : ProfileUiState()
-}
+
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(

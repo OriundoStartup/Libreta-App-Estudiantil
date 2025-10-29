@@ -2,9 +2,9 @@ package com.oriundo.lbretaappestudiantil.data.local.converters
 
 
 import androidx.room.TypeConverter
-import com.oriundo.lbretaappestudiantil.data.local.models.EventType
 import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType
 import com.oriundo.lbretaappestudiantil.data.local.models.AttendanceStatus
+import com.oriundo.lbretaappestudiantil.data.local.models.EventType
 import com.oriundo.lbretaappestudiantil.data.local.models.RequestStatus
 
 /**

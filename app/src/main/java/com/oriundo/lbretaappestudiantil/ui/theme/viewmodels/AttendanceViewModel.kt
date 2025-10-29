@@ -7,6 +7,7 @@ import com.oriundo.lbretaappestudiantil.data.local.models.AttendanceStatus
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
 // ✅ IMPORTACIÓN CORREGIDA: Apuntando al paquete de dominio correcto.
 import com.oriundo.lbretaappestudiantil.domain.model.repository.AttendanceRepository
+import com.oriundo.lbretaappestudiantil.ui.theme.states.AttendanceUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,12 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-sealed class AttendanceUiState {
-    object Initial : AttendanceUiState()
-    object Loading : AttendanceUiState()
-    data class Success(val attendance: AttendanceEntity) : AttendanceUiState()
-    data class Error(val message: String) : AttendanceUiState()
-}
+
 
 @HiltViewModel
 class AttendanceViewModel @Inject constructor(

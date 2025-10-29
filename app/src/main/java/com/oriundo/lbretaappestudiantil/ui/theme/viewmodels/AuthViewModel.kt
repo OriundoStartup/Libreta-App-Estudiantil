@@ -36,7 +36,6 @@ class AuthViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val firebaseAuth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
-    // 🔥 CORRECCIÓN 1: Inyectar StudentRepository para vincular al alumno
     private val studentRepository: StudentRepository
 ) : ViewModel() {
 
@@ -46,7 +45,6 @@ class AuthViewModel @Inject constructor(
     private val _currentUser = MutableStateFlow<UserWithProfile?>(null)
     val currentUser: StateFlow<UserWithProfile?> = _currentUser.asStateFlow()
 
-    // ✅ NUEVO: Variable para guardar el token de Google temporalmente
     private var pendingGoogleToken: String? = null
 
     init {
@@ -67,9 +65,7 @@ class AuthViewModel @Inject constructor(
     fun login(email: String, password: String) {
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
-
             val result = authRepository.login(LoginCredentials(email, password))
-
             _uiState.value = when (result) {
                 is ApiResult.Success -> {
                     _currentUser.value = result.data
@@ -88,9 +84,7 @@ class AuthViewModel @Inject constructor(
     fun registerTeacher(form: TeacherRegistrationForm) {
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
-
             val result = authRepository.registerTeacher(form)
-
             _uiState.value = when (result) {
                 is ApiResult.Success -> {
                     _currentUser.value = result.data
@@ -103,7 +97,7 @@ class AuthViewModel @Inject constructor(
     }
 
     // =====================================================
-    // ✅ NUEVO: AUTENTICACIÓN CON GOOGLE (SIN CREAR EN FIREBASE)
+    // AUTENTICACIÓN CON GOOGLE (PASO 1)
     // =====================================================
 
     /**
@@ -136,15 +130,12 @@ class AuthViewModel @Inject constructor(
                 val credential = GoogleIdTokenCredential.createFrom(result.credential.data)
                 val googleIdToken = credential.idToken
 
-                // ✅ Guardar token temporalmente (NO crear en Firebase aún)
                 pendingGoogleToken = googleIdToken
 
-                // Extraer datos del usuario
                 val email = credential.id
                 val displayName = credential.displayName ?: ""
                 val photoUrl = credential.profilePictureUri?.toString()
 
-                // ✅ Emitir estado pendiente (NO Success)
                 _uiState.value = AuthUiState.GoogleAuthPending(
                     email = email,
                     displayName = displayName,
@@ -159,17 +150,13 @@ class AuthViewModel @Inject constructor(
     }
 
     // =====================================================
-    // ✅ NUEVO: REGISTRO DE APODERADO CON TODOS LOS DATOS
+    // REGISTRO DE APODERADO CON TODOS LOS DATOS
     // =====================================================
 
     /**
      * Registra apoderado con Email/Password O con Google (usando token guardado).
      * Este método SÍ crea en Firebase cuando se llama desde el Paso 2.
      */
-    // AuthViewModel.kt
-
-// ... otras funciones
-
     fun registerParentWithAllData(
         parentForm: ParentRegistrationForm,
         studentForm: StudentRegistrationForm,
@@ -196,35 +183,29 @@ class AuthViewModel @Inject constructor(
                     val (userWithProfile, _, _) = result.data
                     val newParentId = userWithProfile.profile.id
 
-                    // 🔥 CORRECCIÓN: Lógica de vinculación del alumno
-
-                    // 2. BUSCAR AL ALUMNO POR RUT (usando studentRut)
+                    // 2. BUSCAR AL ALUMNO POR RUT
                     when (val studentResult = studentRepository.getStudentByRut(studentForm.studentRut)) {
                         is ApiResult.Success -> {
                             val student = studentResult.data
 
-                            // 3. VINCULAR AL APODERADO CON EL ALUMNO (usando los datos del formulario)
+                            // 3. VINCULAR AL APODERADO CON EL ALUMNO
                             val linkResult = studentRepository.linkParentToStudent(
                                 studentId = student.id,
                                 parentId = newParentId,
-                                // ✅ CORRECCIÓN 1: Usamos la relación seleccionada en el formulario
                                 relationshipType = studentForm.relationshipType,
-                                // ✅ CORRECCIÓN 2: Usamos el flag 'isPrimary' seleccionado en el formulario
                                 isPrimary = studentForm.isPrimary
                             )
 
                             if (linkResult is ApiResult.Success) {
-                                // Vinculación exitosa: continuar con el flujo de éxito
                                 _currentUser.value = userWithProfile
 
-                                // Lógica original para el estado final
+                                // Lógica de estado final
                                 if (googleIdToken != null) {
                                     clearPendingGoogleToken()
-                                    AuthUiState.AwaitingPasswordSetup(
-                                        userWithProfile = userWithProfile,
-                                        isOptional = false
-                                    )
+                                    // Ir directamente a Success (ya no AwaitingPasswordSetup)
+                                    AuthUiState.Success(userWithProfile)
                                 } else {
+                                    // Flujo normal de email/pass
                                     AuthUiState.Success(userWithProfile)
                                 }
                             } else {
@@ -236,7 +217,6 @@ class AuthViewModel @Inject constructor(
                         is ApiResult.Error -> {
                             // Error: Apoderado registrado, pero alumno no encontrado
                             clearPendingGoogleToken()
-                            // ✅ CORRECCIÓN 3: Usamos studentRut
                             AuthUiState.Error("Apoderado creado, pero no se encontró un alumno con el RUT ${studentForm.studentRut} para vincular.")
                         }
                         ApiResult.Loading -> AuthUiState.Loading
@@ -253,42 +233,29 @@ class AuthViewModel @Inject constructor(
     }
 
     // =====================================================
-    // ✅ NUEVOS MÉTODOS AUXILIARES PARA GOOGLE TOKEN
+    // MÉTODOS AUXILIARES GOOGLE TOKEN
     // =====================================================
-
-    /**
-     * Obtiene el token de Google guardado temporalmente
-     */
     fun getPendingGoogleToken(): String? = pendingGoogleToken
 
-    /**
-     * Limpia el token de Google después de usarlo
-     */
     fun clearPendingGoogleToken() {
         pendingGoogleToken = null
     }
 
     // =====================================================
-    // LOGIN CON GOOGLE (SOLO USUARIOS REGISTRADOS)
+    // LOGIN CON GOOGLE (SOLO REGISTRADOS)
     // =====================================================
-
     fun loginWithGoogle(isTeacher: Boolean) {
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
-
             val result = authRepository.loginWithGoogle(isTeacher)
-
             _uiState.value = when (result) {
                 is ApiResult.Success -> {
                     val userWithProfile = result.data
-
                     if (isTeacher) {
                         _currentUser.value = userWithProfile
                         AuthUiState.Success(userWithProfile)
                     } else {
-                        // Lógica de verificación: ¿Tiene alumnos asociados?
                         val hasStudents = checkIfParentHasStudents(userWithProfile)
-
                         if (hasStudents) {
                             _currentUser.value = userWithProfile
                             AuthUiState.Success(userWithProfile)
@@ -303,6 +270,9 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    // =====================================================
+    // REGISTRO CON GOOGLE (PROFESORES / APODERADOS SIN PERFIL)
+    // =====================================================
     fun registerWithGoogle(isTeacher: Boolean) {
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
@@ -317,6 +287,7 @@ class AuthViewModel @Inject constructor(
                         _currentUser.value = userWithProfile
                         AuthUiState.Success(userWithProfile)
                     } else {
+                        // ✅ ESTA ES LA LÍNEA CORREGIDA
                         AuthUiState.AwaitingProfileCompletion(userWithProfile)
                     }
                 }
@@ -329,19 +300,15 @@ class AuthViewModel @Inject constructor(
     // =====================================================
     // VINCULAR CONTRASEÑA
     // =====================================================
-
     fun linkPasswordToAccount(email: String, password: String) {
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
-
             val repository = authRepository as? FirebaseAuthRepository
             if (repository == null) {
                 _uiState.value = AuthUiState.Error("Repositorio no compatible")
                 return@launch
             }
-
             val result = repository.linkPasswordToGoogleAccount(email, password)
-
             _uiState.value = when (result) {
                 is ApiResult.Success -> {
                     _currentUser.value = result.data
@@ -367,21 +334,15 @@ class AuthViewModel @Inject constructor(
     // =====================================================
     // FUNCIONES AUXILIARES PRIVADAS
     // =====================================================
-
     private suspend fun checkIfParentHasStudents(userWithProfile: UserWithProfile): Boolean {
-        // ⚠️ Nota: Esta función es ineficiente ya que consulta Firebase Firestore.
-        // Es mejor reemplazarla con una consulta a la base de datos local (Room) usando studentRepository.
-
         return try {
             val firebaseUid = userWithProfile.user.firebaseUid ?: return false
-
             val snapshot = firestore.collection("users")
                 .document(firebaseUid)
                 .collection("students")
                 .limit(1)
                 .get()
                 .await()
-
             !snapshot.isEmpty
         } catch (_: Exception) {
             false
@@ -391,7 +352,6 @@ class AuthViewModel @Inject constructor(
     // =====================================================
     // CONTROL DE ESTADOS
     // =====================================================
-
     fun resetState() {
         _uiState.value = AuthUiState.Initial
         clearPendingGoogleToken()

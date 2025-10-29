@@ -52,8 +52,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.oriundo.lbretaappestudiantil.data.local.models.EventType
+import com.oriundo.lbretaappestudiantil.ui.theme.states.SchoolEventUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ClassViewModel
-import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.SchoolEventUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.SchoolEventViewModel
 import java.text.SimpleDateFormat
 import java.util.Date

@@ -7,10 +7,8 @@ import com.oriundo.lbretaappestudiantil.data.local.models.SchoolEventEntity
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
 // ✅ IMPORTACIÓN CORREGIDA
 import com.oriundo.lbretaappestudiantil.domain.model.repository.SchoolEventRepository
-import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.SchoolEventUiState.Error
-import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.SchoolEventUiState.Initial
-import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.SchoolEventUiState.Loading
-import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.SchoolEventUiState.Success
+import com.oriundo.lbretaappestudiantil.ui.theme.states.SchoolEventUiState
+
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,19 +16,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-sealed class SchoolEventUiState {
-    object Initial : SchoolEventUiState()
-    object Loading : SchoolEventUiState()
-    data class Success(val event: SchoolEventEntity) : SchoolEventUiState()
-    data class Error(val message: String) : SchoolEventUiState()
-}
+
 
 @HiltViewModel
 class SchoolEventViewModel @Inject constructor(
     private val eventRepository: SchoolEventRepository
 ) : ViewModel() {
 
-    private val _createState = MutableStateFlow<SchoolEventUiState>(Initial)
+    private val _createState = MutableStateFlow<SchoolEventUiState>(SchoolEventUiState.Initial)
     val createState: StateFlow<SchoolEventUiState> = _createState.asStateFlow()
 
     private val _eventsByTeacher = MutableStateFlow<List<SchoolEventEntity>>(emptyList())
@@ -51,7 +44,7 @@ class SchoolEventViewModel @Inject constructor(
         eventType: EventType
     ) {
         viewModelScope.launch {
-            _createState.value = Loading
+            _createState.value = SchoolEventUiState.Loading
 
             val event = SchoolEventEntity(
                 classId = classId,
@@ -65,38 +58,38 @@ class SchoolEventViewModel @Inject constructor(
             val result = eventRepository.createEvent(event)
 
             _createState.value = when (result) {
-                is ApiResult.Success -> Success(result.data) // Usar result.data
+                is ApiResult.Success -> ApiResult.Success(result.data) // Usar result.data
                 is ApiResult.Error -> Error(result.message)
-                ApiResult.Loading -> Loading
-            }
+                ApiResult.Loading -> SchoolEventUiState.Loading
+            } as SchoolEventUiState
         }
     }
 
     fun updateEvent(event: SchoolEventEntity) {
         viewModelScope.launch {
-            _createState.value = Loading
+            _createState.value = SchoolEventUiState.Loading
 
             val result = eventRepository.updateEvent(event)
 
             _createState.value = when (result) {
-                is ApiResult.Success -> Success(result.data) // Usar result.data
+                is ApiResult.Success -> ApiResult.Success(result.data) // Usar result.data
                 is ApiResult.Error -> Error(result.message)
-                ApiResult.Loading -> Loading
-            }
+                ApiResult.Loading -> SchoolEventUiState.Loading
+            } as SchoolEventUiState
         }
     }
 
     fun deleteEvent(event: SchoolEventEntity) {
         viewModelScope.launch {
-            _createState.value = Loading
+            _createState.value = SchoolEventUiState.Loading
 
             val result = eventRepository.deleteEvent(event)
 
             _createState.value = when (result) {
-                is ApiResult.Success -> Initial
+                is ApiResult.Success -> SchoolEventUiState.Initial
                 is ApiResult.Error -> Error(result.message)
-                ApiResult.Loading -> Loading
-            }
+                ApiResult.Loading -> SchoolEventUiState.Loading
+            } as SchoolEventUiState
         }
     }
 
@@ -137,7 +130,7 @@ class SchoolEventViewModel @Inject constructor(
     }
 
     fun resetCreateState() {
-        _createState.value = Initial
+        _createState.value = SchoolEventUiState.Initial
     }
 
     fun clearEvents() {

@@ -7,6 +7,7 @@ import com.oriundo.lbretaappestudiantil.data.local.models.StudentEntity
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
 import com.oriundo.lbretaappestudiantil.domain.model.StudentWithClass
 import com.oriundo.lbretaappestudiantil.domain.model.repository.StudentRepository // 2. Importamos la interfaz del Repository
+import com.oriundo.lbretaappestudiantil.ui.theme.states.StudentUiState
 import dagger.hilt.android.lifecycle.HiltViewModel // 3. Importación clave de Hilt
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,13 +16,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject // 4. Importación para Inyección
 
 
-sealed class StudentUiState {
-    object Initial : StudentUiState()
-    object Loading : StudentUiState()
-    data class Success(val students: List<StudentEntity>) : StudentUiState()
-    data class StudentCreated(val student: StudentEntity) : StudentUiState()
-    data class Error(val message: String) : StudentUiState()
-}
+
 
 @HiltViewModel // 5. Anotación para que Hilt sepa cómo construir
 class StudentViewModel @Inject constructor( // 6. Inyección del Repository

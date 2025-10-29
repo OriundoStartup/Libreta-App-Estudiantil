@@ -44,8 +44,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.oriundo.lbretaappestudiantil.ui.theme.AppShapes
 import com.oriundo.lbretaappestudiantil.ui.theme.AppAvatar
+import com.oriundo.lbretaappestudiantil.ui.theme.AppShapes
 import com.oriundo.lbretaappestudiantil.ui.theme.AvatarType
 import com.oriundo.lbretaappestudiantil.ui.theme.states.ConversationUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.states.MessageUiState
