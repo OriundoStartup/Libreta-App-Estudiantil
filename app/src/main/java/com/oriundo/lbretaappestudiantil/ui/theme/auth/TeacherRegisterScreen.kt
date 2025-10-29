@@ -200,11 +200,11 @@ fun TeacherRegisterScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // ============================================================================
-            // 🔥 BOTÓN GOOGLE SIGN-IN (NUEVO)
+            // 🔥 BOTÓN GOOGLE SIGN-IN (CORREGIDO)
             // ============================================================================
             Button(
                 onClick = {
-                    viewModel.loginWithGoogle(isTeacher = true)
+                    viewModel.registerWithGoogle(isTeacher = true)  // ✅ CORRECTO: registerWithGoogle
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -212,7 +212,7 @@ fun TeacherRegisterScreen(
                 shape = RoundedCornerShape(16.dp),
                 enabled = uiState !is AuthUiState.Loading && !isGoogleAuthenticated,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4285F4), // Azul de Google
+                    containerColor = Color(0xFF4285F4),
                     contentColor = Color.White
                 )
             ) {
@@ -254,9 +254,6 @@ fun TeacherRegisterScreen(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-            // ============================================================================
-            // 🔥 FIN GOOGLE SIGN-IN
-            // ============================================================================
 
             // Sección: Datos Personales
             Text(
@@ -282,7 +279,7 @@ fun TeacherRegisterScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 singleLine = true,
-                enabled = !isGoogleAuthenticated // 🔥 Deshabilitar si ya autenticó con Google
+                enabled = !isGoogleAuthenticated
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -300,7 +297,7 @@ fun TeacherRegisterScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 singleLine = true,
-                enabled = !isGoogleAuthenticated // 🔥 Deshabilitar si ya autenticó con Google
+                enabled = !isGoogleAuthenticated
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -319,7 +316,7 @@ fun TeacherRegisterScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 singleLine = true,
-                enabled = !isGoogleAuthenticated // 🔥 Deshabilitar si ya autenticó con Google
+                enabled = !isGoogleAuthenticated
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -365,7 +362,7 @@ fun TeacherRegisterScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 singleLine = true,
-                enabled = !isGoogleAuthenticated // 🔥 Deshabilitar si ya autenticó con Google
+                enabled = !isGoogleAuthenticated
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -385,7 +382,7 @@ fun TeacherRegisterScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 singleLine = true,
-                enabled = !isGoogleAuthenticated // 🔥 Deshabilitar si ya autenticó con Google
+                enabled = !isGoogleAuthenticated
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -409,7 +406,7 @@ fun TeacherRegisterScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 singleLine = true,
-                enabled = !isGoogleAuthenticated // 🔥 Deshabilitar si ya autenticó con Google
+                enabled = !isGoogleAuthenticated
             )
 
             // Password requirements
@@ -481,7 +478,6 @@ fun TeacherRegisterScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                // 🔥 LÓGICA MEJORADA: Permite registro con Google O con formulario manual
                 enabled = (isGoogleAuthenticated || (email.isNotBlank() &&
                         password.isNotBlank() &&
                         confirmPassword.isNotBlank() &&
@@ -541,9 +537,6 @@ fun TeacherRegisterScreen(
     }
 }
 
-// ============================================================================
-// COMPONENTE AUXILIAR
-// ============================================================================
 @Composable
 private fun TeacherPasswordRequirement(
     text: String,

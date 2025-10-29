@@ -203,7 +203,7 @@ fun AppNavigation(
 
             // ✅ NUEVO: Manejar redirección a SetPassword desde Login
             LaunchedEffect(loginUiState) {
-                when (val state = loginUiState) {
+                when (loginUiState) {
                     is AuthUiState.AwaitingPasswordSetup -> {
                         navController.navigate(Screen.SetPassword.route) {
                             popUpTo(Screen.Login.route) { inclusive = false }
@@ -249,16 +249,14 @@ fun AppNavigation(
         }
 
         // Registro de apoderado
-        // Registro de apoderado
         composable(Screen.ParentRegister.route) {
             val parentRegisterViewModel: AuthViewModel = hiltViewModel()
             val parentRegisterUiState by parentRegisterViewModel.uiState.collectAsState()
 
-            // ✅ NUEVO: Detectar cuando necesita establecer contraseña
+            // ✅ Detectar cuando necesita establecer contraseña
             LaunchedEffect(parentRegisterUiState) {
                 if (parentRegisterUiState is AuthUiState.AwaitingPasswordSetup) {
                     navController.navigate(Screen.SetPassword.route) {
-                        // No permitir volver atrás con el botón de atrás
                         popUpTo(Screen.ParentRegister.route) { inclusive = true }
                     }
                 }
@@ -276,6 +274,7 @@ fun AppNavigation(
                 viewModel = parentRegisterViewModel
             )
         }
+
         // ✅ NUEVO: Pantalla de establecer contraseña
         composable(Screen.SetPassword.route) {
             val setPasswordViewModel: AuthViewModel = hiltViewModel()

@@ -83,7 +83,7 @@ fun TeacherDashboardScreen(
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
-    // ✅ AGREGADO: ViewModel para notificaciones
+    // ✅ ViewModel para notificaciones (usando MessageViewModel en lugar de MaterialRequest)
     val messageViewModel: MessageViewModel = hiltViewModel()
     val unreadMessages by messageViewModel.unreadMessages.collectAsState()
 
@@ -114,7 +114,7 @@ fun TeacherDashboardScreen(
                     }
                 },
                 actions = {
-                    // ✅ CONECTADO: Botón de notificaciones con badge y navegación
+                    // ✅ Botón de notificaciones con badge conectado al MessageViewModel
                     IconButton(onClick = {
                         navController.navigate(
                             com.oriundo.lbretaappestudiantil.ui.theme.Screen.TeacherNotifications.createRoute(
@@ -278,7 +278,7 @@ fun TeacherDashboardScreen(
                 )
                 StatCard(
                     title = "Mensajes",
-                    value = unreadMessages.size.toString(),  // ✅ CONECTADO
+                    value = unreadMessages.size.toString(),  // ✅ CONECTADO al MessageViewModel
                     icon = Icons.AutoMirrored.Filled.Message,
                     gradient = AppColors.ErrorGradient,
                     modifier = Modifier.weight(1f),

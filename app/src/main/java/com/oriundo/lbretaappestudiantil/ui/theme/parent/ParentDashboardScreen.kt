@@ -90,7 +90,8 @@ fun ParentDashboardScreen(
 
     val studentCount = state.students.size
     val totalAnnotations = state.unreadAnnotations.size
-    val unreadMessagesCount = state.pendingMaterialRequests.size
+    // ✅ CAMBIO CLAVE: Obtener el contador directamente del estado del ViewModel
+    val unreadMessagesCount = state.unreadMessagesCount
     val totalAbsences = 0
 
     LaunchedEffect(userWithProfile.profile.id) {

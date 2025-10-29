@@ -95,12 +95,12 @@ class FirebaseAuthRepository @Inject constructor(
     }
 
     // =====================================================
-    // REGISTRO CON GOOGLE (CREAR USUARIO NUEVO)
+    // REGISTRO CON GOOGLE (CREAR USUARIO NUEVO - SOLO PROFESORES)
     // =====================================================
 
     /**
-     * ✅ NUEVO: Método específico para REGISTRO con Google
-     * Solo se usa en ParentRegisterScreen y TeacherRegisterScreen
+     * Método específico para REGISTRO con Google de PROFESORES.
+     * Para apoderados, usar registerParentWithGoogle() con token.
      */
     override suspend fun registerWithGoogle(isTeacher: Boolean): ApiResult<UserWithProfile> {
         return try {
@@ -135,12 +135,13 @@ class FirebaseAuthRepository @Inject constructor(
 
             if (userDoc.exists()) {
                 // ⚠️ Usuario YA REGISTRADO
+                auth.signOut()
                 return ApiResult.Error(
                     "Esta cuenta de Google ya está registrada. Puedes iniciar sesión directamente."
                 )
             }
 
-            // ✅ Usuario NUEVO - Crear documento básico
+            // ✅ Usuario NUEVO - Crear documento básico (solo para profesores)
             val userData = createBasicUserData(
                 email = firebaseUser.email ?: "",
                 displayName = firebaseUser.displayName ?: "",
@@ -160,6 +161,95 @@ class FirebaseAuthRepository @Inject constructor(
                 ?: return ApiResult.Error("No se pudo obtener el usuario sincronizado")
 
             ApiResult.Success(localUser)
+
+        } catch (e: Exception) {
+            ApiResult.Error("Error en registro con Google: ${e.message}", e)
+        }
+    }
+
+    // =====================================================
+    // ✅ NUEVO: REGISTRO DE APODERADO CON GOOGLE (CON TOKEN)
+    // =====================================================
+
+    /**
+     * ✅ NUEVO: Registra apoderado con Google usando un token existente.
+     * Este método SÍ crea en Firebase (se llama desde el Paso 2).
+     */
+    suspend fun registerParentWithGoogle(
+        parentForm: ParentRegistrationForm,
+        studentForm: StudentRegistrationForm,
+        googleIdToken: String
+    ): ApiResult<Triple<UserWithProfile, StudentEntity, ClassEntity>> {
+        return try {
+            // 1. Autenticar con Firebase usando el token
+            val firebaseCredential = GoogleAuthProvider.getCredential(googleIdToken, null)
+            val authResult = auth.signInWithCredential(firebaseCredential).await()
+            val firebaseUser = authResult.user
+                ?: return ApiResult.Error("Usuario de Firebase no encontrado")
+
+            // 2. Verificar si ya existe (por seguridad)
+            val userDoc = firestore.collection("users")
+                .document(firebaseUser.uid)
+                .get()
+                .await()
+
+            if (userDoc.exists()) {
+                auth.signOut()
+                return ApiResult.Error("Esta cuenta de Google ya está registrada.")
+            }
+
+            // 3. Crear documento completo del apoderado en Firestore
+            val userData = buildMap<String, Any> {
+                put("email", firebaseUser.email ?: parentForm.email)
+                put("firstName", parentForm.firstName)
+                put("lastName", parentForm.lastName)
+                put("phone", parentForm.phone)
+                parentForm.address?.let { put("address", it) }
+                put("classCode", studentForm.classCode)
+                firebaseUser.photoUrl?.toString()?.let { put("photoUrl", it) }
+                put("isTeacher", false)
+                put("isParent", true)
+                put("createdAt", System.currentTimeMillis())
+                put("hasPassword", false)
+            }
+
+            firestore.collection("users")
+                .document(firebaseUser.uid)
+                .set(userData)
+                .await()
+
+            // 4. Crear estudiante en Firestore
+            val studentData = createStudentData(
+                rut = studentForm.studentRut,
+                firstName = studentForm.studentFirstName,
+                lastName = studentForm.studentLastName,
+                classCode = studentForm.classCode,
+                birthDate = studentForm.studentBirthDate,
+                relationshipType = studentForm.relationshipType,
+                isPrimary = studentForm.isPrimary
+            )
+
+            val studentDocRef = firestore.collection("users")
+                .document(firebaseUser.uid)
+                .collection("students")
+                .document()
+
+            studentDocRef.set(studentData).await()
+
+            // 5. Sincronizar todo a Room
+            localDatabaseRepository.syncAllUserDataFromFirestore(firebaseUser.uid)
+
+            // 6. Obtener datos sincronizados
+            val localUser = localDatabaseRepository.getUserByFirebaseUid(firebaseUser.uid)
+                ?: return ApiResult.Error("No se pudo obtener el usuario")
+
+            val classEntity = localDatabaseRepository.getClassByCode(studentForm.classCode)
+                ?: return ApiResult.Error("Clase no encontrada: ${studentForm.classCode}")
+
+            val studentEntity = localDatabaseRepository.getStudentByRut(studentForm.studentRut)
+                ?: return ApiResult.Error("Estudiante no sincronizado")
+
+            ApiResult.Success(Triple(localUser, studentEntity, classEntity))
 
         } catch (e: Exception) {
             ApiResult.Error("Error en registro con Google: ${e.message}", e)
@@ -200,71 +290,6 @@ class FirebaseAuthRepository @Inject constructor(
     }
 
     // =====================================================
-    // COMPLETAR PERFIL DE APODERADO (GOOGLE)
-    // =====================================================
-    /**
-     * Completa el perfil de un apoderado que se registró con Google.
-     * Este método se llama después del Paso 2 del registro.
-     */
-    suspend fun completeParentProfile(
-        firebaseUid: String,
-        parentForm: ParentRegistrationForm,
-        studentForm: StudentRegistrationForm
-    ): ApiResult<Triple<UserWithProfile, StudentEntity, ClassEntity>> {
-        return try {
-            // 1. Actualizar datos del apoderado en Firestore
-            val apoderadoData = createParentProfileData(
-                firstName = parentForm.firstName,
-                lastName = parentForm.lastName,
-                phone = parentForm.phone,
-                address = parentForm.address,
-                classCode = studentForm.classCode
-            )
-
-            firestore.collection("users")
-                .document(firebaseUid)
-                .update(apoderadoData)
-                .await()
-
-            // 2. Crear estudiante en Firestore
-            val studentData = createStudentData(
-                rut = studentForm.studentRut,
-                firstName = studentForm.studentFirstName,
-                lastName = studentForm.studentLastName,
-                classCode = studentForm.classCode,
-                birthDate = studentForm.studentBirthDate,
-                relationshipType = studentForm.relationshipType,
-                isPrimary = studentForm.isPrimary
-            )
-
-            val studentDocRef = firestore.collection("users")
-                .document(firebaseUid)
-                .collection("students")
-                .document()
-
-            studentDocRef.set(studentData).await()
-
-            // 3. Sincronizar todo a Room
-            localDatabaseRepository.syncAllUserDataFromFirestore(firebaseUid)
-
-            // 4. Obtener datos sincronizados
-            val localUser = localDatabaseRepository.getUserByFirebaseUid(firebaseUid)
-                ?: return ApiResult.Error("No se pudo obtener el usuario")
-
-            val classEntity = localDatabaseRepository.getClassByCode(studentForm.classCode)
-                ?: return ApiResult.Error("Clase no encontrada: ${studentForm.classCode}")
-
-            val studentEntity = localDatabaseRepository.getStudentByRut(studentForm.studentRut)
-                ?: return ApiResult.Error("Estudiante no sincronizado")
-
-            ApiResult.Success(Triple(localUser, studentEntity, classEntity))
-
-        } catch (e: Exception) {
-            ApiResult.Error("Error completando perfil: ${e.message}", e)
-        }
-    }
-
-    // =====================================================
     // REGISTRO DE APODERADO (EMAIL/PASSWORD)
     // =====================================================
     override suspend fun registerParent(
@@ -279,8 +304,57 @@ class FirebaseAuthRepository @Inject constructor(
             val firebaseUser = authResult.user
                 ?: return ApiResult.Error("Error creando usuario")
 
-            // Usar el método de completar perfil
-            completeParentProfile(firebaseUser.uid, parentForm, studentForm)
+            // 1. Crear documento completo del apoderado en Firestore
+            val userData = buildMap<String, Any> {
+                put("email", parentForm.email)
+                put("firstName", parentForm.firstName)
+                put("lastName", parentForm.lastName)
+                put("phone", parentForm.phone)
+                parentForm.address?.let { put("address", it) }
+                put("classCode", studentForm.classCode)
+                put("isTeacher", false)
+                put("isParent", true)
+                put("createdAt", System.currentTimeMillis())
+                put("hasPassword", true)
+            }
+
+            firestore.collection("users")
+                .document(firebaseUser.uid)
+                .set(userData)
+                .await()
+
+            // 2. Crear estudiante en Firestore
+            val studentData = createStudentData(
+                rut = studentForm.studentRut,
+                firstName = studentForm.studentFirstName,
+                lastName = studentForm.studentLastName,
+                classCode = studentForm.classCode,
+                birthDate = studentForm.studentBirthDate,
+                relationshipType = studentForm.relationshipType,
+                isPrimary = studentForm.isPrimary
+            )
+
+            val studentDocRef = firestore.collection("users")
+                .document(firebaseUser.uid)
+                .collection("students")
+                .document()
+
+            studentDocRef.set(studentData).await()
+
+            // 3. Sincronizar todo a Room
+            localDatabaseRepository.syncAllUserDataFromFirestore(firebaseUser.uid)
+
+            // 4. Obtener datos sincronizados
+            val localUser = localDatabaseRepository.getUserByFirebaseUid(firebaseUser.uid)
+                ?: return ApiResult.Error("No se pudo obtener el usuario")
+
+            val classEntity = localDatabaseRepository.getClassByCode(studentForm.classCode)
+                ?: return ApiResult.Error("Clase no encontrada: ${studentForm.classCode}")
+
+            val studentEntity = localDatabaseRepository.getStudentByRut(studentForm.studentRut)
+                ?: return ApiResult.Error("Estudiante no sincronizado")
+
+            ApiResult.Success(Triple(localUser, studentEntity, classEntity))
 
         } catch (e: Exception) {
             ApiResult.Error("Error en registro de apoderado: ${e.message}", e)
@@ -441,7 +515,7 @@ class FirebaseAuthRepository @Inject constructor(
         put("isTeacher", isTeacher)
         put("isParent", !isTeacher)
         put("createdAt", System.currentTimeMillis())
-        put("hasPassword", false) // Por defecto, usuarios de Google no tienen contraseña
+        put("hasPassword", false)
     }
 
     /**
@@ -462,27 +536,7 @@ class FirebaseAuthRepository @Inject constructor(
         put("isTeacher", true)
         put("isParent", false)
         put("createdAt", System.currentTimeMillis())
-        put("hasPassword", true) // Registro con email/password
-    }
-
-    /**
-     * Crea los datos de actualización del perfil de un apoderado
-     */
-    private fun createParentProfileData(
-        firstName: String,
-        lastName: String,
-        phone: String,
-        address: String?,
-        classCode: String
-    ): Map<String, Any> = buildMap {
-        put("firstName", firstName)
-        put("lastName", lastName)
-        put("phone", phone)
-        address?.let { put("address", it) }
-        put("classCode", classCode)
-        put("isParent", true)
-        put("isTeacher", false)
-        put("updatedAt", System.currentTimeMillis())
+        put("hasPassword", true)
     }
 
     /**

@@ -3,12 +3,9 @@ package com.oriundo.lbretaappestudiantil.ui.theme.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationEntity
-import com.oriundo.lbretaappestudiantil.data.local.models.MaterialRequestEntity
-import com.oriundo.lbretaappestudiantil.data.local.models.RequestStatus
 import com.oriundo.lbretaappestudiantil.data.local.models.SchoolEventEntity
 import com.oriundo.lbretaappestudiantil.domain.model.StudentWithClass
 import com.oriundo.lbretaappestudiantil.domain.model.repository.AnnotationRepository
-import com.oriundo.lbretaappestudiantil.domain.model.repository.MaterialRequestRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.SchoolEventRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.StudentRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,7 +18,8 @@ import javax.inject.Inject
 data class ParentDashboardState(
     val students: List<StudentWithClass> = emptyList(),
     val unreadAnnotations: List<AnnotationEntity> = emptyList(),
-    val pendingMaterialRequests: List<MaterialRequestEntity> = emptyList(),
+    // 🗑️ Eliminado: pendingMaterialRequests. Sustituido por un simple contador (o se asume que un nuevo Repository manejará esto)
+    val unreadMessagesCount: Int = 0,
     val upcomingEvents: List<SchoolEventEntity> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null
@@ -31,12 +29,16 @@ data class ParentDashboardState(
 class ParentDashboardViewModel @Inject constructor(
     private val studentRepository: StudentRepository,
     private val annotationRepository: AnnotationRepository,
-    private val materialRequestRepository: MaterialRequestRepository,
+    // 🗑️ Eliminado: private val materialRequestRepository: MaterialRequestRepository,
     private val schoolEventRepository: SchoolEventRepository
 ) : ViewModel() {
 
     private val _dashboardState = MutableStateFlow(ParentDashboardState())
     val dashboardState: StateFlow<ParentDashboardState> = _dashboardState.asStateFlow()
+
+    // ⚠️ Si el Repositorio de Notificaciones/Mensajes aún no existe:
+    // **USO TEMPORAL:** Vamos a asumir que las anotaciones no leídas *son* la notificación por ahora.
+    // Una vez que implementes tu 'MessageRepository', sustituye esto.
 
     fun loadDashboard(parentId: Int) {
         _dashboardState.value = _dashboardState.value.copy(isLoading = true)
@@ -44,16 +46,14 @@ class ParentDashboardViewModel @Inject constructor(
         // Cargar estudiantes del apoderado
         viewModelScope.launch {
             try {
+                // Sigue cargando estudiantes de forma reactiva
                 studentRepository.getStudentsByParent(parentId).collect { students ->
                     _dashboardState.value = _dashboardState.value.copy(
                         students = students,
                         isLoading = false
                     )
 
-                    // Cargar solicitudes de materiales para cada estudiante
-                    students.forEach { student ->
-                        loadMaterialRequestsForStudent(student.student.id)
-                    }
+                    // Ya no hay necesidad del bucle que cargaba las solicitudes de material
                 }
             } catch (e: Exception) {
                 _dashboardState.value = _dashboardState.value.copy(
@@ -63,12 +63,14 @@ class ParentDashboardViewModel @Inject constructor(
             }
         }
 
-        // Cargar anotaciones no leídas
+        // Cargar anotaciones no leídas (usadas también para el contador de notificaciones TEMPORALMENTE)
         viewModelScope.launch {
             try {
                 annotationRepository.getUnreadAnnotationsForParent(parentId).collect { annotations ->
                     _dashboardState.value = _dashboardState.value.copy(
-                        unreadAnnotations = annotations
+                        unreadAnnotations = annotations,
+                        // Asume que las anotaciones no leídas se cuentan como mensajes/notificaciones.
+                        unreadMessagesCount = annotations.size
                     )
                 }
             } catch (e: Exception) {
@@ -78,34 +80,27 @@ class ParentDashboardViewModel @Inject constructor(
             }
         }
 
-        // Cargar eventos generales
+        // ⚠️ Nota sobre Notificaciones/Mensajes:
+        // Cuando implementes un ‘NotificationRepository’ o ‘MessageRepository’,
+        // sustituye el bloque superior por algo como:
+        /*
+        viewModelScope.launch {
+            try {
+                messageRepository.getUnreadMessagesForParent(parentId).collect { messages ->
+                    _dashboardState.value = _dashboardState.value.copy(
+                        unreadMessagesCount = messages.size
+                    )
+                }
+            } catch (e: Exception) { ... }
+        }
+        */
+
+        // Cargar eventos generales (sin cambios)
         viewModelScope.launch {
             try {
                 schoolEventRepository.getGeneralEvents().collect { events ->
                     _dashboardState.value = _dashboardState.value.copy(
                         upcomingEvents = events.take(5)
-                    )
-                }
-            } catch (e: Exception) {
-                _dashboardState.value = _dashboardState.value.copy(
-                    error = e.message
-                )
-            }
-        }
-    }
-
-    private fun loadMaterialRequestsForStudent(studentId: Int) {
-        viewModelScope.launch {
-            try {
-                materialRequestRepository.getRequestsByStudent(studentId).collect { requests ->
-                    val pending = requests.filter { it.status == RequestStatus.PENDING }
-
-                    // Combinar con solicitudes existentes
-                    val currentRequests = _dashboardState.value.pendingMaterialRequests.toMutableList()
-                    currentRequests.addAll(pending)
-
-                    _dashboardState.value = _dashboardState.value.copy(
-                        pendingMaterialRequests = currentRequests.distinctBy { it.id }
                     )
                 }
             } catch (e: Exception) {

@@ -21,9 +21,17 @@ sealed class AuthUiState {
     /** Esperando completar perfil (Google Auth nuevo) */
     data class AwaitingProfileCompletion(val tempUser: UserWithProfile) : AuthUiState()
 
-    /** ✅ NUEVO: Esperando establecer contraseña después de completar perfil */
+    /** Esperando establecer contraseña después de completar perfil */
     data class AwaitingPasswordSetup(
         val userWithProfile: UserWithProfile,
-        val isOptional: Boolean = false // Si es true, el usuario puede saltar este paso
+        val isOptional: Boolean = false
+    ) : AuthUiState()
+
+    /** ✅ NUEVO: Google autenticado pero NO registrado en Firebase aún */
+    data class GoogleAuthPending(
+        val email: String,
+        val displayName: String,
+        val photoUrl: String?,
+        val googleIdToken: String
     ) : AuthUiState()
 }

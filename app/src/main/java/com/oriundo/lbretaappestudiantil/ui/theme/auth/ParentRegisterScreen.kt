@@ -140,33 +140,27 @@ fun ParentRegisterScreen(
 
     val uiState by viewModel.uiState.collectAsState()
 
-    // Estado para deshabilitar campos (si se autenticó con Google)
-    val isGoogleAuthenticated = uiState is AuthUiState.AwaitingProfileCompletion
+    // ✅ NUEVO: Variable para saber si usó Google
+    var isUsingGoogle by remember { mutableStateOf(false) }
 
-    // ============================================================================
-// REEMPLAZAR EL LaunchedEffect EXISTENTE EN ParentRegisterScreen.kt
-// ============================================================================
-
+    // ✅ MODIFICADO: LaunchedEffect para manejar estados
     LaunchedEffect(uiState) {
         when (val state = uiState) {
+            is AuthUiState.GoogleAuthPending -> {
+                // ✅ Usuario autenticó con Google - Pre-cargar datos
+                email = state.email
+                val nameParts = state.displayName.split(" ", limit = 2)
+                firstName = nameParts.firstOrNull() ?: ""
+                lastName = nameParts.getOrNull(1) ?: ""
+                isUsingGoogle = true
+
+                // NO avanzar automáticamente - el usuario completa manualmente
+            }
             is AuthUiState.Success -> {
-                // ✅ Usuario autenticado completamente → Ir al Dashboard
                 onRegisterSuccess(state.userWithProfile)
             }
-            is AuthUiState.AwaitingProfileCompletion -> {
-                // ✅ Usuario de Google nuevo - Pre-cargar datos
-                email = state.tempUser.user.email
-                firstName = state.tempUser.profile.firstName
-                lastName = state.tempUser.profile.lastName
-                phone = state.tempUser.profile.phone ?: ""
-                address = state.tempUser.profile.address ?: ""
-
-                // NO avanzar automáticamente - el usuario debe completar manualmente
-                // El botón de Google se deshabilitará automáticamente con isGoogleAuthenticated
-            }
             is AuthUiState.AwaitingPasswordSetup -> {
-                // ✅ NUEVO: Perfil completado, ahora redirigir a SetPasswordScreen
-                // Esto lo manejamos en AppNavigation.kt
+                // La navegación a SetPassword se maneja en AppNavigation.kt
             }
             else -> {}
         }
@@ -272,7 +266,7 @@ fun ParentRegisterScreen(
                 ) { step ->
                     when (step) {
                         1 -> {
-                            // PASO 1: Datos del Apoderado
+                            // ✅ PASO 1: Solo recopilar datos (NO crear en Firebase)
                             Column {
                                 Text(
                                     "Paso 1: Información del Apoderado",
@@ -335,17 +329,16 @@ fun ParentRegisterScreen(
 
                                 Spacer(modifier = Modifier.height(24.dp))
 
-                                // Botón Google Sign-In
+                                // ✅ MODIFICADO: Botón Google Sign-In ahora usa authenticateWithGoogleOnly
                                 Button(
                                     onClick = {
-                                        // ✅ CORREGIDO: Usar registerWithGoogle en lugar de loginWithGoogle
-                                        viewModel.registerWithGoogle(isTeacher = false)
+                                        viewModel.authenticateWithGoogleOnly(isTeacher = false)
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(56.dp),
                                     shape = RoundedCornerShape(16.dp),
-                                    enabled = uiState !is AuthUiState.Loading && !isGoogleAuthenticated,
+                                    enabled = uiState !is AuthUiState.Loading && !isUsingGoogle,
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = Color(0xFF4285F4),
                                         contentColor = Color.White
@@ -397,7 +390,7 @@ fun ParentRegisterScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     singleLine = true,
                                     shape = RoundedCornerShape(12.dp),
-                                    enabled = !isGoogleAuthenticated
+                                    enabled = !isUsingGoogle
                                 )
 
                                 Spacer(modifier = Modifier.height(16.dp))
@@ -410,7 +403,7 @@ fun ParentRegisterScreen(
                                     singleLine = true,
                                     visualTransformation = PasswordVisualTransformation(),
                                     shape = RoundedCornerShape(12.dp),
-                                    enabled = !isGoogleAuthenticated
+                                    enabled = !isUsingGoogle
                                 )
 
                                 Spacer(modifier = Modifier.height(16.dp))
@@ -423,7 +416,7 @@ fun ParentRegisterScreen(
                                     singleLine = true,
                                     visualTransformation = PasswordVisualTransformation(),
                                     shape = RoundedCornerShape(12.dp),
-                                    enabled = !isGoogleAuthenticated
+                                    enabled = !isUsingGoogle
                                 )
 
                                 // Validación de contraseña
@@ -448,7 +441,7 @@ fun ParentRegisterScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(56.dp),
-                                    enabled = (isGoogleAuthenticated || (email.isNotBlank() &&
+                                    enabled = (isUsingGoogle || (email.isNotBlank() &&
                                             password.isNotBlank() &&
                                             confirmPassword.isNotBlank() &&
                                             password == confirmPassword &&
@@ -471,7 +464,7 @@ fun ParentRegisterScreen(
                         }
 
                         2 -> {
-                            // PASO 2: Datos del Estudiante
+                            // ✅ PASO 2: Recopilar datos del estudiante y REGISTRAR
                             Column {
                                 Text(
                                     "Paso 2: Información del Estudiante",
@@ -617,7 +610,7 @@ fun ParentRegisterScreen(
 
                                     Spacer(modifier = Modifier.width(16.dp))
 
-                                    // ✅ CORREGIDO: Ahora incluye classCode en ParentRegistrationForm
+                                    // ✅ MODIFICADO: Botón "Finalizar" ahora SÍ crea en Firebase
                                     Button(
                                         onClick = {
                                             val parentForm = ParentRegistrationForm(
@@ -627,7 +620,7 @@ fun ParentRegisterScreen(
                                                 firstName = firstName,
                                                 lastName = lastName,
                                                 phone = phone,
-                                                classCode = classCode, // ✅ AQUÍ ESTÁ LA CORRECCIÓN
+                                                classCode = classCode,
                                                 address = address.ifBlank { null }
                                             )
 
@@ -641,7 +634,14 @@ fun ParentRegisterScreen(
                                                 isPrimary = true
                                             )
 
-                                            viewModel.registerParent(parentForm, studentForm)
+                                            // ✅ CLAVE: Pasar el token de Google si existe
+                                            viewModel.registerParentWithAllData(
+                                                parentForm = parentForm,
+                                                studentForm = studentForm,
+                                                googleIdToken = if (isUsingGoogle) {
+                                                    viewModel.getPendingGoogleToken()
+                                                } else null
+                                            )
                                         },
                                         modifier = Modifier
                                             .weight(1f)
