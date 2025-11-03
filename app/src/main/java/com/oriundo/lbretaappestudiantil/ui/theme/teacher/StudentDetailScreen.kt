@@ -47,6 +47,7 @@ import com.oriundo.lbretaappestudiantil.ui.theme.AppAvatar
 import com.oriundo.lbretaappestudiantil.ui.theme.AppShapes
 import com.oriundo.lbretaappestudiantil.ui.theme.AvatarType
 import com.oriundo.lbretaappestudiantil.ui.theme.Screen
+import com.oriundo.lbretaappestudiantil.ui.theme.states.AuthUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AuthViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentViewModel
 
@@ -60,8 +61,8 @@ fun StudentDetailScreen(
     authViewModel: AuthViewModel = hiltViewModel()
 ) {
     val student by studentViewModel.selectedStudent.collectAsState()
-    val currentUser by authViewModel.currentUser.collectAsState()
-    val teacherId = currentUser?.profile?.id ?: 0
+    val authUiState by authViewModel.uiState.collectAsState()
+    val teacherId = (authUiState as? AuthUiState.Success)?.userWithProfile?.profile?.id ?: 0
 
     LaunchedEffect(studentId) {
         studentViewModel.loadStudentById(studentId)

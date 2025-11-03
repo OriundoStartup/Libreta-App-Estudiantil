@@ -1,5 +1,6 @@
 package com.oriundo.lbretaappestudiantil.ui.theme.auth
 
+import android.app.Activity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -55,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -72,6 +74,11 @@ fun TeacherRegisterScreen(
     onRegisterSuccess: (UserWithProfile) -> Unit,
     viewModel: AuthViewModel = viewModel()
 ) {
+    // ✅ Obtener la Activity desde el contexto
+    val context = LocalContext.current
+    val activity = context as? Activity
+
+    // Estados del formulario
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
@@ -82,24 +89,39 @@ fun TeacherRegisterScreen(
 
     val uiState by viewModel.uiState.collectAsState()
 
-    // Estado para deshabilitar campos si se autenticó con Google
-    val isGoogleAuthenticated = uiState is AuthUiState.AwaitingProfileCompletion
+    // ✅ Flag para controlar si se está usando Google
+    var isUsingGoogle by remember { mutableStateOf(false) }
 
+    // ✅ LaunchedEffect para manejar estados
     LaunchedEffect(uiState) {
         when (val state = uiState) {
+            is AuthUiState.GoogleAuthPending -> {
+                email = state.email
+                val nameParts = state.displayName.split(" ", limit = 2)
+                firstName = nameParts.firstOrNull() ?: ""
+                lastName = nameParts.getOrNull(1) ?: ""
+                isUsingGoogle = true  // ← IMPORTANTE
+            }
             is AuthUiState.Success -> {
                 onRegisterSuccess(state.userWithProfile)
-            }
-            is AuthUiState.AwaitingProfileCompletion -> {
-                // Precargar datos de Google
-                email = state.tempUser.user.email
-                firstName = state.tempUser.profile.firstName
-                lastName = state.tempUser.profile.lastName
-                phone = state.tempUser.profile.phone ?: phone
             }
             else -> {}
         }
     }
+
+    // ✅ Validaciones de contraseña
+    val hasMinLength = password.length >= 6
+    val passwordsMatch = password == confirmPassword && confirmPassword.isNotEmpty()
+
+    // ✅ Validar si el formulario está completo (contraseña SIEMPRE requerida)
+    val isFormValid = email.isNotBlank() &&
+            password.isNotBlank() &&
+            confirmPassword.isNotBlank() &&
+            hasMinLength &&
+            passwordsMatch &&
+            firstName.isNotBlank() &&
+            lastName.isNotBlank() &&
+            phone.isNotBlank()
 
     Box(
         modifier = Modifier
@@ -190,168 +212,77 @@ fun TeacherRegisterScreen(
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "Podrás crear cursos y gestionar estudiantes una vez registrado",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        text = "Como profesor podrás crear clases, gestionar estudiantes y enviar comunicaciones",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // ============================================================================
-            // 🔥 BOTÓN GOOGLE SIGN-IN (CORREGIDO)
-            // ============================================================================
+            // ✅ Botón de Google
             Button(
                 onClick = {
-                    viewModel.registerWithGoogle(isTeacher = true)  // ✅ CORRECTO: registerWithGoogle
+                    activity?.let {
+                        viewModel.authenticateWithGoogle(it)
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                enabled = uiState !is AuthUiState.Loading && !isGoogleAuthenticated,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4285F4),
-                    contentColor = Color.White
-                )
+                    containerColor = Color.White,
+                    contentColor = Color.Black
+                ),
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Filled.School, null, modifier = Modifier.size(24.dp))
-                    Text("Registrarse con Google", fontWeight = FontWeight.Medium)
+                    Text(
+                        text = "Continuar con Google",
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Separador "O"
+            // Divider "O"
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .height(1.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .background(MaterialTheme.colorScheme.outlineVariant)
                 )
                 Text(
-                    text = " O usa Email/Contraseña ",
-                    modifier = Modifier.padding(horizontal = 8.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall
+                    text = "O",
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .height(1.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .background(MaterialTheme.colorScheme.outlineVariant)
                 )
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Sección: Datos Personales
-            Text(
-                text = "Datos Personales",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Formulario
-            OutlinedTextField(
-                value = firstName,
-                onValueChange = { firstName = it },
-                label = { Text("Nombre") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Filled.Person,
-                        contentDescription = null
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                singleLine = true,
-                enabled = !isGoogleAuthenticated
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = lastName,
-                onValueChange = { lastName = it },
-                label = { Text("Apellido") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Filled.Person,
-                        contentDescription = null
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                singleLine = true,
-                enabled = !isGoogleAuthenticated
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = phone,
-                onValueChange = { phone = it },
-                label = { Text("Teléfono") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Filled.Phone,
-                        contentDescription = null
-                    )
-                },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                singleLine = true,
-                enabled = !isGoogleAuthenticated
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = address,
-                onValueChange = { address = it },
-                label = { Text("Dirección (Opcional)") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Filled.Home,
-                        contentDescription = null
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                singleLine = true
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Sección: Credenciales
-            Text(
-                text = "Credenciales",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
+            // Email field
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
                 label = { Text("Email") },
+                placeholder = { Text("profesor@escuela.com") },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Filled.Email,
@@ -362,15 +293,18 @@ fun TeacherRegisterScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 singleLine = true,
-                enabled = !isGoogleAuthenticated
+                enabled = !isUsingGoogle  // ← Deshabilitado si usa Google
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // ✅ Campos de contraseña (SIEMPRE visibles y SIEMPRE habilitados)
+            // Password field
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
                 label = { Text("Contraseña") },
+                placeholder = { Text("Mínimo 6 caracteres") },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Filled.Lock,
@@ -381,16 +315,18 @@ fun TeacherRegisterScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                singleLine = true,
-                enabled = !isGoogleAuthenticated
+                singleLine = true
+                // enabled = true (por defecto, SIEMPRE habilitado)
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Confirm password field
             OutlinedTextField(
                 value = confirmPassword,
                 onValueChange = { confirmPassword = it },
                 label = { Text("Confirmar Contraseña") },
+                placeholder = { Text("Repite tu contraseña") },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Filled.Lock,
@@ -405,8 +341,8 @@ fun TeacherRegisterScreen(
                 } else null,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                singleLine = true,
-                enabled = !isGoogleAuthenticated
+                singleLine = true
+                // enabled = true (por defecto, SIEMPRE habilitado)
             )
 
             // Password requirements
@@ -420,10 +356,121 @@ fun TeacherRegisterScreen(
                 ) {
                     TeacherPasswordRequirement(
                         text = "Mínimo 6 caracteres",
-                        isMet = password.length >= 6
+                        isMet = hasMinLength
+                    )
+                    TeacherPasswordRequirement(
+                        text = "Las contraseñas coinciden",
+                        isMet = passwordsMatch
                     )
                 }
             }
+
+            // ✅ Mensaje informativo para usuarios de Google
+            if (isUsingGoogle) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Ingresa una contraseña para poder iniciar sesión sin Google si es necesario",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // First name field
+            OutlinedTextField(
+                value = firstName,
+                onValueChange = { firstName = it },
+                label = { Text("Nombre") },
+                placeholder = { Text("Juan") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Filled.Person,
+                        contentDescription = null
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Last name field
+            OutlinedTextField(
+                value = lastName,
+                onValueChange = { lastName = it },
+                label = { Text("Apellido") },
+                placeholder = { Text("Pérez") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Filled.Person,
+                        contentDescription = null
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Phone field
+            OutlinedTextField(
+                value = phone,
+                onValueChange = { phone = it },
+                label = { Text("Teléfono") },
+                placeholder = { Text("+56 9 1234 5678") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Filled.Phone,
+                        contentDescription = null
+                    )
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Address field (optional)
+            OutlinedTextField(
+                value = address,
+                onValueChange = { address = it },
+                label = { Text("Dirección (opcional)") },
+                placeholder = { Text("Calle 123, Comuna") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Filled.Home,
+                        contentDescription = null
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                singleLine = true
+            )
 
             Spacer(modifier = Modifier.height(32.dp))
 
@@ -461,32 +508,30 @@ fun TeacherRegisterScreen(
                 }
             }
 
-            // Register button
+            // ✅ Register button
             Button(
                 onClick = {
                     val form = TeacherRegistrationForm(
                         email = email,
-                        password = password,
+                        password = password,  // ← Siempre usar la contraseña ingresada
                         confirmPassword = confirmPassword,
                         firstName = firstName,
                         lastName = lastName,
                         phone = phone,
                         address = address.ifBlank { null }
                     )
-                    viewModel.registerTeacher(form)
+
+                    viewModel.registerTeacher(
+                        teacherForm = form,
+                        googleIdToken = if (isUsingGoogle) {
+                            viewModel.getPendingGoogleToken()
+                        } else null
+                    )
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                enabled = (isGoogleAuthenticated || (email.isNotBlank() &&
-                        password.isNotBlank() &&
-                        confirmPassword.isNotBlank() &&
-                        password == confirmPassword &&
-                        password.length >= 6)) &&
-                        firstName.isNotBlank() &&
-                        lastName.isNotBlank() &&
-                        phone.isNotBlank() &&
-                        uiState !is AuthUiState.Loading,
+                enabled = isFormValid && uiState !is AuthUiState.Loading,
                 shape = RoundedCornerShape(16.dp)
             ) {
                 if (uiState is AuthUiState.Loading) {

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -55,7 +56,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -68,8 +71,9 @@ import com.oriundo.lbretaappestudiantil.ui.theme.states.AuthUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AuthViewModel
 
 // ============================================================================
-// FUNCIONES AUXILIARES (Sin cambios)
+// FUNCIONES AUXILIARES
 // ============================================================================
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RelationshipChip(
@@ -120,6 +124,9 @@ fun ParentRegisterScreen(
     onRegisterSuccess: (UserWithProfile) -> Unit,
     viewModel: AuthViewModel = viewModel()
 ) {
+    val context = LocalContext.current
+    val activity = context as? android.app.Activity
+
     var currentStep by remember { mutableIntStateOf(1) }
 
     // Datos del apoderado
@@ -140,12 +147,14 @@ fun ParentRegisterScreen(
 
     val uiState by viewModel.uiState.collectAsState()
 
+    // Flag para controlar si se está usando Google
     var isUsingGoogle by remember { mutableStateOf(false) }
 
-    // LaunchedEffect (Sin cambios)
+    // ✅ CAMBIO CLAVE: Solo autocompleta datos, NO intenta autenticar
     LaunchedEffect(uiState) {
         when (val state = uiState) {
             is AuthUiState.GoogleAuthPending -> {
+                // Autocompletar datos del formulario
                 email = state.email
                 val nameParts = state.displayName.split(" ", limit = 2)
                 firstName = nameParts.firstOrNull() ?: ""
@@ -155,12 +164,27 @@ fun ParentRegisterScreen(
             is AuthUiState.Success -> {
                 onRegisterSuccess(state.userWithProfile)
             }
-            is AuthUiState.AwaitingPasswordSetup -> {
-                // Esta pantalla ya no navegará aquí, pero se mantiene por si otro flujo lo usa
-            }
             else -> {}
         }
     }
+
+    // Validaciones de contraseña
+    val hasMinLength = password.length >= 8
+    val hasUpperCase = password.any { it.isUpperCase() }
+    val hasLowerCase = password.any { it.isLowerCase() }
+    val hasNumber = password.any { it.isDigit() }
+    val passwordsMatch = password == confirmPassword && confirmPassword.isNotEmpty()
+    val isPasswordValid = hasMinLength && hasUpperCase && hasLowerCase && hasNumber
+
+    // Validar si el Paso 1 está completo (contraseña SIEMPRE requerida)
+    val isStep1Valid = email.isNotBlank() &&
+            password.isNotBlank() &&
+            confirmPassword.isNotBlank() &&
+            firstName.isNotBlank() &&
+            lastName.isNotBlank() &&
+            phone.isNotBlank() &&
+            isPasswordValid &&
+            passwordsMatch
 
     Box(
         modifier = Modifier
@@ -170,278 +194,520 @@ fun ParentRegisterScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp)
-                .padding(bottom = 48.dp)
+                .padding(horizontal = 24.dp)
+                .padding(top = 16.dp, bottom = 48.dp)
         ) {
-            // Header con botón de regresar (Sin cambios)
+            // Header con botón de atrás
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onNavigateBack) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Regresar",
-                        tint = MaterialTheme.colorScheme.primary
+                        contentDescription = "Volver",
+                        tint = MaterialTheme.colorScheme.onBackground
                     )
                 }
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    "Registro de Apoderado",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    text = "Registro de Apoderado",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
-                Spacer(modifier = Modifier.size(48.dp))
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Indicador de progreso (Sin cambios)
+            // Indicador de pasos
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                repeat(2) { index ->
-                    val step = index + 1
-                    Row(
+                repeat(2) { step ->
+                    Column(
                         modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(32.dp)
+                                .size(40.dp)
                                 .clip(CircleShape)
                                 .background(
-                                    if (step <= currentStep) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.surfaceVariant
+                                    if (step + 1 <= currentStep)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.surfaceVariant
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = step.toString(),
-                                color = if (step <= currentStep) Color.White
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.Bold
+                                text = "${step + 1}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (step + 1 <= currentStep)
+                                    MaterialTheme.colorScheme.onPrimary
+                                else
+                                    MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        if (index < 1) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(2.dp)
-                                    .background(
-                                        if (step < currentStep) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.surfaceVariant
-                                    )
-                            )
-                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (step == 0) "Tus Datos" else "Datos del Estudiante",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (step + 1 <= currentStep)
+                                MaterialTheme.colorScheme.onBackground
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Contenido scrolleable
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                AnimatedContent(
-                    targetState = currentStep,
-                    transitionSpec = {
-                        if (targetState > initialState) {
-                            (slideInHorizontally { width -> width } + fadeIn()).togetherWith(
-                                slideOutHorizontally { width -> -width } + fadeOut())
-                        } else {
-                            (slideInHorizontally { width -> -width } + fadeIn()).togetherWith(
-                                slideOutHorizontally { width -> width } + fadeOut())
-                        }
-                    },
-                    label = "step_transition"
-                ) { step ->
-                    when (step) {
-                        1 -> {
-                            // PASO 1
-                            Column {
-                                Text(
-                                    "Paso 1: Información del Apoderado",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    fontWeight = FontWeight.Bold
+            // Contenido animado según el paso
+            AnimatedContent(
+                targetState = currentStep,
+                transitionSpec = {
+                    if (targetState > initialState) {
+                        slideInHorizontally { width -> width } + fadeIn() togetherWith
+                                slideOutHorizontally { width -> -width } + fadeOut()
+                    } else {
+                        slideInHorizontally { width -> -width } + fadeIn() togetherWith
+                                slideOutHorizontally { width -> width } + fadeOut()
+                    }
+                },
+                label = "step_transition"
+            ) { step ->
+                when (step) {
+                    1 -> {
+                        // PASO 1: Datos del Apoderado
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            Text(
+                                text = "Paso 1: Tus Datos Personales",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = "Completa tu información personal",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            // ✅ CAMBIO CLAVE: Usar getGoogleDataForAutocomplete (NO autentica)
+                            Button(
+                                onClick = {
+                                    activity?.let {
+                                        viewModel.getGoogleDataForAutocomplete(it)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color.White,
+                                    contentColor = Color.Black
+                                ),
+                                shape = RoundedCornerShape(16.dp),
+                                enabled = uiState !is AuthUiState.Loading
+                            ) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (uiState is AuthUiState.Loading) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(20.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                    }
+                                    Text("Autocompletar con Google", fontWeight = FontWeight.Medium)
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Divider "O"
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(1.dp)
+                                        .background(MaterialTheme.colorScheme.outlineVariant)
                                 )
-                                // ... (Textos sin cambios)
-                                Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    "Ingresa tus datos personales",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    text = "O",
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Spacer(modifier = Modifier.height(24.dp))
-
-                                // Campos de nombre y apellido (Sin cambios)
-                                OutlinedTextField(
-                                    value = firstName,
-                                    onValueChange = { firstName = it },
-                                    label = { Text("Nombre") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                OutlinedTextField(
-                                    value = lastName,
-                                    onValueChange = { lastName = it },
-                                    label = { Text("Apellido") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                OutlinedTextField(
-                                    value = phone,
-                                    onValueChange = { phone = it },
-                                    label = { Text("Teléfono") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                OutlinedTextField(
-                                    value = address,
-                                    onValueChange = { address = it },
-                                    label = { Text("Dirección (Opcional)") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-
-                                Spacer(modifier = Modifier.height(24.dp))
-
-                                // Botón Google Sign-In (Sin cambios)
-                                Button(
-                                    onClick = {
-                                        viewModel.authenticateWithGoogleOnly(isTeacher = false)
-                                    },
+                                Box(
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(56.dp),
-                                    shape = RoundedCornerShape(16.dp),
-                                    enabled = uiState !is AuthUiState.Loading && !isUsingGoogle,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF4285F4),
-                                        contentColor = Color.White
+                                        .weight(1f)
+                                        .height(1.dp)
+                                        .background(MaterialTheme.colorScheme.outlineVariant)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Email
+                            OutlinedTextField(
+                                value = email,
+                                onValueChange = { email = it },
+                                label = { Text("Email") },
+                                placeholder = { Text("tu@email.com") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !isUsingGoogle,
+                                singleLine = true,
+                                shape = RoundedCornerShape(16.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Contraseñas (SIEMPRE visibles y obligatorias)
+                            OutlinedTextField(
+                                value = password,
+                                onValueChange = { password = it },
+                                label = { Text("Contraseña") },
+                                visualTransformation = PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(16.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Requisitos de contraseña
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                ParentPasswordRequirement("Mínimo 8 caracteres", hasMinLength)
+                                ParentPasswordRequirement("Al menos una mayúscula", hasUpperCase)
+                                ParentPasswordRequirement("Al menos una minúscula", hasLowerCase)
+                                ParentPasswordRequirement("Al menos un número", hasNumber)
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            OutlinedTextField(
+                                value = confirmPassword,
+                                onValueChange = { confirmPassword = it },
+                                label = { Text("Confirmar Contraseña") },
+                                visualTransformation = PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                isError = confirmPassword.isNotEmpty() && !passwordsMatch,
+                                shape = RoundedCornerShape(16.dp)
+                            )
+
+                            if (confirmPassword.isNotEmpty() && !passwordsMatch) {
+                                Text(
+                                    text = "Las contraseñas no coinciden",
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Nombre
+                            OutlinedTextField(
+                                value = firstName,
+                                onValueChange = { firstName = it },
+                                label = { Text("Nombre") },
+                                placeholder = { Text("Juan") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(16.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Apellido
+                            OutlinedTextField(
+                                value = lastName,
+                                onValueChange = { lastName = it },
+                                label = { Text("Apellido") },
+                                placeholder = { Text("Pérez") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(16.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Teléfono
+                            OutlinedTextField(
+                                value = phone,
+                                onValueChange = { phone = it },
+                                label = { Text("Teléfono") },
+                                placeholder = { Text("+56 9 1234 5678") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(16.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Dirección (opcional)
+                            OutlinedTextField(
+                                value = address,
+                                onValueChange = { address = it },
+                                label = { Text("Dirección (opcional)") },
+                                placeholder = { Text("Calle 123, Comuna, Ciudad") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(16.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(32.dp))
+
+                            // Botón Siguiente
+                            Button(
+                                onClick = { currentStep = 2 },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp),
+                                enabled = isStep1Valid && uiState !is AuthUiState.Loading,
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Siguiente", fontWeight = FontWeight.Medium)
+                                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
+                                }
+                            }
+                        }
+                    }
+
+                    2 -> {
+                        // PASO 2: Datos del Estudiante
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            Text(
+                                text = "Paso 2: Datos del Estudiante",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = "Información del estudiante que representas",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            // Código de Clase
+                            OutlinedTextField(
+                                value = classCode,
+                                onValueChange = { classCode = it.uppercase() },
+                                label = { Text("Código de Clase") },
+                                placeholder = { Text("ABC123") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(16.dp),
+                                supportingText = {
+                                    Text(
+                                        text = "Solicita este código a tu profesor/a",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+                                }
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // RUT del Estudiante
+                            OutlinedTextField(
+                                value = studentRut,
+                                onValueChange = { studentRut = it },
+                                label = { Text("RUT del Estudiante") },
+                                placeholder = { Text("12345678-9") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(16.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Nombre del Estudiante
+                            OutlinedTextField(
+                                value = studentFirstName,
+                                onValueChange = { studentFirstName = it },
+                                label = { Text("Nombre del Estudiante") },
+                                placeholder = { Text("María") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(16.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Apellido del Estudiante
+                            OutlinedTextField(
+                                value = studentLastName,
+                                onValueChange = { studentLastName = it },
+                                label = { Text("Apellido del Estudiante") },
+                                placeholder = { Text("González") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(16.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            // Tipo de relación
+                            Text(
+                                text = "Tipo de Relación",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                RelationshipChip(
+                                    text = "Madre",
+                                    icon = Icons.Filled.FamilyRestroom,
+                                    isSelected = relationshipType == RelationshipType.MOTHER,
+                                    onClick = { relationshipType = RelationshipType.MOTHER },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                RelationshipChip(
+                                    text = "Padre",
+                                    icon = Icons.Filled.FamilyRestroom,
+                                    isSelected = relationshipType == RelationshipType.FATHER,
+                                    onClick = { relationshipType = RelationshipType.FATHER },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                RelationshipChip(
+                                    text = "Tutor",
+                                    icon = Icons.Filled.SupervisedUserCircle,
+                                    isSelected = relationshipType == RelationshipType.GUARDIAN,
+                                    onClick = { relationshipType = RelationshipType.GUARDIAN },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                RelationshipChip(
+                                    text = "Otro",
+                                    icon = Icons.Filled.SupervisedUserCircle,
+                                    isSelected = relationshipType == RelationshipType.OTHER,
+                                    onClick = { relationshipType = RelationshipType.OTHER },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(32.dp))
+
+                            // Botones de navegación
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Button(
+                                    onClick = { currentStep = 1 },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(56.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    shape = RoundedCornerShape(16.dp)
                                 ) {
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(Icons.Filled.SupervisedUserCircle, null, modifier = Modifier.size(24.dp))
-                                        Text("Registrarse con Google", fontWeight = FontWeight.Medium)
+                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
+                                        Text("Atrás", fontWeight = FontWeight.Medium)
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(24.dp))
+                                Spacer(modifier = Modifier.width(16.dp))
 
-                                // Separador "O" (Sin cambios)
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(1.dp)
-                                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    )
-                                    Text(
-                                        text = " O usa Email/Contraseña ",
-                                        modifier = Modifier.padding(horizontal = 8.dp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(1.dp)
-                                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(24.dp))
-
-                                // Campos de credenciales
-                                OutlinedTextField(
-                                    value = email,
-                                    onValueChange = { email = it },
-                                    label = { Text("Email") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(12.dp),
-                                    enabled = !isUsingGoogle // Correcto: deshabilitado si Google lo llenó
-                                )
-
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                OutlinedTextField(
-                                    value = password,
-                                    onValueChange = { password = it },
-                                    label = { Text("Contraseña") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true,
-                                    visualTransformation = PasswordVisualTransformation(),
-                                    shape = RoundedCornerShape(12.dp),
-                                    // ✅ MODIFICACIÓN 1: Habilitar siempre
-                                    enabled = true
-                                )
-
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                OutlinedTextField(
-                                    value = confirmPassword,
-                                    onValueChange = { confirmPassword = it },
-                                    label = { Text("Confirmar Contraseña") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true,
-                                    visualTransformation = PasswordVisualTransformation(),
-                                    shape = RoundedCornerShape(12.dp),
-                                    // ✅ MODIFICACIÓN 2: Habilitar siempre
-                                    enabled = true
-                                )
-
-                                // Validación de contraseña (Sin cambios)
-                                if (password.isNotBlank()) {
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(8.dp),
-                                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        ParentPasswordRequirement("Mínimo 6 caracteres", password.length >= 6)
-                                        ParentPasswordRequirement("Las contraseñas coinciden", password == confirmPassword && confirmPassword.isNotBlank())
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(32.dp))
-
-                                // Botón para continuar
-                                // ✅ MODIFICACIÓN 3: Lógica de habilitación actualizada
-                                // Ahora siempre se requiere una contraseña válida.
-                                val passwordIsValid = password.length >= 6 &&
-                                        password == confirmPassword &&
-                                        confirmPassword.isNotBlank()
-
+                                // ✅ BOTÓN FINAL: Aquí se crea la cuenta en Firebase
                                 Button(
-                                    onClick = { currentStep = 2 },
+                                    onClick = {
+                                        val parentForm = ParentRegistrationForm(
+                                            email = email,
+                                            password = password,
+                                            confirmPassword = confirmPassword,
+                                            firstName = firstName,
+                                            lastName = lastName,
+                                            phone = phone,
+                                            classCode = classCode,
+                                            address = address.ifBlank { null }
+                                        )
+
+                                        val studentForm = StudentRegistrationForm(
+                                            classCode = classCode,
+                                            studentRut = studentRut,
+                                            studentFirstName = studentFirstName,
+                                            studentLastName = studentLastName,
+                                            studentBirthDate = null,
+                                            relationshipType = relationshipType,
+                                            isPrimary = true
+                                        )
+
+                                        // ✅ Registro completo SOLO cuando se presiona este botón
+                                        viewModel.registerParent(
+                                            parentForm = parentForm,
+                                            studentForm = studentForm,
+                                            googleIdToken = if (isUsingGoogle) {
+                                                viewModel.getPendingGoogleToken()
+                                            } else null
+                                        )
+                                    },
                                     modifier = Modifier
-                                        .fillMaxWidth()
+                                        .weight(1f)
                                         .height(56.dp),
-                                    enabled = email.isNotBlank() &&
-                                            passwordIsValid && // <-- La contraseña ahora es siempre obligatoria
-                                            firstName.isNotBlank() &&
-                                            lastName.isNotBlank() &&
-                                            phone.isNotBlank() &&
+                                    enabled = classCode.isNotBlank() &&
+                                            studentRut.isNotBlank() &&
+                                            studentFirstName.isNotBlank() &&
+                                            studentLastName.isNotBlank() &&
                                             uiState !is AuthUiState.Loading,
                                     shape = RoundedCornerShape(16.dp)
                                 ) {
@@ -449,204 +715,16 @@ fun ParentRegisterScreen(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, null)
-                                        Text("Continuar al Paso 2", fontWeight = FontWeight.Medium)
-                                    }
-                                }
-                            }
-                        }
-
-                        2 -> {
-                            // PASO 2 (Sin cambios en la UI, solo en la lógica del botón)
-                            Column {
-                                Text(
-                                    "Paso 2: Información del Estudiante",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    "Ingresa los datos de tu hijo/a o estudiante",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-
-                                Spacer(modifier = Modifier.height(24.dp))
-
-                                // Todos los campos de estudiante (Sin cambios)
-                                OutlinedTextField(
-                                    value = classCode,
-                                    onValueChange = { classCode = it.uppercase() },
-                                    label = { Text("Código de Clase") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(12.dp),
-                                    supportingText = { Text("Se convertirá automáticamente a mayúsculas") }
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                OutlinedTextField(
-                                    value = studentRut,
-                                    onValueChange = { studentRut = it },
-                                    label = { Text("RUT del Estudiante") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                OutlinedTextField(
-                                    value = studentFirstName,
-                                    onValueChange = { studentFirstName = it },
-                                    label = { Text("Nombre del Estudiante") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                OutlinedTextField(
-                                    value = studentLastName,
-                                    onValueChange = { studentLastName = it },
-                                    label = { Text("Apellido del Estudiante") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                Spacer(modifier = Modifier.height(24.dp))
-
-                                // Tipo de relación (Sin cambios)
-                                Text(
-                                    "Relación con el estudiante",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    RelationshipChip(
-                                        text = "Madre",
-                                        icon = Icons.Filled.FamilyRestroom,
-                                        isSelected = relationshipType == RelationshipType.MOTHER,
-                                        onClick = { relationshipType = RelationshipType.MOTHER },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    RelationshipChip(
-                                        text = "Padre",
-                                        icon = Icons.Filled.FamilyRestroom,
-                                        isSelected = relationshipType == RelationshipType.FATHER,
-                                        onClick = { relationshipType = RelationshipType.FATHER },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    RelationshipChip(
-                                        text = "Tutor",
-                                        icon = Icons.Filled.SupervisedUserCircle,
-                                        isSelected = relationshipType == RelationshipType.GUARDIAN,
-                                        onClick = { relationshipType = RelationshipType.GUARDIAN },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    RelationshipChip(
-                                        text = "Otro",
-                                        icon = Icons.Filled.SupervisedUserCircle,
-                                        isSelected = relationshipType == RelationshipType.OTHER,
-                                        onClick = { relationshipType = RelationshipType.OTHER },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(32.dp))
-
-                                // Botones de navegación (Sin cambios en el botón "Atrás")
-                                Row(
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Button(
-                                        onClick = { currentStep = 1 },
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(56.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                        ),
-                                        shape = RoundedCornerShape(16.dp)
-                                    ) {
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
-                                            Text("Atrás", fontWeight = FontWeight.Medium)
+                                        if (uiState is AuthUiState.Loading) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(20.dp),
+                                                color = Color.White,
+                                                strokeWidth = 2.dp
+                                            )
+                                        } else {
+                                            Icon(Icons.Filled.CheckCircle, contentDescription = null)
                                         }
-                                    }
-
-                                    Spacer(modifier = Modifier.width(16.dp))
-
-                                    // Botón "Finalizar" (Lógica interna sin cambios,
-                                    // pero ahora 'password' siempre estará lleno)
-                                    Button(
-                                        onClick = {
-                                            val parentForm = ParentRegistrationForm(
-                                                email = email,
-                                                // ✅ MODIFICACIÓN 4: 'password' ahora SÍ tendrá valor
-                                                // si se usa Google, porque el Paso 1 lo exigió.
-                                                password = password,
-                                                confirmPassword = confirmPassword,
-                                                firstName = firstName,
-                                                lastName = lastName,
-                                                phone = phone,
-                                                classCode = classCode,
-                                                address = address.ifBlank { null }
-                                            )
-
-                                            val studentForm = StudentRegistrationForm(
-                                                classCode = classCode,
-                                                studentRut = studentRut,
-                                                studentFirstName = studentFirstName,
-                                                studentLastName = studentLastName,
-                                                studentBirthDate = null,
-                                                relationshipType = relationshipType,
-                                                isPrimary = true
-                                            )
-
-                                            viewModel.registerParentWithAllData(
-                                                parentForm = parentForm,
-                                                studentForm = studentForm,
-                                                googleIdToken = if (isUsingGoogle) {
-                                                    viewModel.getPendingGoogleToken()
-                                                } else null
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(56.dp),
-                                        enabled = classCode.isNotBlank() &&
-                                                studentRut.isNotBlank() &&
-                                                studentFirstName.isNotBlank() &&
-                                                studentLastName.isNotBlank() &&
-                                                uiState !is AuthUiState.Loading,
-                                        shape = RoundedCornerShape(16.dp)
-                                    ) {
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            if (uiState is AuthUiState.Loading) {
-                                                CircularProgressIndicator(
-                                                    modifier = Modifier.size(20.dp),
-                                                    color = Color.White,
-                                                    strokeWidth = 2.dp
-                                                )
-                                            } else {
-                                                Icon(Icons.Filled.CheckCircle, contentDescription = null)
-                                            }
-                                            Text("Finalizar Registro", fontWeight = FontWeight.Medium)
-                                        }
+                                        Text("Crear Cuenta", fontWeight = FontWeight.Medium)
                                     }
                                 }
                             }
@@ -656,7 +734,7 @@ fun ParentRegisterScreen(
             }
         }
 
-        // Mensaje de error (Sin cambios)
+        // Mensaje de error
         if (uiState is AuthUiState.Error) {
             Card(
                 modifier = Modifier

@@ -31,6 +31,13 @@ interface ClassDao {
     @Query("SELECT COUNT(*) FROM classes WHERE UPPER(class_code) = UPPER(:code)")
     suspend fun codeExists(code: String): Int
 
+
+
     @Query("DELETE FROM classes WHERE id = :classId")
     suspend fun deleteClass(classId: Int)
+
+    // --- AGREGA ESTA FUNCIÓN ---
+    @Query("SELECT * FROM classes")
+    suspend fun getAllClasses(): List<ClassEntity>
+
 }

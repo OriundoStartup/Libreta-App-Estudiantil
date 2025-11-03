@@ -96,6 +96,9 @@ fun ParentDashboardScreen(
 
     LaunchedEffect(userWithProfile.profile.id) {
         viewModel.loadDashboard(userWithProfile.profile.id)
+        println("🔍 ParentDashboard - Usuario: ${userWithProfile.user.email}")
+        println("🔍 ParentDashboard - Perfil ID: ${userWithProfile.profile.id}")
+        println("🔍 ParentDashboard - Firebase UID: ${userWithProfile.user.firebaseUid}")
     }
 
     Scaffold(

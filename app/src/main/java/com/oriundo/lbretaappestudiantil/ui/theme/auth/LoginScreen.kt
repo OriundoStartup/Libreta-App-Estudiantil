@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -58,15 +59,20 @@ fun LoginScreen(
     onLoginSuccess: (UserWithProfile) -> Unit,
     viewModel: AuthViewModel = viewModel()
 ) {
+    val context = LocalContext.current
+    val activity = context as? android.app.Activity
+
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var showForgotPasswordDialog by remember { mutableStateOf(false) }
 
     val uiState by viewModel.uiState.collectAsState()
 
-    // Manejar estados
+    // ✅ Manejar estados de autenticación
     LaunchedEffect(uiState) {
         when (val state = uiState) {
             is AuthUiState.Success -> {
+                // Login exitoso → Dashboard
                 onLoginSuccess(state.userWithProfile)
             }
             else -> {}
@@ -88,7 +94,7 @@ fun LoginScreen(
         ) {
             Spacer(modifier = Modifier.height(48.dp))
 
-            // Logo o ícono
+            // Logo
             Icon(
                 imageVector = Icons.Filled.School,
                 contentDescription = null,
@@ -117,7 +123,7 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // ✅ BOTONES DE GOOGLE (SOLO PARA USUARIOS REGISTRADOS)
+            // Sección de Google
             Text(
                 text = "Iniciar sesión con Google",
                 style = MaterialTheme.typography.titleMedium,
@@ -126,10 +132,12 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Botón Google para Profesores
+            // ✅ Botón Google para Profesores
             Button(
                 onClick = {
-                    viewModel.loginWithGoogle(isTeacher = true)
+                    activity?.let {
+                        viewModel.authenticateWithGoogle(it)
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -152,10 +160,12 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Botón Google para Apoderados
+            // ✅ Botón Google para Apoderados
             Button(
                 onClick = {
-                    viewModel.loginWithGoogle(isTeacher = false)
+                    activity?.let {
+                        viewModel.authenticateWithGoogle(it)
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -233,7 +243,24 @@ fun LoginScreen(
                 enabled = uiState !is AuthUiState.Loading
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            // Botón "¿Olvidaste tu contraseña?"
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(
+                    onClick = { showForgotPasswordDialog = true },
+                    enabled = uiState !is AuthUiState.Loading
+                ) {
+                    Text(
+                        text = "¿Olvidaste tu contraseña?",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Botón de login
             Button(
@@ -269,7 +296,7 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Nota informativa
+            // Nota informativa actualizada
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -288,7 +315,7 @@ fun LoginScreen(
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = "Si no tienes cuenta, primero debes registrarte. Los botones de Google solo funcionan para usuarios ya registrados.",
+                        text = "Los botones de Google funcionan tanto para login como registro. Si ya tienes cuenta, harás login automáticamente. Si no, te llevará al formulario de registro.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f)
@@ -298,7 +325,7 @@ fun LoginScreen(
         }
 
         // Mensaje de error fijo en la parte inferior
-        if (uiState is AuthUiState.Error) {
+        if (uiState is AuthUiState.Error && !showForgotPasswordDialog) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -328,6 +355,19 @@ fun LoginScreen(
                     )
                 }
             }
+        }
+
+        // Diálogo de recuperación de contraseña
+        if (showForgotPasswordDialog) {
+            ForgotPasswordDialog(
+                uiState = uiState,
+                onDismiss = {
+                    showForgotPasswordDialog = false
+                },
+                onSendEmail = { emailToReset ->
+                    viewModel.sendPasswordResetEmail(emailToReset)
+                }
+            )
         }
     }
 }

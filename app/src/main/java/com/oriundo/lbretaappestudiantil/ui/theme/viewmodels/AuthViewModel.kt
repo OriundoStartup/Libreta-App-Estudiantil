@@ -1,78 +1,58 @@
 package com.oriundo.lbretaappestudiantil.ui.theme.viewmodels
 
-import android.content.Context
+import android.app.Activity
 import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
+import com.oriundo.lbretaappestudiantil.R
 import com.oriundo.lbretaappestudiantil.data.local.firebase.FirebaseAuthRepository
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
 import com.oriundo.lbretaappestudiantil.domain.model.LoginCredentials
 import com.oriundo.lbretaappestudiantil.domain.model.ParentRegistrationForm
 import com.oriundo.lbretaappestudiantil.domain.model.StudentRegistrationForm
 import com.oriundo.lbretaappestudiantil.domain.model.TeacherRegistrationForm
-import com.oriundo.lbretaappestudiantil.domain.model.UserWithProfile
 import com.oriundo.lbretaappestudiantil.domain.model.repository.AuthRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.StudentRepository
 import com.oriundo.lbretaappestudiantil.ui.theme.states.AuthUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
-
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
     private val authRepository: AuthRepository,
-    private val firebaseAuth: FirebaseAuth,
-    private val firestore: FirebaseFirestore,
     private val studentRepository: StudentRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Initial)
+    private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
-    private val _currentUser = MutableStateFlow<UserWithProfile?>(null)
-    val currentUser: StateFlow<UserWithProfile?> = _currentUser.asStateFlow()
-
-    private var pendingGoogleToken: String? = null
-    // ✅ NUEVO: Variable para guardar la URL de la foto de Google
+    private var pendingGoogleIdToken: String? = null
     private var pendingGooglePhotoUrl: String? = null
 
-
-    init {
-        checkCurrentUser()
-    }
-
-    private fun checkCurrentUser() {
-        viewModelScope.launch {
-            val user = authRepository.getCurrentUser()
-            _currentUser.value = user
-        }
-    }
+    @Volatile
+    private var isRegistering = false
 
     // =====================================================
-    // LOGIN MANUAL (Sin cambios)
+    // LOGIN
     // =====================================================
+
     fun login(email: String, password: String) {
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
+
             val result = authRepository.login(LoginCredentials(email, password))
+
             _uiState.value = when (result) {
-                is ApiResult.Success -> {
-                    _currentUser.value = result.data
-                    AuthUiState.Success(result.data)
-                }
+                is ApiResult.Success -> AuthUiState.Success(result.data)
                 is ApiResult.Error -> AuthUiState.Error(result.message)
                 ApiResult.Loading -> AuthUiState.Loading
             }
@@ -80,279 +60,282 @@ class AuthViewModel @Inject constructor(
     }
 
     // =====================================================
-    // REGISTRO DE PROFESOR (Sin cambios)
-    // =====================================================
-    fun registerTeacher(form: TeacherRegistrationForm) {
-        viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
-            val result = authRepository.registerTeacher(form)
-            _uiState.value = when (result) {
-                is ApiResult.Success -> {
-                    _currentUser.value = result.data
-                    AuthUiState.Success(result.data)
-                }
-                is ApiResult.Error -> AuthUiState.Error(result.message)
-                ApiResult.Loading -> AuthUiState.Loading
-            }
-        }
-    }
-
-    // =====================================================
-    // ✅ MODIFICADO: AUTENTICACIÓN CON GOOGLE (PASO 1)
+    // GOOGLE SIGN-IN (PARA LOGIN CON USUARIOS EXISTENTES)
     // =====================================================
 
-    fun authenticateWithGoogleOnly(isTeacher: Boolean) {
+    fun authenticateWithGoogle(activity: Activity) {
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
+
             try {
-                // ... (lógica de GetGoogleIdOption y GetCredentialRequest sin cambios) ...
+                val credentialManager = CredentialManager.create(activity)
+
                 val googleIdOption = GetGoogleIdOption.Builder()
                     .setFilterByAuthorizedAccounts(false)
-                    .setServerClientId("362206226811-d6s2dpivfotbtipnpbq1v073ktmc8uog.apps.googleusercontent.com")
+                    .setServerClientId(activity.getString(R.string.default_web_client_id))
                     .build()
 
                 val request = GetCredentialRequest.Builder()
                     .addCredentialOption(googleIdOption)
                     .build()
 
-                val credentialManager = CredentialManager.create(context)
-
-                val result = try {
-                    credentialManager.getCredential(request = request, context = context)
-                } catch (e: GetCredentialException) {
-                    _uiState.value = AuthUiState.Error("Error obteniendo credenciales de Google: ${e.message}")
-                    return@launch
-                }
-
-                val credential = GoogleIdTokenCredential.createFrom(result.credential.data)
-                val googleIdToken = credential.idToken
-
-                val email = credential.id
-                val displayName = credential.displayName ?: ""
-                val photoUrl = credential.profilePictureUri?.toString()
-
-                // ✅ Guardar token Y photoUrl temporalmente
-                pendingGoogleToken = googleIdToken
-                pendingGooglePhotoUrl = photoUrl
-
-                _uiState.value = AuthUiState.GoogleAuthPending(
-                    email = email,
-                    displayName = displayName,
-                    photoUrl = photoUrl,
-                    googleIdToken = googleIdToken
+                val result = credentialManager.getCredential(
+                    request = request,
+                    context = activity
                 )
 
+                val credential = result.credential
+
+                if (credential is CustomCredential &&
+                    credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+
+                    val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                    val googleIdToken = googleIdTokenCredential.idToken
+
+                    pendingGoogleIdToken = googleIdToken
+                    pendingGooglePhotoUrl = googleIdTokenCredential.profilePictureUri?.toString()
+
+                    if (authRepository is FirebaseAuthRepository) {
+                        val authResult = authRepository.authenticateWithGoogleToken(googleIdToken)
+
+                        when (authResult) {
+                            is ApiResult.Success -> {
+                                pendingGoogleIdToken = null
+                                pendingGooglePhotoUrl = null
+                                _uiState.value = AuthUiState.Success(authResult.data)
+                            }
+                            is ApiResult.Error -> {
+                                if (authResult.message == "NEEDS_REGISTRATION") {
+                                    _uiState.value = AuthUiState.GoogleAuthPending(
+                                        email = googleIdTokenCredential.id,
+                                        displayName = googleIdTokenCredential.displayName ?: "",
+                                        photoUrl = pendingGooglePhotoUrl
+                                    )
+                                } else {
+                                    pendingGoogleIdToken = null
+                                    pendingGooglePhotoUrl = null
+                                    _uiState.value = AuthUiState.Error(authResult.message)
+                                }
+                            }
+                            ApiResult.Loading -> {
+                                _uiState.value = AuthUiState.Loading
+                            }
+                        }
+                    } else {
+                        _uiState.value = AuthUiState.GoogleAuthPending(
+                            email = googleIdTokenCredential.id,
+                            displayName = googleIdTokenCredential.displayName ?: "",
+                            photoUrl = pendingGooglePhotoUrl
+                        )
+                    }
+                } else {
+                    _uiState.value = AuthUiState.Error("Tipo de credencial no válido")
+                }
+            } catch (e: GetCredentialException) {
+                _uiState.value = AuthUiState.Error("Error de Google Sign-In: ${e.message}")
             } catch (e: Exception) {
-                _uiState.value = AuthUiState.Error("Error en autenticación con Google: ${e.message}")
+                _uiState.value = AuthUiState.Error("Error inesperado: ${e.message}")
             }
         }
     }
 
     // =====================================================
-    // ✅ MODIFICADO: REGISTRO DE APODERADO CON TODOS LOS DATOS
+    // NUEVO: OBTENER DATOS DE GOOGLE SOLO PARA AUTOCOMPLETAR
+    // (NO CREA CUENTA EN FIREBASE)
     // =====================================================
 
-    fun registerParentWithAllData(
+    /**
+     * Obtiene los datos de Google sin autenticar en Firebase.
+     * Solo para autocompletar formularios de registro.
+     * Similar a como funciona el registro del profesor.
+     */
+    fun getGoogleDataForAutocomplete(activity: Activity) {
+        viewModelScope.launch {
+            _uiState.value = AuthUiState.Loading
+
+            try {
+                val credentialManager = CredentialManager.create(activity)
+
+                val googleIdOption = GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(false)
+                    .setServerClientId(activity.getString(R.string.default_web_client_id))
+                    .build()
+
+                val request = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOption)
+                    .build()
+
+                val result = credentialManager.getCredential(
+                    request = request,
+                    context = activity
+                )
+
+                val credential = result.credential
+
+                if (credential is CustomCredential &&
+                    credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+
+                    val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+
+                    // Guardar token para uso posterior
+                    pendingGoogleIdToken = googleIdTokenCredential.idToken
+                    pendingGooglePhotoUrl = googleIdTokenCredential.profilePictureUri?.toString()
+
+                    // NO autenticar en Firebase, solo cambiar estado a GoogleAuthPending
+                    _uiState.value = AuthUiState.GoogleAuthPending(
+                        email = googleIdTokenCredential.id,
+                        displayName = googleIdTokenCredential.displayName ?: "",
+                        photoUrl = pendingGooglePhotoUrl
+                    )
+                } else {
+                    _uiState.value = AuthUiState.Error("Tipo de credencial no válido")
+                }
+            } catch (e: GetCredentialException) {
+                _uiState.value = AuthUiState.Error("Error de Google Sign-In: ${e.message}")
+            } catch (e: Exception) {
+                _uiState.value = AuthUiState.Error("Error inesperado: ${e.message}")
+            }
+        }
+    }
+
+    fun getPendingGoogleToken(): String? = pendingGoogleIdToken
+
+    // =====================================================
+    // REGISTRO PROFESOR (SIN CAMBIOS)
+    // =====================================================
+
+    fun registerTeacher(
+        teacherForm: TeacherRegistrationForm,
+        googleIdToken: String? = null
+    ) {
+        synchronized(this) {
+            if (isRegistering) {
+                return
+            }
+            isRegistering = true
+        }
+
+        viewModelScope.launch {
+            _uiState.value = AuthUiState.Loading
+
+            try {
+                val result = if (googleIdToken != null && authRepository is FirebaseAuthRepository) {
+                    authRepository.registerTeacherWithGoogle(
+                        teacherForm = teacherForm,
+                        googleIdToken = googleIdToken
+                    )
+                } else {
+                    authRepository.registerTeacher(teacherForm)
+                }
+
+                _uiState.value = when (result) {
+                    is ApiResult.Success -> {
+                        pendingGoogleIdToken = null
+                        pendingGooglePhotoUrl = null
+                        AuthUiState.Success(result.data)
+                    }
+                    is ApiResult.Error -> AuthUiState.Error(result.message)
+                    ApiResult.Loading -> AuthUiState.Loading
+                }
+            } finally {
+                synchronized(this@AuthViewModel) {
+                    isRegistering = false
+                }
+            }
+        }
+    }
+
+    // =====================================================
+    // REGISTRO APODERADO (SIN CAMBIOS)
+    // =====================================================
+
+    fun registerParent(
         parentForm: ParentRegistrationForm,
         studentForm: StudentRegistrationForm,
         googleIdToken: String? = null
     ) {
+        synchronized(this) {
+            if (isRegistering) {
+                return
+            }
+            isRegistering = true
+        }
+
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
 
-            // 1. Registrar el Apoderado
-            val result = if (googleIdToken != null) {
-                // Caso 1: Registro con Google
-                (authRepository as? FirebaseAuthRepository)?.registerParentWithGoogle(
-                    parentForm = parentForm,
-                    studentForm = studentForm,
-                    googleIdToken = googleIdToken,
-                    // ✅ Pasar la foto guardada
-                    googlePhotoUrl = getPendingGooglePhotoUrl()
-                ) ?: ApiResult.Error("Repositorio no compatible")
-            } else {
-                // Caso 2: Registro normal con Email/Password
-                authRepository.registerParent(parentForm, studentForm)
-            }
+            try {
+                val result = if (googleIdToken != null && authRepository is FirebaseAuthRepository) {
+                    authRepository.registerParentWithGoogle(
+                        parentForm = parentForm,
+                        studentForm = studentForm,
+                        googleIdToken = googleIdToken
+                    )
+                } else {
+                    authRepository.registerParent(parentForm, studentForm)
+                }
 
-            // ... (La lógica de "when (result)" y vinculación de alumno
-            // que ya tenías es correcta y no necesita cambios) ...
+                _uiState.value = when (result) {
+                    is ApiResult.Success -> {
+                        val (userWithProfile, student, _) = result.data
 
-            _uiState.value = when (result) {
-                is ApiResult.Success -> {
-                    val (userWithProfile, _, _) = result.data
-                    val newParentId = userWithProfile.profile.id
-
-                    // 2. BUSCAR AL ALUMNO POR RUT
-                    when (val studentResult = studentRepository.getStudentByRut(studentForm.studentRut)) {
-                        is ApiResult.Success -> {
-                            val student = studentResult.data
-
-                            // 3. VINCULAR AL APODERADO CON EL ALUMNO
-                            val linkResult = studentRepository.linkParentToStudent(
+                        try {
+                            studentRepository.linkParentToStudent(
                                 studentId = student.id,
-                                parentId = newParentId,
+                                parentId = userWithProfile.profile.id,
                                 relationshipType = studentForm.relationshipType,
-                                isPrimary = studentForm.isPrimary
+                                isPrimary = true
                             )
-
-                            if (linkResult is ApiResult.Success) {
-                                _currentUser.value = userWithProfile
-
-                                // Lógica de estado final (sin cambios desde la última vez)
-                                if (googleIdToken != null) {
-                                    clearPendingGoogleToken()
-                                    AuthUiState.Success(userWithProfile)
-                                } else {
-                                    AuthUiState.Success(userWithProfile)
-                                }
-                            } else {
-                                clearPendingGoogleToken()
-                                AuthUiState.Error("Registro OK, pero error al vincular el alumno. Intente nuevamente.")
-                            }
+                        } catch (_: Exception) {
                         }
-                        is ApiResult.Error -> {
-                            clearPendingGoogleToken()
-                            AuthUiState.Error("Apoderado creado, pero no se encontró un alumno con el RUT ${studentForm.studentRut} para vincular.")
-                        }
-                        ApiResult.Loading -> AuthUiState.Loading
-                    }
-                }
-                is ApiResult.Error -> {
-                    clearPendingGoogleToken()
-                    AuthUiState.Error(result.message)
-                }
-                ApiResult.Loading -> AuthUiState.Loading
-            }
-        }
-    }
 
-    // =====================================================
-    // ✅ NUEVOS MÉTODOS AUXILIARES PARA GOOGLE
-    // =====================================================
+                        pendingGoogleIdToken = null
+                        pendingGooglePhotoUrl = null
 
-    fun getPendingGoogleToken(): String? = pendingGoogleToken
-
-    // ✅ Nuevo getter para la foto
-    fun getPendingGooglePhotoUrl(): String? = pendingGooglePhotoUrl
-
-    fun clearPendingGoogleToken() {
-        pendingGoogleToken = null
-        // ✅ Limpiar también la foto
-        pendingGooglePhotoUrl = null
-    }
-
-    // =====================================================
-    // OTRAS FUNCIONES (Sin cambios)
-    // =====================================================
-
-    // ... (loginWithGoogle, registerWithGoogle, linkPasswordToAccount,
-    //      skipPasswordSetup, checkIfParentHasStudents, resetState, logout) ...
-    // ... (No necesitan cambios)
-
-    fun loginWithGoogle(isTeacher: Boolean) {
-        viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
-            val result = authRepository.loginWithGoogle(isTeacher)
-            _uiState.value = when (result) {
-                is ApiResult.Success -> {
-                    val userWithProfile = result.data
-                    if (isTeacher) {
-                        _currentUser.value = userWithProfile
                         AuthUiState.Success(userWithProfile)
-                    } else {
-                        val hasStudents = checkIfParentHasStudents(userWithProfile)
-                        if (hasStudents) {
-                            _currentUser.value = userWithProfile
-                            AuthUiState.Success(userWithProfile)
-                        } else {
-                            AuthUiState.AwaitingProfileCompletion(userWithProfile)
-                        }
                     }
+                    is ApiResult.Error -> AuthUiState.Error(result.message)
+                    ApiResult.Loading -> AuthUiState.Loading
                 }
-                is ApiResult.Error -> AuthUiState.Error(result.message)
-                ApiResult.Loading -> AuthUiState.Loading
-            }
-        }
-    }
-
-    fun registerWithGoogle(isTeacher: Boolean) {
-        viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
-            val result = authRepository.registerWithGoogle(isTeacher)
-            _uiState.value = when (result) {
-                is ApiResult.Success -> {
-                    val userWithProfile = result.data
-                    if (isTeacher) {
-                        _currentUser.value = userWithProfile
-                        AuthUiState.Success(userWithProfile)
-                    } else {
-                        AuthUiState.AwaitingProfileCompletion(userWithProfile)
-                    }
+            } finally {
+                synchronized(this@AuthViewModel) {
+                    isRegistering = false
                 }
-                is ApiResult.Error -> AuthUiState.Error(result.message)
-                ApiResult.Loading -> AuthUiState.Loading
             }
         }
     }
 
-    fun linkPasswordToAccount(email: String, password: String) {
-        viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
-            val repository = authRepository as? FirebaseAuthRepository
-            if (repository == null) {
-                _uiState.value = AuthUiState.Error("Repositorio no compatible")
-                return@launch
-            }
-            val result = repository.linkPasswordToGoogleAccount(email, password)
-            _uiState.value = when (result) {
-                is ApiResult.Success -> {
-                    _currentUser.value = result.data
-                    AuthUiState.Success(result.data)
-                }
-                is ApiResult.Error -> AuthUiState.Error(result.message)
-                ApiResult.Loading -> AuthUiState.Loading
-            }
-        }
-    }
-
-    fun skipPasswordSetup() {
-        viewModelScope.launch {
-            val user = _currentUser.value
-            if (user != null) {
-                _uiState.value = AuthUiState.Success(user)
-            } else {
-                _uiState.value = AuthUiState.Error("No hay usuario autenticado")
-            }
-        }
-    }
-
-    private suspend fun checkIfParentHasStudents(userWithProfile: UserWithProfile): Boolean {
-        return try {
-            val firebaseUid = userWithProfile.user.firebaseUid ?: return false
-            val snapshot = firestore.collection("users")
-                .document(firebaseUid)
-                .collection("students")
-                .limit(1)
-                .get()
-                .await()
-            !snapshot.isEmpty
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    fun resetState() {
-        _uiState.value = AuthUiState.Initial
-        clearPendingGoogleToken()
-    }
+    // =====================================================
+    // LOGOUT
+    // =====================================================
 
     fun logout() {
         viewModelScope.launch {
             authRepository.logout()
-            _currentUser.value = null
-            _uiState.value = AuthUiState.Initial
-            clearPendingGoogleToken()
+            _uiState.value = AuthUiState.Idle
+            pendingGoogleIdToken = null
+            pendingGooglePhotoUrl = null
+            synchronized(this@AuthViewModel) {
+                isRegistering = false
+            }
+        }
+    }
+
+    // =====================================================
+    // RECUPERACIÓN CONTRASEÑA
+    // =====================================================
+
+    fun sendPasswordResetEmail(email: String) {
+        viewModelScope.launch {
+            _uiState.value = AuthUiState.Loading
+
+            val result = authRepository.sendPasswordResetEmail(email)
+
+            _uiState.value = when (result) {
+                is ApiResult.Success -> AuthUiState.Error("Email de recuperación enviado")
+                is ApiResult.Error -> AuthUiState.Error(result.message)
+                ApiResult.Loading -> AuthUiState.Loading
+            }
         }
     }
 }

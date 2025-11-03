@@ -1,6 +1,5 @@
 package com.oriundo.lbretaappestudiantil.data.local.repositories
 
-import com.oriundo.lbretaappestudiantil.data.local.daos.ClassDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.ProfileDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.StudentDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.StudentParentRelationDao
@@ -18,6 +17,7 @@ import com.oriundo.lbretaappestudiantil.domain.model.StudentRegistrationForm
 import com.oriundo.lbretaappestudiantil.domain.model.TeacherRegistrationForm
 import com.oriundo.lbretaappestudiantil.domain.model.UserWithProfile
 import com.oriundo.lbretaappestudiantil.domain.model.repository.AuthRepository
+import com.oriundo.lbretaappestudiantil.domain.model.repository.ClassRepository
 import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -26,15 +26,15 @@ import javax.inject.Singleton
 class AuthRepositoryImpl @Inject constructor(
     private val userDao: UserDao,
     private val profileDao: ProfileDao,
-    private val classDao: ClassDao,
     private val studentDao: StudentDao,
-    private val studentParentRelationDao: StudentParentRelationDao
+    private val studentParentRelationDao: StudentParentRelationDao,
+    private val classRepository: ClassRepository,
 ) : AuthRepository {
 
     private var currentUserWithProfile: UserWithProfile? = null
 
     // =====================================================
-    // LOGIN MANUAL
+    // LOGIN
     // =====================================================
 
     override suspend fun login(credentials: LoginCredentials): ApiResult<UserWithProfile> {
@@ -74,21 +74,27 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun registerTeacher(form: TeacherRegistrationForm): ApiResult<UserWithProfile> {
         return try {
+            // Validar formulario
             validateTeacherForm(form)?.let { return it }
 
+            // Verificar si el email ya está registrado
             if (isEmailRegistered(form.email)) {
                 return ApiResult.Error("El email ya está registrado")
             }
 
+            val password = form.password
+
+            // Crear usuario
             val user = UserEntity(
                 email = form.email.trim().lowercase(),
-                passwordHash = hashPassword(form.password),
+                passwordHash = hashPassword(password),
                 firebaseUid = null,
                 syncStatus = SyncStatus.PENDING,
                 lastSyncedAt = null
             )
             val userId = userDao.insertUser(user).toInt()
 
+            // Crear perfil de profesor
             val profile = ProfileEntity(
                 userId = userId,
                 firstName = form.firstName.trim(),
@@ -105,6 +111,7 @@ class AuthRepositoryImpl @Inject constructor(
             )
             val profileId = profileDao.insertProfile(profile).toInt()
 
+            // Crear objetos completos con IDs
             val createdUser = user.copy(id = userId)
             val createdProfile = profile.copy(id = profileId)
             val userWithProfile = UserWithProfile(createdUser, createdProfile)
@@ -126,16 +133,25 @@ class AuthRepositoryImpl @Inject constructor(
         studentForm: StudentRegistrationForm
     ): ApiResult<Triple<UserWithProfile, StudentEntity, ClassEntity>> {
         return try {
+            // Validar formularios
             validateParentForm(parentForm)?.let { return it }
             validateStudentForm(studentForm)?.let { return it }
 
+            // Verificar email
             if (isEmailRegistered(parentForm.email)) {
                 return ApiResult.Error("El email ya está registrado")
             }
 
-            val classEntity = classDao.getClassByCode(studentForm.classCode.trim().uppercase())
-                ?: return ApiResult.Error("Código de curso inválido")
+            // BÚSQUEDA Y SINCRONIZACIÓN DE LA CLASE CON FIREBASE
+            val classCode = studentForm.classCode.trim().uppercase()
 
+            val classEntity = when (val classResult = classRepository.getAndSyncClassByCodeFromRemote(classCode)) {
+                is ApiResult.Success -> classResult.data
+                is ApiResult.Error -> return ApiResult.Error(classResult.message)
+                else -> return ApiResult.Error("Estado de carga inesperado o resultado desconocido al buscar curso.")
+            }
+
+            // Verificar RUT del estudiante
             if (studentDao.rutExists(studentForm.studentRut.trim()) > 0) {
                 return ApiResult.Error("El RUT del estudiante ya está registrado")
             }
@@ -143,6 +159,7 @@ class AuthRepositoryImpl @Inject constructor(
             val password = parentForm.password
                 ?: return ApiResult.Error("La contraseña es requerida")
 
+            // Crear usuario apoderado
             val user = UserEntity(
                 email = parentForm.email.trim().lowercase(),
                 passwordHash = hashPassword(password),
@@ -152,6 +169,7 @@ class AuthRepositoryImpl @Inject constructor(
             )
             val userId = userDao.insertUser(user).toInt()
 
+            // Crear perfil de apoderado
             val profile = ProfileEntity(
                 userId = userId,
                 firstName = parentForm.firstName.trim(),
@@ -168,8 +186,9 @@ class AuthRepositoryImpl @Inject constructor(
             )
             val profileId = profileDao.insertProfile(profile).toInt()
 
+            // Crear estudiante
             val student = StudentEntity(
-                classId = classEntity.id,
+                classId = classEntity.id, // Usa el ID de la clase obtenida por Firebase
                 rut = studentForm.studentRut.trim(),
                 firstName = studentForm.studentFirstName.trim(),
                 lastName = studentForm.studentLastName.trim(),
@@ -177,6 +196,7 @@ class AuthRepositoryImpl @Inject constructor(
             )
             val studentId = studentDao.insertStudent(student).toInt()
 
+            // Crear relación apoderado-estudiante
             val relation = StudentParentRelation(
                 studentId = studentId,
                 parentId = profileId,
@@ -185,6 +205,7 @@ class AuthRepositoryImpl @Inject constructor(
             )
             studentParentRelationDao.insertRelation(relation)
 
+            // Crear objetos completos
             val createdUser = user.copy(id = userId)
             val createdProfile = profile.copy(id = profileId)
             val createdStudent = student.copy(id = studentId)
@@ -199,55 +220,18 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     // =====================================================
-    // GOOGLE SIGN-IN (NO SOPORTADO EN ROOM)
+    // RECUPERACIÓN DE CONTRASEÑA
     // =====================================================
 
-    override suspend fun loginWithGoogle(isTeacher: Boolean): ApiResult<UserWithProfile> {
+    override suspend fun sendPasswordResetEmail(email: String): ApiResult<Unit> {
         return ApiResult.Error(
-            "El inicio de sesión con Google no está disponible con la base de datos local (Room). " +
-                    "Esta funcionalidad solo está disponible con Firebase."
+            "La recuperación de contraseña por email no está disponible con la base de datos local (Room). " +
+                    "Esta funcionalidad solo está disponible con Firebase Authentication."
         )
     }
 
-
-    override suspend fun registerWithGoogle(isTeacher: Boolean): ApiResult<UserWithProfile> {
-        return ApiResult.Error(
-            "El registro con Google no está disponible con la base de datos local (Room). " +
-                    "Esta funcionalidad solo está disponible con Firebase."
-        )
-    }
-
-
     // =====================================================
-    // ✅ NUEVOS MÉTODOS REQUERIDOS POR LA INTERFAZ
-    // =====================================================
-
-    /**
-     * Vincular contraseña a cuenta de Google.
-     * NO SOPORTADO en implementación local (Room).
-     * Este método solo funciona con FirebaseAuthRepository.
-     */
-    override suspend fun linkPasswordToGoogleAccount(
-        email: String,
-        password: String
-    ): ApiResult<UserWithProfile> {
-        return ApiResult.Error(
-            "La vinculación de contraseña a cuentas de Google no está disponible con la base de datos local (Room). " +
-                    "Esta funcionalidad solo está disponible con Firebase."
-        )
-    }
-
-    /**
-     * Verificar si el usuario tiene contraseña vinculada.
-     * En implementación local (Room), todos los usuarios tienen contraseña.
-     */
-    override suspend fun hasPasswordLinked(): Boolean {
-        // En Room, todos los usuarios registrados tienen contraseña
-        return currentUserWithProfile != null
-    }
-
-    // =====================================================
-    // OTROS MÉTODOS
+    // UTILIDADES
     // =====================================================
 
     override suspend fun logout() {
@@ -263,52 +247,104 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     // =====================================================
-    // VALIDACIONES
+    // VALIDACIONES (CORREGIDAS)
     // =====================================================
 
     private fun validateTeacherForm(form: TeacherRegistrationForm): ApiResult.Error? {
-        if (form.email.isBlank()) return ApiResult.Error("El email es requerido")
-        if (!isValidEmail(form.email)) return ApiResult.Error("Email inválido")
-        if (form.password.isBlank()) return ApiResult.Error("La contraseña es requerida")
-        if (form.password.length < 6) return ApiResult.Error("La contraseña debe tener al menos 6 caracteres")
-        if (form.password != form.confirmPassword) return ApiResult.Error("Las contraseñas no coinciden")
-        if (form.firstName.isBlank()) return ApiResult.Error("El nombre es requerido")
-        if (form.lastName.isBlank()) return ApiResult.Error("El apellido es requerido")
-        if (form.phone.isBlank()) return ApiResult.Error("El teléfono es requerido")
+        if (form.email.isBlank()) {
+            return ApiResult.Error("El email es requerido")
+        }
+        // ✅ CORRECCIÓN 3: Uso de isValidEmail
+        if (!isValidEmail(form.email)) {
+            return ApiResult.Error("Email inválido")
+        }
+
+        val password = form.password
+        if (password.isBlank()) {
+            return ApiResult.Error("La contraseña es requerida")
+        }
+        if (password.length < 6) {
+            return ApiResult.Error("La contraseña debe tener al menos 6 caracteres")
+        }
+
+        val confirmPassword = form.confirmPassword
+        if (password != confirmPassword) {
+            return ApiResult.Error("Las contraseñas no coinciden")
+        }
+
+        if (form.firstName.isBlank()) { // ✅ CORRECCIÓN 1: Uso de 'form'
+            return ApiResult.Error("El nombre es requerido")
+        }
+        if (form.lastName.isBlank()) {
+            return ApiResult.Error("El apellido es requerido")
+        }
+        if (form.phone.isBlank()) {
+            return ApiResult.Error("El teléfono es requerido")
+        }
+
         return null
     }
 
     private fun validateParentForm(form: ParentRegistrationForm): ApiResult.Error? {
-        if (form.email.isBlank()) return ApiResult.Error("El email es requerido")
-        if (!isValidEmail(form.email)) return ApiResult.Error("Email inválido")
-
-        form.password?.let { password ->
-            if (password.isBlank()) return ApiResult.Error("La contraseña no puede estar vacía")
-            if (password.length < 6) return ApiResult.Error("La contraseña debe tener al menos 6 caracteres")
-            if (form.confirmPassword == null) return ApiResult.Error("Debes confirmar la contraseña")
-            if (password != form.confirmPassword) return ApiResult.Error("Las contraseñas no coinciden")
+        if (form.email.isBlank()) {
+            return ApiResult.Error("El email es requerido")
+        }
+        // ✅ CORRECCIÓN 3: Uso de isValidEmail
+        if (!isValidEmail(form.email)) {
+            return ApiResult.Error("Email inválido")
         }
 
-        if (form.firstName.isBlank()) return ApiResult.Error("El nombre es requerido")
-        if (form.lastName.isBlank()) return ApiResult.Error("El apellido es requerido")
-        if (form.phone.isBlank()) return ApiResult.Error("El teléfono es requerido")
+        val password = form.password
+        if (password == null || password.isBlank()) {
+            return ApiResult.Error("La contraseña es requerida")
+        }
+        if (password.length < 6) {
+            return ApiResult.Error("La contraseña debe tener al menos 6 caracteres")
+        }
+
+        val confirmPassword = form.confirmPassword
+        if (confirmPassword == null || password != confirmPassword) {
+            return ApiResult.Error("Las contraseñas no coinciden")
+        }
+
+        if (form.firstName.isBlank()) { // ✅ CORRECCIÓN 2: Uso de 'form'
+            return ApiResult.Error("El nombre es requerido")
+        }
+        if (form.lastName.isBlank()) {
+            return ApiResult.Error("El apellido es requerido")
+        }
+        if (form.phone.isBlank()) {
+            return ApiResult.Error("El teléfono es requerido")
+        }
+
         return null
     }
 
     private fun validateStudentForm(form: StudentRegistrationForm): ApiResult.Error? {
-        if (form.classCode.isBlank()) return ApiResult.Error("El código de curso es requerido")
-        if (form.studentRut.isBlank()) return ApiResult.Error("El RUT del estudiante es requerido")
-        if (!isValidRut(form.studentRut)) return ApiResult.Error("RUT inválido")
-        if (form.studentFirstName.isBlank()) return ApiResult.Error("El nombre del estudiante es requerido")
-        if (form.studentLastName.isBlank()) return ApiResult.Error("El apellido del estudiante es requerido")
+        if (form.classCode.isBlank()) {
+            return ApiResult.Error("El código de curso es requerido")
+        }
+        if (form.studentRut.isBlank()) {
+            return ApiResult.Error("El RUT del estudiante es requerido")
+        }
+        if (!isValidRut(form.studentRut)) {
+            return ApiResult.Error("RUT inválido")
+        }
+        if (form.studentFirstName.isBlank()) {
+            return ApiResult.Error("El nombre del estudiante es requerido")
+        }
+        if (form.studentLastName.isBlank()) {
+            return ApiResult.Error("El apellido del estudiante es requerido")
+        }
+
         return null
     }
 
     // =====================================================
-    // UTILIDADES
+    // FUNCIONES AUXILIARES
     // =====================================================
 
-    private fun isValidEmail(email: String): Boolean {
+    private fun isValidEmail(email: String): Boolean { // ✅ CORRECCIÓN 3: Ahora se usa
         return android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
     }
 
@@ -323,5 +359,4 @@ class AuthRepositoryImpl @Inject constructor(
         val digest = md.digest(bytes)
         return digest.fold("") { str, it -> str + "%02x".format(it) }
     }
-
 }

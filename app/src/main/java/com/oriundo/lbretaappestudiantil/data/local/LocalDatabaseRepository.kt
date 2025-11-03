@@ -38,13 +38,9 @@ class LocalDatabaseRepository @Inject constructor(
 
             // 2. Obtener el profileId local
             val localUser = userDao.getUserByFirebaseUid(firebaseUid)
-            if (localUser == null) {
-                return ApiResult.Error("No se pudo obtener el usuario local después de sincronizar")
-            }
+                ?: return ApiResult.Error("No se pudo obtener el usuario local después de sincronizar")
             val localProfile = profileDao.getProfileByUserId(localUser.id)
-            if (localProfile == null) {
-                return ApiResult.Error("No se pudo obtener el perfil local después de sincronizar")
-            }
+                ?: return ApiResult.Error("No se pudo obtener el perfil local después de sincronizar")
 
             // 3. Si es profesor, sincronizar sus clases
             if (localProfile.isTeacher) {
@@ -87,7 +83,6 @@ class LocalDatabaseRepository @Inject constructor(
             val phone = firestoreDoc.getString("phone")
             val address = firestoreDoc.getString("address")
 
-            // ✅ CORREGIDO: Buscar por firebaseUid
             var localUser = userDao.getUserByFirebaseUid(firebaseUid)
 
             if (localUser == null) {
@@ -102,7 +97,6 @@ class LocalDatabaseRepository @Inject constructor(
                     )
                 ).toInt()
 
-                // ✅ CORREGIDO: Incluir TODOS los campos de ProfileEntity
                 profileDao.insertProfile(
                     ProfileEntity(
                         userId = newUserId,
@@ -113,10 +107,10 @@ class LocalDatabaseRepository @Inject constructor(
                         photoUrl = photoUrl,
                         isTeacher = isTeacher,
                         isParent = isParent,
-                        firestoreId = firebaseUid, // ✅ AÑADIDO
-                        syncStatus = SyncStatus.SYNCED, // ✅ AÑADIDO
-                        firebaseUid = firebaseUid, // ✅ AÑADIDO (ESTE ERA EL ERROR)
-                        lastSyncedAt = System.currentTimeMillis() // ✅ AÑADIDO
+                        firestoreId = firebaseUid,
+                        syncStatus = SyncStatus.SYNCED,
+                        firebaseUid = firebaseUid,
+                        lastSyncedAt = System.currentTimeMillis()
                     )
                 )
             } else {
@@ -131,7 +125,6 @@ class LocalDatabaseRepository @Inject constructor(
 
                 val localProfile = profileDao.getProfileByUserId(localUser.id)
                 if (localProfile != null) {
-                    // ✅ CORREGIDO: Incluir TODOS los campos de ProfileEntity
                     profileDao.updateProfile(
                         localProfile.copy(
                             firstName = firstName,
@@ -141,10 +134,10 @@ class LocalDatabaseRepository @Inject constructor(
                             photoUrl = photoUrl,
                             isTeacher = isTeacher,
                             isParent = isParent,
-                            firestoreId = firebaseUid, // ✅ AÑADIDO
-                            syncStatus = SyncStatus.SYNCED, // ✅ AÑADIDO
-                            firebaseUid = firebaseUid, // ✅ AÑADIDO (ESTE ERA EL ERROR)
-                            lastSyncedAt = System.currentTimeMillis() // ✅ AÑADIDO
+                            firestoreId = firebaseUid,
+                            syncStatus = SyncStatus.SYNCED,
+                            firebaseUid = firebaseUid,
+                            lastSyncedAt = System.currentTimeMillis()
                         )
                     )
                 }
@@ -169,7 +162,8 @@ class LocalDatabaseRepository @Inject constructor(
             for (doc in classesSnapshot.documents) {
                 val className = doc.getString("className") ?: continue
                 val schoolName = doc.getString("schoolName") ?: continue
-                val classCode = doc.getString("classCode") ?: continue
+                // ✅ IMPORTANTE: Normalizar el código a MAYÚSCULAS al sincronizar
+                val classCode = (doc.getString("classCode") ?: continue).uppercase()
                 val gradeLevel = doc.getString("gradeLevel")
                 val academicYear = doc.getString("academicYear") ?: "2025"
                 val isActive = doc.getBoolean("isActive") ?: true
@@ -177,19 +171,18 @@ class LocalDatabaseRepository @Inject constructor(
                 val existingClass = classDao.getClassByCode(classCode)
 
                 if (existingClass == null) {
-                    // ✅ Asegúrate de que ClassEntity tenga los mismos campos de sincronización
                     classDao.insertClass(
                         ClassEntity(
                             className = className,
                             schoolName = schoolName,
                             teacherId = localProfileId,
-                            classCode = classCode,
+                            classCode = classCode, // Ya está en MAYÚSCULAS
                             gradeLevel = gradeLevel,
                             academicYear = academicYear,
                             isActive = isActive,
-                            firestoreId = doc.id, // ✅ AÑADIR SI EXISTE
-                            syncStatus = SyncStatus.SYNCED, // ✅ AÑADIR SI EXISTE
-                            lastSyncedAt = System.currentTimeMillis() // ✅ AÑADIR SI EXISTE
+                            firestoreId = doc.id,
+                            syncStatus = SyncStatus.SYNCED,
+                            lastSyncedAt = System.currentTimeMillis()
                         )
                     )
                 } else {
@@ -200,9 +193,9 @@ class LocalDatabaseRepository @Inject constructor(
                             gradeLevel = gradeLevel,
                             academicYear = academicYear,
                             isActive = isActive,
-                            firestoreId = doc.id, // ✅ AÑADIR SI EXISTE
-                            syncStatus = SyncStatus.SYNCED, // ✅ AÑADIR SI EXISTE
-                            lastSyncedAt = System.currentTimeMillis() // ✅ AÑADIR SI EXISTE
+                            firestoreId = doc.id,
+                            syncStatus = SyncStatus.SYNCED,
+                            lastSyncedAt = System.currentTimeMillis()
                         )
                     )
                 }
@@ -228,18 +221,18 @@ class LocalDatabaseRepository @Inject constructor(
                 val rut = doc.getString("rut") ?: continue
                 val firstName = doc.getString("firstName") ?: continue
                 val lastName = doc.getString("lastName") ?: continue
-                val classCode = doc.getString("classCode") ?: continue
+                // ✅ IMPORTANTE: Normalizar el código a MAYÚSCULAS
+                val classCode = (doc.getString("classCode") ?: continue).uppercase()
                 val birthDate = doc.getLong("birthDate")
                 val photoUrl = doc.getString("photoUrl")
 
-                // Obtener la clase local usando el código
+                // Obtener la clase local usando el código normalizado
                 val localClass = classDao.getClassByCode(classCode) ?: continue
 
                 // Verificar si el estudiante ya existe
                 val existingStudent = studentDao.getStudentByRut(rut)
 
                 if (existingStudent == null) {
-                    // ✅ CORREGIDO: Solo campos que existen en StudentEntity
                     studentDao.insertStudent(
                         StudentEntity(
                             classId = localClass.id,
@@ -248,18 +241,15 @@ class LocalDatabaseRepository @Inject constructor(
                             lastName = lastName,
                             birthDate = birthDate,
                             photoUrl = photoUrl
-                            // ❌ QUITADO: firestoreId, syncStatus, lastSyncedAt (no existen)
                         )
                     )
                 } else {
-                    // ✅ CORREGIDO: Solo campos que existen en StudentEntity
                     studentDao.updateStudent(
                         existingStudent.copy(
                             firstName = firstName,
                             lastName = lastName,
                             birthDate = birthDate,
                             photoUrl = photoUrl
-                            // ❌ QUITADO: firestoreId, syncStatus, lastSyncedAt (no existen)
                         )
                     )
                 }
@@ -273,15 +263,23 @@ class LocalDatabaseRepository @Inject constructor(
     // SINCRONIZAR DE ROOM → FIRESTORE (AL CREAR/ACTUALIZAR)
     // =====================================================
 
+    /**
+     * ✅ MÉTODO ACTUALIZADO PARA SINCRONIZAR CLASE A FIRESTORE
+     * Guarda el código en MAYÚSCULAS tanto en la colección del usuario como en la colección global
+     */
     suspend fun syncClassToFirestore(
         firebaseUid: String,
         classEntity: ClassEntity
     ): ApiResult<Unit> {
         return try {
+            // ✅ IMPORTANTE: Asegurar que el código esté en MAYÚSCULAS
+            val normalizedCode = classEntity.classCode.uppercase()
+
+            // Datos para la colección del usuario
             val classData = hashMapOf(
                 "className" to classEntity.className,
                 "schoolName" to classEntity.schoolName,
-                "classCode" to classEntity.classCode,
+                "classCode" to normalizedCode, // ✅ SIEMPRE EN MAYÚSCULAS
                 "gradeLevel" to classEntity.gradeLevel,
                 "academicYear" to classEntity.academicYear,
                 "isActive" to classEntity.isActive,
@@ -289,12 +287,48 @@ class LocalDatabaseRepository @Inject constructor(
                 "lastSyncedAt" to System.currentTimeMillis()
             )
 
-            val docRef = firestore.collection("users")
+            // Guardar en la colección del usuario
+            val userDocRef = firestore.collection("users")
                 .document(firebaseUid)
                 .collection("classes")
                 .document()
 
-            docRef.set(classData).await()
+            userDocRef.set(classData).await()
+
+            // ✅ TAMBIÉN guardar en la colección principal de "classes" para búsquedas globales
+            // IMPORTANTE: En FirebaseAuthRepository se busca en "classes" con campo "code"
+            val globalClassData = hashMapOf(
+                "name" to classEntity.className, // Nota: "name" no "className"
+                "school" to classEntity.schoolName, // Nota: "school" no "schoolName"
+                "code" to normalizedCode, // ✅ IMPORTANTE: "code" no "classCode"
+                "gradeLevel" to classEntity.gradeLevel,
+                "academicYear" to classEntity.academicYear,
+                "teacherId" to classEntity.teacherId,
+                "isActive" to classEntity.isActive,
+                "createdAt" to classEntity.createdAt,
+                "lastSyncedAt" to System.currentTimeMillis()
+            )
+
+            // Buscar si ya existe una clase con este código
+            val existingClass = firestore.collection("classes")
+                .whereEqualTo("code", normalizedCode)
+                .limit(1)
+                .get()
+                .await()
+
+            if (existingClass.isEmpty) {
+                // Si no existe, crear nuevo documento
+                firestore.collection("classes")
+                    .add(globalClassData)
+                    .await()
+            } else {
+                // Si existe, actualizar el documento existente
+                val docId = existingClass.documents.first().id
+                firestore.collection("classes")
+                    .document(docId)
+                    .set(globalClassData)
+                    .await()
+            }
 
             ApiResult.Success(Unit)
         } catch (e: Exception) {
@@ -312,7 +346,7 @@ class LocalDatabaseRepository @Inject constructor(
                 "rut" to studentEntity.rut,
                 "firstName" to studentEntity.firstName,
                 "lastName" to studentEntity.lastName,
-                "classCode" to classCode,
+                "classCode" to classCode.uppercase(), // ✅ Código en MAYÚSCULAS
                 "birthDate" to studentEntity.birthDate,
                 "photoUrl" to studentEntity.photoUrl,
                 "enrollmentDate" to studentEntity.enrollmentDate,
@@ -354,10 +388,94 @@ class LocalDatabaseRepository @Inject constructor(
     }
 
     suspend fun getClassByCode(classCode: String): ClassEntity? {
-        return classDao.getClassByCode(classCode)
+        // ✅ Normalizar el código a MAYÚSCULAS para la búsqueda
+        return classDao.getClassByCode(classCode.uppercase())
     }
 
     suspend fun getStudentByRut(rut: String): StudentEntity? {
         return studentDao.getStudentByRut(rut)
+    }
+    // ... dentro de la clase LocalDatabaseRepository ...
+
+    /**
+     * Busca una clase en la colección principal de Firebase por su código.
+     * @return ClassEntity si se encuentra, null si no.
+     */
+    /**
+     * Busca una clase en la colección global "classes" de Firestore por código
+     * y la convierte manualmente a ClassEntity porque los nombres de campos difieren
+     */
+    suspend fun getClassFromFirestoreByCode(code: String): ClassEntity? {
+        return try {
+            val normalizedCode = code.uppercase()
+
+            val snapshot = firestore.collection("classes")
+                .whereEqualTo("code", normalizedCode)  // ✅ Campo correcto
+                .limit(1)
+                .get()
+                .await()
+
+            val doc = snapshot.documents.firstOrNull() ?: return null
+
+            // ✅ Conversión MANUAL porque los campos tienen nombres diferentes
+            ClassEntity(
+                id = 0, // Se generará al insertar en Room
+                className = doc.getString("name") ?: "",
+                schoolName = doc.getString("school") ?: "",
+                teacherId = 0, // ⚠️ Se asignará después
+                classCode = normalizedCode,
+                gradeLevel = doc.getString("gradeLevel"),
+                academicYear = doc.getString("academicYear") ?: "2025",
+                isActive = doc.getBoolean("isActive") ?: true,
+                createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis(),
+                firestoreId = doc.id,
+                syncStatus = SyncStatus.SYNCED,
+                lastSyncedAt = System.currentTimeMillis()
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+// ... (continúan tus otras funciones, como syncClassToFirestore) ...
+
+    /**
+     * ✅ MÉTODO AUXILIAR: Migrar códigos existentes a MAYÚSCULAS
+     * Ejecutar una vez para normalizar datos existentes
+     */
+    suspend fun migrateClassCodesToUpperCase() {
+        try {
+            // Migrar en Firestore - colección global "classes"
+            val classesSnapshot = firestore.collection("classes").get().await()
+
+            for (doc in classesSnapshot.documents) {
+                val currentCode = doc.getString("code") ?: continue
+                if (currentCode != currentCode.uppercase()) {
+                    doc.reference.update("code", currentCode.uppercase()).await()
+                }
+            }
+
+            // Migrar en Firestore - colecciones de usuarios
+            val usersSnapshot = firestore.collection("users").get().await()
+
+            for (userDoc in usersSnapshot.documents) {
+                val userClassesSnapshot = userDoc.reference
+                    .collection("classes")
+                    .get()
+                    .await()
+
+                for (classDoc in userClassesSnapshot.documents) {
+                    val currentCode = classDoc.getString("classCode") ?: continue
+                    if (currentCode != currentCode.uppercase()) {
+                        classDoc.reference.update("classCode", currentCode.uppercase()).await()
+                    }
+                }
+            }
+
+            println("Migración de códigos a MAYÚSCULAS completada")
+        } catch (e: Exception) {
+            println("Error en migración: ${e.message}")
+        }
     }
 }
