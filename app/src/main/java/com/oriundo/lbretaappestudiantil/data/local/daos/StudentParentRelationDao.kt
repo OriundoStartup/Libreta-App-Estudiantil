@@ -11,8 +11,8 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface StudentParentRelationDao {
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertRelation(relation: StudentParentRelation): Long
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertRelation(relation: StudentParentRelation)
 
     @Query("""
         SELECT s.* FROM students s

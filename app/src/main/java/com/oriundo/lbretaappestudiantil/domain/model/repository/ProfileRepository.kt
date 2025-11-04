@@ -12,4 +12,8 @@ interface ProfileRepository {
     fun getAllParents(): Flow<List<ProfileEntity>>
     suspend fun addParentRole(profileId: Int): ApiResult<Unit>
     suspend fun addTeacherRole(profileId: Int): ApiResult<Unit>
+    suspend fun insertOrUpdateProfile(profile: ProfileEntity): ApiResult<Unit>
+    suspend fun getCurrentUserProfile(): ApiResult<ProfileEntity>
+
+
 }

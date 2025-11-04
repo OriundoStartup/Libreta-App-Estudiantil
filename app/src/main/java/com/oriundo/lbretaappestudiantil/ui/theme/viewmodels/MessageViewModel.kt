@@ -6,10 +6,11 @@ import com.oriundo.lbretaappestudiantil.data.local.models.MessageEntity
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
 import com.oriundo.lbretaappestudiantil.domain.model.repository.MessageRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.ProfileRepository
-import com.oriundo.lbretaappestudiantil.ui.theme.states.ConversationThread
+import com.oriundo.lbretaappestudiantil.domain.model.ConversationThread
 import com.oriundo.lbretaappestudiantil.ui.theme.states.ConversationUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.states.MessageUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.states.MessagesListUiState
+import com.oriundo.lbretaappestudiantil.ui.theme.states.ProfileListUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,7 +24,7 @@ class MessageViewModel @Inject constructor(
     private val profileRepository: ProfileRepository
 ) : ViewModel() {
 
-    // Estados existentes
+    // ========== ESTADOS PARA MENSAJES ==========
     private val _sendState = MutableStateFlow<MessageUiState>(MessageUiState.Initial)
     val sendState: StateFlow<MessageUiState> = _sendState.asStateFlow()
 
@@ -42,7 +43,7 @@ class MessageViewModel @Inject constructor(
     private val _sentMessages = MutableStateFlow<List<MessageEntity>>(emptyList())
     val sentMessages: StateFlow<List<MessageEntity>> = _sentMessages.asStateFlow()
 
-    // ✅ NUEVOS ESTADOS PARA CONVERSACIONES
+    // ========== ESTADOS PARA CONVERSACIONES ==========
     private val _conversationsListState = MutableStateFlow<MessagesListUiState>(MessagesListUiState.Initial)
     val conversationsListState: StateFlow<MessagesListUiState> = _conversationsListState.asStateFlow()
 
@@ -52,7 +53,15 @@ class MessageViewModel @Inject constructor(
     private val _conversationMessages = MutableStateFlow<List<MessageEntity>>(emptyList())
     val conversationMessages: StateFlow<List<MessageEntity>> = _conversationMessages.asStateFlow()
 
-    // ✅ NUEVA - Cargar todas las conversaciones para el padre
+    // ========== ESTADOS PARA PROFESORES (DESTINATARIOS) ==========
+    private val _teachersListState = MutableStateFlow<ProfileListUiState>(ProfileListUiState.Initial)
+    val teachersListState: StateFlow<ProfileListUiState> = _teachersListState.asStateFlow()
+
+    // ========== FUNCIONES PARA CONVERSACIONES ==========
+
+    /**
+     * Cargar todas las conversaciones para el padre
+     */
     fun loadConversationsForParent(parentId: Int) {
         viewModelScope.launch {
             _conversationsListState.value = MessagesListUiState.Loading
@@ -73,7 +82,9 @@ class MessageViewModel @Inject constructor(
         }
     }
 
-    // ✅ NUEVA - Cargar conversación específica con información del profesor
+    /**
+     * Cargar conversación específica con información del profesor
+     */
     fun loadConversationWithTeacher(parentId: Int, teacherId: Int) {
         viewModelScope.launch {
             _currentConversationState.value = ConversationUiState.Loading
@@ -112,7 +123,9 @@ class MessageViewModel @Inject constructor(
         }
     }
 
-    // ✅ NUEVA - Enviar respuesta en conversación
+    /**
+     * Enviar respuesta en conversación
+     */
     fun sendReply(
         senderId: Int,
         recipientId: Int,
@@ -139,7 +152,9 @@ class MessageViewModel @Inject constructor(
         }
     }
 
-    // ✅ NUEVA - Marcar todos los mensajes de una conversación como leídos
+    /**
+     * Marcar todos los mensajes de una conversación como leídos
+     */
     fun markConversationAsRead(parentId: Int, teacherId: Int) {
         viewModelScope.launch {
             _conversationMessages.value
@@ -150,7 +165,34 @@ class MessageViewModel @Inject constructor(
         }
     }
 
-    // Funciones existentes
+    /**
+     * Cargar la lista de profesores para que el apoderado pueda seleccionarlos
+     */
+    fun loadAllTeachersAsRecipients() {
+        viewModelScope.launch {
+            _teachersListState.value = ProfileListUiState.Loading
+
+            try {
+                profileRepository.getAllTeachers().collect { teachers ->
+                    if (teachers.isEmpty()) {
+                        _teachersListState.value = ProfileListUiState.Empty()
+                    } else {
+                        _teachersListState.value = ProfileListUiState.Success(teachers)
+                    }
+                }
+            } catch (e: Exception) {
+                _teachersListState.value = ProfileListUiState.Error(
+                    e.message ?: "Error al cargar la lista de profesores"
+                )
+            }
+        }
+    }
+
+    // ========== FUNCIONES PARA MENSAJES GENERALES ==========
+
+    /**
+     * Cargar mensajes enviados por un profesor
+     */
     fun loadSentMessagesByTeacher(teacherId: Int) {
         viewModelScope.launch {
             try {
@@ -163,6 +205,9 @@ class MessageViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Enviar mensaje general
+     */
     fun sendMessage(
         senderId: Int,
         recipientId: Int,
@@ -191,6 +236,9 @@ class MessageViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Enviar mensaje de profesor a padre
+     */
     fun sendMessageToParent(
         teacherId: Int,
         parentId: Int,
@@ -216,6 +264,9 @@ class MessageViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Cargar mensajes por usuario
+     */
     fun loadMessagesByUser(userId: Int) {
         viewModelScope.launch {
             messageRepository.getMessagesByUser(userId).collect { messages ->
@@ -224,6 +275,9 @@ class MessageViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Cargar conversación entre dos usuarios
+     */
     fun loadConversation(user1: Int, user2: Int) {
         viewModelScope.launch {
             messageRepository.getConversation(user1, user2).collect { messages ->
@@ -232,6 +286,9 @@ class MessageViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Cargar contador de mensajes no leídos
+     */
     fun loadUnreadCount(userId: Int) {
         viewModelScope.launch {
             messageRepository.getUnreadCount(userId).collect { count ->
@@ -240,16 +297,25 @@ class MessageViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Marcar mensaje como leído
+     */
     fun markAsRead(messageId: Int) {
         viewModelScope.launch {
             messageRepository.markAsRead(messageId)
         }
     }
 
+    /**
+     * Resetear estado de envío
+     */
     fun resetSendState() {
         _sendState.value = MessageUiState.Initial
     }
 
+    /**
+     * Cargar mensajes no leídos para un profesor
+     */
     fun loadUnreadMessagesForTeacher(teacherId: Int) {
         viewModelScope.launch {
             try {
@@ -262,6 +328,9 @@ class MessageViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Marcar mensaje como leído (alias para compatibilidad)
+     */
     fun markMessageAsRead(messageId: Int) {
         viewModelScope.launch {
             messageRepository.markAsRead(messageId)

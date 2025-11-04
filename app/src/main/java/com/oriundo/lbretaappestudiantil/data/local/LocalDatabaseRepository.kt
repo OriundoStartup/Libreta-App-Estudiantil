@@ -5,6 +5,7 @@ import com.oriundo.lbretaappestudiantil.data.local.daos.ClassDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.ProfileDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.SchoolEventDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.StudentDao
+import com.oriundo.lbretaappestudiantil.data.local.daos.StudentParentRelationDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.UserDao
 import com.oriundo.lbretaappestudiantil.data.local.models.ClassEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.ProfileEntity
@@ -24,7 +25,8 @@ class LocalDatabaseRepository @Inject constructor(
     private val profileDao: ProfileDao,
     private val classDao: ClassDao,
     private val studentDao: StudentDao,
-    private val schoolEventDao: SchoolEventDao
+    private val schoolEventDao: SchoolEventDao,
+    private val studentParentRelationDao: StudentParentRelationDao
 ) {
 
     // =====================================================
@@ -221,41 +223,198 @@ class LocalDatabaseRepository @Inject constructor(
                 val rut = doc.getString("rut") ?: continue
                 val firstName = doc.getString("firstName") ?: continue
                 val lastName = doc.getString("lastName") ?: continue
-                // ✅ IMPORTANTE: Normalizar el código a MAYÚSCULAS
                 val classCode = (doc.getString("classCode") ?: continue).uppercase()
                 val birthDate = doc.getLong("birthDate")
                 val photoUrl = doc.getString("photoUrl")
 
-                // Obtener la clase local usando el código normalizado
-                val localClass = classDao.getClassByCode(classCode) ?: continue
+                // ✅ CAMPOS DE RELACIÓN
+                val relationshipString = doc.getString("relationshipType") ?: "OTHER"
+                val relationshipType = try {
+                    com.oriundo.lbretaappestudiantil.data.local.models.RelationshipType.valueOf(relationshipString)
+                } catch (e: Exception) {
+                    com.oriundo.lbretaappestudiantil.data.local.models.RelationshipType.OTHER
+                }
+                val isPrimary = doc.getBoolean("isPrimary") ?: false
 
-                // Verificar si el estudiante ya existe
+                // ✅ PASO 1: Buscar la clase en Room
+                var localClass = classDao.getClassByCode(classCode)
+
+                // ✅ PASO 2: Si no existe, buscarla en Firestore
+                if (localClass == null) {
+                    val classSnapshot = firestore.collection("classes")
+                        .whereEqualTo("code", classCode)
+                        .limit(1)
+                        .get()
+                        .await()
+
+                    val classDoc = classSnapshot.documents.firstOrNull()
+
+                    if (classDoc == null) {
+                        println("⚠️ Clase $classCode no encontrada en Firestore")
+                        continue
+                    }
+
+                    // ✅ PASO 3: Obtener el teacherId de Firebase (ahora es un String - Firebase UID)
+                    val teacherFirebaseUid = classDoc.getString("teacherId")
+
+                    if (teacherFirebaseUid == null) {
+                        println("⚠️ Clase $classCode no tiene teacherId en Firestore")
+                        continue
+                    }
+
+                    // ✅ PASO 4: Sincronizar el profesor si no existe en Room
+                    var localTeacherProfile = userDao.getUserByFirebaseUid(teacherFirebaseUid)?.let { user ->
+                        profileDao.getProfileByUserId(user.id)
+                    }
+
+                    if (localTeacherProfile == null) {
+                        println("🔄 Sincronizando profesor $teacherFirebaseUid desde Firestore")
+
+                        val teacherDoc = firestore.collection("users")
+                            .document(teacherFirebaseUid)
+                            .get()
+                            .await()
+
+                        if (teacherDoc.exists()) {
+                            val teacherEmail = teacherDoc.getString("email") ?: ""
+                            val teacherFirstName = teacherDoc.getString("firstName") ?: ""
+                            val teacherLastName = teacherDoc.getString("lastName") ?: ""
+                            val teacherPhone = teacherDoc.getString("phone")
+                            val teacherAddress = teacherDoc.getString("address")
+                            val teacherPhotoUrl = teacherDoc.getString("photoUrl")
+
+                            // Crear usuario del profesor
+                            val newTeacherUserId = userDao.insertUser(
+                                UserEntity(
+                                    email = teacherEmail,
+                                    passwordHash = "",
+                                    firebaseUid = teacherFirebaseUid,
+                                    syncStatus = SyncStatus.SYNCED,
+                                    lastSyncedAt = System.currentTimeMillis()
+                                )
+                            ).toInt()
+
+                            // Crear perfil del profesor
+                            val newTeacherProfileId = profileDao.insertProfile(
+                                ProfileEntity(
+                                    userId = newTeacherUserId,
+                                    firstName = teacherFirstName,
+                                    lastName = teacherLastName,
+                                    phone = teacherPhone,
+                                    address = teacherAddress,
+                                    photoUrl = teacherPhotoUrl,
+                                    isTeacher = true,
+                                    isParent = false,
+                                    firestoreId = teacherFirebaseUid,
+                                    syncStatus = SyncStatus.SYNCED,
+                                    firebaseUid = teacherFirebaseUid,
+                                    lastSyncedAt = System.currentTimeMillis()
+                                )
+                            ).toInt()
+
+                            localTeacherProfile = ProfileEntity(
+                                id = newTeacherProfileId,
+                                userId = newTeacherUserId,
+                                firstName = teacherFirstName,
+                                lastName = teacherLastName,
+                                phone = teacherPhone,
+                                address = teacherAddress,
+                                photoUrl = teacherPhotoUrl,
+                                isTeacher = true,
+                                isParent = false,
+                                firestoreId = teacherFirebaseUid,
+                                syncStatus = SyncStatus.SYNCED,
+                                firebaseUid = teacherFirebaseUid,
+                                lastSyncedAt = System.currentTimeMillis()
+                            )
+
+                            println("✅ Profesor sincronizado: $teacherFirstName $teacherLastName")
+                        } else {
+                            println("⚠️ Profesor $teacherFirebaseUid no encontrado en Firestore")
+                            continue
+                        }
+                    }
+
+                    // ✅ PASO 5: Crear la clase en Room con el teacherId correcto
+                    val newClass = ClassEntity(
+                        className = classDoc.getString("name") ?: "",
+                        schoolName = classDoc.getString("school") ?: "",
+                        teacherId = localTeacherProfile!!.id,
+                        classCode = classCode,
+                        gradeLevel = classDoc.getString("gradeLevel"),
+                        academicYear = classDoc.getString("academicYear") ?: "2025",
+                        isActive = classDoc.getBoolean("isActive") ?: true,
+                        createdAt = classDoc.getLong("createdAt") ?: System.currentTimeMillis(),
+                        firestoreId = classDoc.id,
+                        syncStatus = SyncStatus.SYNCED,
+                        lastSyncedAt = System.currentTimeMillis()
+                    )
+
+                    val classId = classDao.insertClass(newClass).toInt()
+                    localClass = newClass.copy(id = classId)
+
+                    println("✅ Clase sincronizada: ${newClass.className}")
+                }
+
+                // ✅ PASO 6: Guardar el estudiante
                 val existingStudent = studentDao.getStudentByRut(rut)
+                var localStudentId: Int
 
                 if (existingStudent == null) {
-                    studentDao.insertStudent(
+                    localStudentId = studentDao.insertStudent(
                         StudentEntity(
                             classId = localClass.id,
                             rut = rut,
                             firstName = firstName,
                             lastName = lastName,
                             birthDate = birthDate,
-                            photoUrl = photoUrl
+                            photoUrl = photoUrl,
+                            firestoreId = doc.id, // Guardar ID de Firestore
+                            syncStatus = SyncStatus.SYNCED,
+                            lastSyncedAt = System.currentTimeMillis()
                         )
-                    )
+                    ).toInt()
+                    println("✅ Estudiante creado: $firstName $lastName")
                 } else {
+                    localStudentId = existingStudent.id
                     studentDao.updateStudent(
                         existingStudent.copy(
+                            classId = localClass.id,
                             firstName = firstName,
                             lastName = lastName,
                             birthDate = birthDate,
-                            photoUrl = photoUrl
+                            photoUrl = photoUrl,
+                            firestoreId = doc.id, // Actualizar ID de Firestore
+                            syncStatus = SyncStatus.SYNCED,
+                            lastSyncedAt = System.currentTimeMillis()
                         )
                     )
+                    println("✅ Estudiante actualizado: $firstName $lastName")
+                }
+
+                // ✅ PASO 7: VINCULAR ESTUDIANTE Y APODERADO (LA CLAVE)
+                // Usamos tu modelo StudentParentRelation
+                try {
+                    val relation = com.oriundo.lbretaappestudiantil.data.local.models.StudentParentRelation(
+                        studentId = localStudentId,
+                        parentId = localProfileId,
+                        relationshipType = relationshipType,
+                        isPrimary = isPrimary
+                    )
+
+                    // Gracias al OnConflictStrategy.REPLACE, esto insertará o actualizará
+                    studentParentRelationDao.insertRelation(relation)
+
+                    println("✅ Relación CREADA/ACTUALIZADA para estudiante $localStudentId y apoderado $localProfileId")
+
+                } catch (e: Exception) {
+                    println("⚠️ Error al crear/actualizar relación: ${e.message}")
+                    e.printStackTrace()
                 }
             }
         } catch (e: Exception) {
-            println("Error sincronizando estudiantes: ${e.message}")
+            println(" Error sincronizando estudiantes: ${e.message}")
+            e.printStackTrace()
         }
     }
 
@@ -272,14 +431,17 @@ class LocalDatabaseRepository @Inject constructor(
         classEntity: ClassEntity
     ): ApiResult<Unit> {
         return try {
-            // ✅ IMPORTANTE: Asegurar que el código esté en MAYÚSCULAS
             val normalizedCode = classEntity.classCode.uppercase()
+
+            // ✅ OBTENER EL FIREBASE UID DEL PROFESOR
+            val teacherProfile = profileDao.getProfileById(classEntity.teacherId)
+            val teacherFirebaseUid = teacherProfile?.firebaseUid ?: firebaseUid
 
             // Datos para la colección del usuario
             val classData = hashMapOf(
                 "className" to classEntity.className,
                 "schoolName" to classEntity.schoolName,
-                "classCode" to normalizedCode, // ✅ SIEMPRE EN MAYÚSCULAS
+                "classCode" to normalizedCode,
                 "gradeLevel" to classEntity.gradeLevel,
                 "academicYear" to classEntity.academicYear,
                 "isActive" to classEntity.isActive,
@@ -295,15 +457,14 @@ class LocalDatabaseRepository @Inject constructor(
 
             userDocRef.set(classData).await()
 
-            // ✅ TAMBIÉN guardar en la colección principal de "classes" para búsquedas globales
-            // IMPORTANTE: En FirebaseAuthRepository se busca en "classes" con campo "code"
+            // ✅ GUARDAR EN COLECCIÓN GLOBAL CON teacherFirebaseUid
             val globalClassData = hashMapOf(
-                "name" to classEntity.className, // Nota: "name" no "className"
-                "school" to classEntity.schoolName, // Nota: "school" no "schoolName"
-                "code" to normalizedCode, // ✅ IMPORTANTE: "code" no "classCode"
+                "name" to classEntity.className,
+                "school" to classEntity.schoolName,
+                "code" to normalizedCode,
                 "gradeLevel" to classEntity.gradeLevel,
                 "academicYear" to classEntity.academicYear,
-                "teacherId" to classEntity.teacherId,
+                "teacherId" to teacherFirebaseUid, // ✅ CORREGIDO: Usar Firebase UID
                 "isActive" to classEntity.isActive,
                 "createdAt" to classEntity.createdAt,
                 "lastSyncedAt" to System.currentTimeMillis()
@@ -317,12 +478,10 @@ class LocalDatabaseRepository @Inject constructor(
                 .await()
 
             if (existingClass.isEmpty) {
-                // Si no existe, crear nuevo documento
                 firestore.collection("classes")
                     .add(globalClassData)
                     .await()
             } else {
-                // Si existe, actualizar el documento existente
                 val docId = existingClass.documents.first().id
                 firestore.collection("classes")
                     .document(docId)
@@ -335,39 +494,6 @@ class LocalDatabaseRepository @Inject constructor(
             ApiResult.Error("Error sincronizando a Firestore: ${e.message}", e)
         }
     }
-
-    suspend fun syncStudentToFirestore(
-        firebaseUid: String,
-        studentEntity: StudentEntity,
-        classCode: String
-    ): ApiResult<Unit> {
-        return try {
-            val studentData = hashMapOf(
-                "rut" to studentEntity.rut,
-                "firstName" to studentEntity.firstName,
-                "lastName" to studentEntity.lastName,
-                "classCode" to classCode.uppercase(), // ✅ Código en MAYÚSCULAS
-                "birthDate" to studentEntity.birthDate,
-                "photoUrl" to studentEntity.photoUrl,
-                "enrollmentDate" to studentEntity.enrollmentDate,
-                "isActive" to studentEntity.isActive,
-                "notes" to studentEntity.notes,
-                "lastSyncedAt" to System.currentTimeMillis()
-            )
-
-            val docRef = firestore.collection("users")
-                .document(firebaseUid)
-                .collection("students")
-                .document()
-
-            docRef.set(studentData).await()
-
-            ApiResult.Success(Unit)
-        } catch (e: Exception) {
-            ApiResult.Error("Error sincronizando estudiante: ${e.message}", e)
-        }
-    }
-
     // =====================================================
     // VERIFICAR ESTADO DE SINCRONIZACIÓN
     // =====================================================

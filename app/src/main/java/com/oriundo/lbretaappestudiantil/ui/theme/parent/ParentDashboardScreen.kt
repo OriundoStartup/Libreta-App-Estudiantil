@@ -121,12 +121,13 @@ fun ParentDashboardScreen(
                 actions = {
                     // Botón de notificaciones con badge
                     IconButton(onClick = {
-                        // FIX: Navegación corregida a Screen.Notifications
                         navController.navigate(
-                            Screen.Notifications.createRoute(
+                            Screen.ParentMessages.createRoute(
                                 userWithProfile.profile.id
                             )
                         )
+
+
                     }) {
                         Box {
                             Icon(
@@ -278,9 +279,8 @@ fun ParentDashboardScreen(
                     gradient = AppColors.SecondaryGradient,
                     modifier = Modifier.weight(1f),
                     onClick = {
-                        // FIX: Se usa Screen.Notifications
                         navController.navigate(
-                            Screen.Notifications.createRoute(
+                            Screen.ParentMessages.createRoute(
                                 userWithProfile.profile.id
                             )
                         )

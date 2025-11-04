@@ -77,6 +77,19 @@ class ProfileViewModel @Inject constructor(
             }
         }
     }
+    fun loadProfileById(profileId: Int) {
+        viewModelScope.launch {
+            when (val result = profileRepository.getProfileById(profileId)) {
+                is ApiResult.Success -> {
+                    // Guardar en un mapa o estado si es necesario
+                }
+                is ApiResult.Error -> {
+                    // Manejar error
+                }
+                ApiResult.Loading -> {}
+            }
+        }
+    }
 
     fun addParentRole(profileId: Int) {
         viewModelScope.launch {

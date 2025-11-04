@@ -18,9 +18,11 @@ import com.oriundo.lbretaappestudiantil.ui.theme.auth.TeacherRegisterScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ConversationThreadScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.NotificationsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentDashboardScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentMessagesListScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentProfileScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentSendMessageScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentSettingsScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentStudentDetailScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.states.AuthUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.ClassStudentsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateAnnotationScreen
@@ -65,9 +67,7 @@ sealed class Screen(val route: String) {
     object TeacherNotifications : Screen("teacher_notifications/{teacherId}") {
         fun createRoute(teacherId: Int) = "teacher_notifications/$teacherId"
     }
-    object TeacherMessages : Screen("teacher_messages/{teacherId}") {
-        fun createRoute(teacherId: Int) = "teacher_messages/$teacherId"
-    }
+
     object SendMessage : Screen("send_message/{teacherId}") {
         fun createRoute(teacherId: Int) = "send_message/$teacherId"
     }
@@ -77,15 +77,19 @@ sealed class Screen(val route: String) {
     object ParentDashboard : Screen("parent_dashboard")
     object ParentProfile : Screen("parent_profile")
     object ParentSettings : Screen("parent_settings")
-    object Notifications : Screen("notifications/{parentId}") {
-        fun createRoute(parentId: Int) = "notifications/$parentId"
-    }
+    object Notifications : Screen("notifications/{parentId}")
     object ParentConversation : Screen("parent_conversation/{parentId}/{teacherId}/{studentId}") {
         fun createRoute(parentId: Int, teacherId: Int, studentId: Int?) =
             "parent_conversation/$parentId/$teacherId/${studentId ?: 0}"
     }
     object ParentSendMessage : Screen("parent_send_message/{parentId}") {
         fun createRoute(parentId: Int) = "parent_send_message/$parentId"
+    }
+    object ParentMessages : Screen("parent_messages/{parentId}") {
+        fun createRoute(parentId: Int) = "parent_messages/$parentId"
+    }
+    object ParentStudentDetail : Screen("parent_student_detail/{studentId}/{classId}") {
+        fun createRoute(studentId: Int, classId: Int) = "parent_student_detail/$studentId/$classId"
     }
 }
 
@@ -197,7 +201,7 @@ fun AppNavigation(
                         }
                     },
                     onNavigateToChildDetail = { studentId, classId ->
-                        navController.navigate(Screen.StudentDetail.createRoute(studentId, classId))
+                        navController.navigate(Screen.ParentStudentDetail.createRoute(studentId, classId))
                     }
                 )
             }
@@ -339,7 +343,29 @@ fun AppNavigation(
             arguments = listOf(navArgument("parentId") { type = NavType.IntType })
         ) { backStackEntry ->
             val parentId = backStackEntry.arguments?.getInt("parentId") ?: 0
-            ParentSendMessageScreen(parentId = parentId, navController = navController)
+            ParentSendMessageScreen(
+                parentId = parentId,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+        composable(
+            route = Screen.ParentStudentDetail.route,
+            arguments = listOf(
+                navArgument("studentId") { type = NavType.IntType },
+                navArgument("classId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val studentId = backStackEntry.arguments?.getInt("studentId") ?: 0
+            val classId = backStackEntry.arguments?.getInt("classId") ?: 0
+            ParentStudentDetailScreen(studentId = studentId, classId = classId, navController = navController)
+        }
+
+        composable(
+            route = Screen.ParentMessages.route,
+            arguments = listOf(navArgument("parentId") { type = NavType.IntType })
+        ) { backStackEntry ->
+            val parentId = backStackEntry.arguments?.getInt("parentId") ?: 0
+            ParentMessagesListScreen(parentId = parentId, navController = navController)
         }
 
         composable(Screen.TeacherProfile.route) {
