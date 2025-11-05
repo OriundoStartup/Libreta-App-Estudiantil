@@ -5,7 +5,6 @@ import androidx.room.TypeConverter
 import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType
 import com.oriundo.lbretaappestudiantil.data.local.models.AttendanceStatus
 import com.oriundo.lbretaappestudiantil.data.local.models.EventType
-import com.oriundo.lbretaappestudiantil.data.local.models.RequestStatus
 
 /**
  * TypeConverters para Room Database
@@ -23,7 +22,7 @@ class Converters {
     fun toEventType(value: String): EventType {
         return try {
             EventType.valueOf(value)
-        } catch (e: IllegalArgumentException) {
+        } catch (_: IllegalArgumentException) {
             EventType.OTHER // Valor por defecto si hay error
         }
     }
@@ -38,7 +37,7 @@ class Converters {
     fun toAnnotationType(value: String): AnnotationType {
         return try {
             AnnotationType.valueOf(value)
-        } catch (e: IllegalArgumentException) {
+        } catch (_: IllegalArgumentException) {
             AnnotationType.GENERAL
         }
     }
@@ -53,23 +52,10 @@ class Converters {
     fun toAttendanceStatus(value: String): AttendanceStatus {
         return try {
             AttendanceStatus.valueOf(value)
-        } catch (e: IllegalArgumentException) {
+        } catch (_: IllegalArgumentException) {
             AttendanceStatus.ABSENT
         }
     }
 
-    // RequestStatus Converters
-    @TypeConverter
-    fun fromRequestStatus(value: RequestStatus): String {
-        return value.name
-    }
 
-    @TypeConverter
-    fun toRequestStatus(value: String): RequestStatus {
-        return try {
-            RequestStatus.valueOf(value)
-        } catch (e: IllegalArgumentException) {
-            RequestStatus.PENDING
-        }
-    }
 }

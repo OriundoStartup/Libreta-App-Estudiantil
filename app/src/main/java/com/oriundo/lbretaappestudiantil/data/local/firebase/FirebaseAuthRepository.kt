@@ -70,16 +70,26 @@ class FirebaseAuthRepository @Inject constructor(
             if (userDoc.exists()) {
                 Log.d("FirebaseAuth", "Usuario existe en Firestore - Login exitoso")
 
-                localDatabaseRepository.syncAllUserDataFromFirestore(firebaseUser.uid)
+                // ✅ AGREGAR TRY-CATCH Y LOGS
+                try {
+                    Log.d("FirebaseAuth", "Iniciando sincronización de datos...")
+                    localDatabaseRepository.syncAllUserDataFromFirestore(firebaseUser.uid)
+                    Log.d("FirebaseAuth", "Sincronización completada exitosamente")
+                } catch (e: Exception) {
+                    Log.e("FirebaseAuth", "ERROR en sincronización: ${e.message}", e)
+                    e.printStackTrace()
+                    return ApiResult.Error("Error al sincronizar datos: ${e.message}")
+                }
 
                 val localUser = localDatabaseRepository.getUserByFirebaseUid(firebaseUser.uid)
-                    ?: return ApiResult.Error("No se pudo obtener el usuario")
+                    ?: return ApiResult.Error("No se pudo obtener el usuario después de sincronizar")
+
+                Log.d("FirebaseAuth", "Usuario local obtenido: ID=${localUser.user.id}, ProfileID=${localUser.profile.id}")
 
                 return ApiResult.Success(localUser)
             } else {
                 Log.d("FirebaseAuth", "Usuario NO existe en Firestore - Eliminando cuenta temporal")
 
-                // Usuario nuevo, eliminar la cuenta temporal de Firebase Auth
                 try {
                     firebaseUser.delete().await()
                     Log.d("FirebaseAuth", "Cuenta temporal eliminada exitosamente")

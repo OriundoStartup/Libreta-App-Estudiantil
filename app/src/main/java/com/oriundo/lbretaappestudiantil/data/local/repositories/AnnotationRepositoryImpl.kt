@@ -1,6 +1,8 @@
 package com.oriundo.lbretaappestudiantil.data.local.repositories
 
 import com.oriundo.lbretaappestudiantil.data.local.daos.AnnotationDao
+import com.oriundo.lbretaappestudiantil.data.local.daos.ProfileDao
+import com.oriundo.lbretaappestudiantil.data.local.daos.StudentDao
 import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
@@ -9,7 +11,9 @@ import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 
 class AnnotationRepositoryImpl @Inject constructor(
-    private val annotationDao: AnnotationDao
+    private val annotationDao: AnnotationDao,
+    private val profileDao: ProfileDao,
+    private val studentDao: StudentDao
 ) : AnnotationRepository {
 
     override suspend fun createAnnotation(
@@ -21,6 +25,14 @@ class AnnotationRepositoryImpl @Inject constructor(
         description: String
     ): ApiResult<AnnotationEntity> {
         return try {
+            // ✅ VALIDAR que el profesor existe
+            profileDao.getProfileById(teacherId)
+                ?: return ApiResult.Error("Error: El profesor no se encuentra sincronizado. Cierra sesión y vuelve a iniciar.")
+
+            // ✅ VALIDAR que el estudiante existe
+            studentDao.getStudentById(studentId)
+                ?: return ApiResult.Error("Error: El estudiante no se encuentra en la base de datos local.")
+
             val annotation = AnnotationEntity(
                 studentId = studentId,
                 teacherId = teacherId,
@@ -36,7 +48,7 @@ class AnnotationRepositoryImpl @Inject constructor(
 
             ApiResult.Success(createdAnnotation)
         } catch (e: Exception) {
-            ApiResult.Error(e.message ?: "Error al crear la anotación")
+            ApiResult.Error("Error al crear la anotación: ${e.message}")
         }
     }
 

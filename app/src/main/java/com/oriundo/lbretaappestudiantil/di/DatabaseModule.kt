@@ -6,7 +6,6 @@ import com.oriundo.lbretaappestudiantil.data.local.LibretAppDatabase
 import com.oriundo.lbretaappestudiantil.data.local.daos.AnnotationDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.AttendanceDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.ClassDao
-import com.oriundo.lbretaappestudiantil.data.local.daos.MaterialRequestDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.MessageDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.ProfileDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.SchoolEventDao
@@ -80,11 +79,7 @@ object DatabaseModule {
         return database.attendanceDao()
     }
 
-    @Provides
-    @Singleton
-    fun provideMaterialRequestDao(database: LibretAppDatabase): MaterialRequestDao {
-        return database.materialRequestDao()
-    }
+
 
     @Provides
     @Singleton

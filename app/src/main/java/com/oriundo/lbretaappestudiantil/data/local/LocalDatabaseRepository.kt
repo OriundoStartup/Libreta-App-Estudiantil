@@ -44,9 +44,10 @@ class LocalDatabaseRepository @Inject constructor(
             val localProfile = profileDao.getProfileByUserId(localUser.id)
                 ?: return ApiResult.Error("No se pudo obtener el perfil local después de sincronizar")
 
-            // 3. Si es profesor, sincronizar sus clases
+            // 3. Si es profesor, sincronizar sus clases Y estudiantes
             if (localProfile.isTeacher) {
                 syncTeacherClasses(firebaseUid, localProfile.id)
+                syncTeacherStudents(localProfile.id)  // ✅ AGREGAR ESTA LÍNEA
             }
 
             // 4. Si es apoderado, sincronizar sus estudiantes
@@ -85,7 +86,7 @@ class LocalDatabaseRepository @Inject constructor(
             val phone = firestoreDoc.getString("phone")
             val address = firestoreDoc.getString("address")
 
-            var localUser = userDao.getUserByFirebaseUid(firebaseUid)
+            val localUser = userDao.getUserByFirebaseUid(firebaseUid)
 
             if (localUser == null) {
                 // Crear nuevo usuario local
@@ -206,6 +207,108 @@ class LocalDatabaseRepository @Inject constructor(
             println("Error sincronizando clases: ${e.message}")
         }
     }
+    // =====================================================
+    // SINCRONIZAR ESTUDIANTES DE LAS CLASES DEL PROFESOR
+    // =====================================================
+
+    private suspend fun syncTeacherStudents(localProfileId: Int) {
+        try {
+            // 1. Obtener todas las clases del profesor desde Room
+            val teacherClassesList = classDao.getClassesByTeacherList(localProfileId)
+
+            teacherClassesList.forEach { classEntity ->
+                // 2. Para cada clase, buscar estudiantes en Firestore
+                val classCode = classEntity.classCode
+
+                // 3. Buscar en la colección global de clases
+                val classSnapshot = firestore.collection("classes")
+                    .whereEqualTo("code", classCode)
+                    .limit(1)
+                    .get()
+                    .await()
+
+                if (classSnapshot.isEmpty) {
+                    println("⚠️ Clase $classCode no encontrada en Firestore")
+                    return@forEach
+                }
+
+                val classDoc = classSnapshot.documents.first()
+                val classId = classDoc.id
+
+                // 4. Obtener estudiantes de esta clase
+                val studentsSnapshot = firestore.collection("classes")
+                    .document(classId)
+                    .collection("students")
+                    .get()
+                    .await()
+
+                println("📚 Sincronizando ${studentsSnapshot.size()} estudiantes para clase $classCode")
+
+                studentsSnapshot.documents.forEach { studentDoc ->
+                    val studentId = studentDoc.getString("studentId") ?: return@forEach
+                    val parentId = studentDoc.getString("parentId") ?: return@forEach
+
+                    // 5. Buscar datos del estudiante en la colección del padre
+                    val studentDataDoc = firestore.collection("users")
+                        .document(parentId)
+                        .collection("students")
+                        .document(studentId)
+                        .get()
+                        .await()
+
+                    if (!studentDataDoc.exists()) {
+                        println("⚠️ Datos del estudiante $studentId no encontrados")
+                        return@forEach
+                    }
+
+                    val rut = studentDataDoc.getString("rut") ?: return@forEach
+                    val firstName = studentDataDoc.getString("firstName") ?: return@forEach
+                    val lastName = studentDataDoc.getString("lastName") ?: return@forEach
+                    val birthDate = studentDataDoc.getLong("birthDate")
+                    val photoUrl = studentDataDoc.getString("photoUrl")
+
+                    // 6. Verificar si el estudiante ya existe en Room
+                    val existingStudent = studentDao.getStudentByRut(rut)
+
+                    if (existingStudent == null) {
+                        // Crear nuevo estudiante
+                        studentDao.insertStudent(
+                            StudentEntity(
+                                classId = classEntity.id,
+                                rut = rut,
+                                firstName = firstName,
+                                lastName = lastName,
+                                birthDate = birthDate,
+                                photoUrl = photoUrl,
+                                firestoreId = studentId,
+                                syncStatus = SyncStatus.SYNCED,
+                                lastSyncedAt = System.currentTimeMillis()
+                            )
+                        )
+                        println("✅ Estudiante creado: $firstName $lastName")
+                    } else {
+                        // Actualizar estudiante existente
+                        studentDao.updateStudent(
+                            existingStudent.copy(
+                                classId = classEntity.id,
+                                firstName = firstName,
+                                lastName = lastName,
+                                birthDate = birthDate,
+                                photoUrl = photoUrl,
+                                firestoreId = studentId,
+                                syncStatus = SyncStatus.SYNCED,
+                                lastSyncedAt = System.currentTimeMillis()
+                            )
+                        )
+                        println("✅ Estudiante actualizado: $firstName $lastName")
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            println("❌ Error sincronizando estudiantes del profesor: ${e.message}")
+            e.printStackTrace()
+        }
+    }
 
     // =====================================================
     // SINCRONIZAR ESTUDIANTES DEL APODERADO
@@ -231,7 +334,7 @@ class LocalDatabaseRepository @Inject constructor(
                 val relationshipString = doc.getString("relationshipType") ?: "OTHER"
                 val relationshipType = try {
                     com.oriundo.lbretaappestudiantil.data.local.models.RelationshipType.valueOf(relationshipString)
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     com.oriundo.lbretaappestudiantil.data.local.models.RelationshipType.OTHER
                 }
                 val isPrimary = doc.getBoolean("isPrimary") ?: false
@@ -339,7 +442,7 @@ class LocalDatabaseRepository @Inject constructor(
                     val newClass = ClassEntity(
                         className = classDoc.getString("name") ?: "",
                         schoolName = classDoc.getString("school") ?: "",
-                        teacherId = localTeacherProfile!!.id,
+                        teacherId = localTeacherProfile.id,
                         classCode = classCode,
                         gradeLevel = classDoc.getString("gradeLevel"),
                         academicYear = classDoc.getString("academicYear") ?: "2025",
@@ -502,7 +605,7 @@ class LocalDatabaseRepository @Inject constructor(
         return try {
             val user = userDao.getUserByFirebaseUid(firebaseUid)
             user != null && user.syncStatus == SyncStatus.SYNCED
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }

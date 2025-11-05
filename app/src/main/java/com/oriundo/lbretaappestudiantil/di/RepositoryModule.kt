@@ -5,7 +5,6 @@ import com.oriundo.lbretaappestudiantil.data.local.LocalDatabaseRepository
 import com.oriundo.lbretaappestudiantil.data.local.daos.AnnotationDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.AttendanceDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.ClassDao
-import com.oriundo.lbretaappestudiantil.data.local.daos.MaterialRequestDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.MessageDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.ProfileDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.SchoolEventDao
@@ -14,7 +13,6 @@ import com.oriundo.lbretaappestudiantil.data.local.daos.StudentParentRelationDao
 import com.oriundo.lbretaappestudiantil.data.local.repositories.AnnotationRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.AttendanceRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.ClassRepositoryImpl
-import com.oriundo.lbretaappestudiantil.data.local.repositories.MaterialRequestRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.MessageRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.ProfileRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.SchoolEventRepositoryImpl
@@ -22,7 +20,6 @@ import com.oriundo.lbretaappestudiantil.data.local.repositories.StudentRepositor
 import com.oriundo.lbretaappestudiantil.domain.model.repository.AnnotationRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.AttendanceRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.ClassRepository
-import com.oriundo.lbretaappestudiantil.domain.model.repository.MaterialRequestRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.MessageRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.ProfileRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.SchoolEventRepository
@@ -78,9 +75,11 @@ object RepositoryModule {
     @Provides
     @Singleton
     fun provideAnnotationRepository(
-        annotationDao: AnnotationDao
+        annotationDao: AnnotationDao,
+        profileDao: ProfileDao,
+        studentDao: StudentDao
     ): AnnotationRepository {
-        return AnnotationRepositoryImpl(annotationDao)
+        return AnnotationRepositoryImpl(annotationDao, profileDao, studentDao)
     }
 
     @Provides
@@ -91,13 +90,7 @@ object RepositoryModule {
         return AttendanceRepositoryImpl(attendanceDao)
     }
 
-    @Provides
-    @Singleton
-    fun provideMaterialRequestRepository(
-        materialRequestDao: MaterialRequestDao
-    ): MaterialRequestRepository {
-        return MaterialRequestRepositoryImpl(materialRequestDao)
-    }
+
 
     @Provides
     @Singleton
