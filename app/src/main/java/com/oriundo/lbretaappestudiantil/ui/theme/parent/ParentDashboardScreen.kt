@@ -122,30 +122,29 @@ fun ParentDashboardScreen(
                     // Botón de notificaciones con badge
                     IconButton(onClick = {
                         navController.navigate(
-                            Screen.ParentMessages.createRoute(
+                            Screen.Notifications.createRoute(
                                 userWithProfile.profile.id
                             )
                         )
-
 
                     }) {
                         Box {
                             Icon(
                                 imageVector = Icons.Filled.Notifications,
                                 contentDescription = "Notificaciones",
-                                tint = if (unreadMessagesCount > 0)
+                                tint = if (totalAnnotations > 0)
                                     MaterialTheme.colorScheme.error
                                 else
                                     MaterialTheme.colorScheme.onSurface
                             )
-                            if (unreadMessagesCount > 0) {
+                            if (totalAnnotations > 0) {
                                 Badge(
                                     containerColor = MaterialTheme.colorScheme.error,
                                     contentColor = Color.White,
                                     modifier = Modifier.align(Alignment.TopEnd)
                                 ) {
                                     Text(
-                                        text = if (unreadMessagesCount > 9) "9+" else unreadMessagesCount.toString(),
+                                        text = if (totalAnnotations > 9) "9+" else totalAnnotations.toString(),
                                         style = MaterialTheme.typography.labelSmall
                                     )
                                 }

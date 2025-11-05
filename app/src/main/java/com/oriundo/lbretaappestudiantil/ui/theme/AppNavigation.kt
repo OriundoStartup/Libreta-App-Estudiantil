@@ -77,7 +77,9 @@ sealed class Screen(val route: String) {
     object ParentDashboard : Screen("parent_dashboard")
     object ParentProfile : Screen("parent_profile")
     object ParentSettings : Screen("parent_settings")
-    object Notifications : Screen("notifications/{parentId}")
+    object Notifications : Screen("notifications/{parentId}") {
+        fun createRoute(parentId: Int) = "notifications/$parentId"
+    }
     object ParentConversation : Screen("parent_conversation/{parentId}/{teacherId}/{studentId}") {
         fun createRoute(parentId: Int, teacherId: Int, studentId: Int?) =
             "parent_conversation/$parentId/$teacherId/${studentId ?: 0}"

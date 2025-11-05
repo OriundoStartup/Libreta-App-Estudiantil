@@ -4,9 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.oriundo.lbretaappestudiantil.data.local.models.MessageEntity
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
+import com.oriundo.lbretaappestudiantil.domain.model.ConversationThread
 import com.oriundo.lbretaappestudiantil.domain.model.repository.MessageRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.ProfileRepository
-import com.oriundo.lbretaappestudiantil.domain.model.ConversationThread
 import com.oriundo.lbretaappestudiantil.ui.theme.states.ConversationUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.states.MessageUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.states.MessagesListUiState
