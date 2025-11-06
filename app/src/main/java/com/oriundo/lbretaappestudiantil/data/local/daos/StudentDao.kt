@@ -31,6 +31,9 @@ interface StudentDao {
     @Query("SELECT COUNT(*) FROM students WHERE rut = :rut")
     suspend fun rutExists(rut: String): Int
 
+    @Query("SELECT * FROM students WHERE firestore_id = :firestoreId LIMIT 1")
+    suspend fun getStudentByFirestoreId(firestoreId: String): StudentEntity?
+
     // Obtener estudiantes por apoderado
     @Query("""
         SELECT s.* FROM students s
@@ -66,4 +69,6 @@ interface StudentDao {
         ORDER BY c.class_name, s.last_name, s.first_name
     """)
     fun getAllStudentsWithClassAndParent(): Flow<List<StudentWithClassAndParentDto>>
+
+
 }

@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.oriundo.lbretaappestudiantil.data.local.models.EventType
 import com.oriundo.lbretaappestudiantil.data.local.models.SchoolEventEntity
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
-// ✅ IMPORTACIÓN CORREGIDA
 import com.oriundo.lbretaappestudiantil.domain.model.repository.SchoolEventRepository
 import com.oriundo.lbretaappestudiantil.ui.theme.states.SchoolEventUiState
 
@@ -15,7 +14,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-
 
 
 @HiltViewModel
@@ -57,11 +55,15 @@ class SchoolEventViewModel @Inject constructor(
 
             val result = eventRepository.createEvent(event)
 
+            // ✅ CORRECCIÓN FINAL
             _createState.value = when (result) {
-                is ApiResult.Success -> ApiResult.Success(result.data) // Usar result.data
-                is ApiResult.Error -> Error(result.message)
+                // Instanciar SchoolEventUiState.Success con los datos.
+                is ApiResult.Success -> SchoolEventUiState.Success(
+                    result.data // Hacemos la conversión de tipo segura
+                )
+                is ApiResult.Error -> SchoolEventUiState.Error(result.message)
                 ApiResult.Loading -> SchoolEventUiState.Loading
-            } as SchoolEventUiState
+            }
         }
     }
 
@@ -71,11 +73,15 @@ class SchoolEventViewModel @Inject constructor(
 
             val result = eventRepository.updateEvent(event)
 
+            // ✅ CORRECCIÓN FINAL
             _createState.value = when (result) {
-                is ApiResult.Success -> ApiResult.Success(result.data) // Usar result.data
-                is ApiResult.Error -> Error(result.message)
+                // Instanciar SchoolEventUiState.Success con los datos.
+                is ApiResult.Success -> SchoolEventUiState.Success(
+                    result.data // Hacemos la conversión de tipo segura
+                )
+                is ApiResult.Error -> SchoolEventUiState.Error(result.message)
                 ApiResult.Loading -> SchoolEventUiState.Loading
-            } as SchoolEventUiState
+            }
         }
     }
 
@@ -85,11 +91,12 @@ class SchoolEventViewModel @Inject constructor(
 
             val result = eventRepository.deleteEvent(event)
 
+            // ✅ CORRECCIÓN FINAL (Error y Loading ya estaban bien)
             _createState.value = when (result) {
                 is ApiResult.Success -> SchoolEventUiState.Initial
-                is ApiResult.Error -> Error(result.message)
+                is ApiResult.Error -> SchoolEventUiState.Error(result.message)
                 ApiResult.Loading -> SchoolEventUiState.Loading
-            } as SchoolEventUiState
+            }
         }
     }
 

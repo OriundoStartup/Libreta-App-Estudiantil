@@ -62,10 +62,29 @@ fun StudentDetailScreen(
 ) {
     val student by studentViewModel.selectedStudent.collectAsState()
     val authUiState by authViewModel.uiState.collectAsState()
-    val teacherId = (authUiState as? AuthUiState.Success)?.userWithProfile?.profile?.id ?: 0
 
+    LaunchedEffect(Unit) {
+        println("🟢 authUiState = $authUiState")
+        when (val state = authUiState) {
+            is AuthUiState.Success -> {
+                println("🟢 UserWithProfile = ${state.userWithProfile}")
+                println("🟢 Profile ID = ${state.userWithProfile.profile.id}")
+            }
+            else -> println("🔴 authUiState no es Success: $state")
+        }
+    }
+
+    val currentUser by authViewModel.currentUser.collectAsState()
+    val teacherId = currentUser?.profile?.id ?: 0
+
+    println("🟢 StudentDetailScreen - currentUser: ${currentUser?.profile?.id}")
+    println("🟢 StudentDetailScreen - teacherId: $teacherId")
+
+    // 1. Carga el estudiante cuando la pantalla se inicia
     LaunchedEffect(studentId) {
-        studentViewModel.loadStudentById(studentId)
+        if (studentId != 0) {
+            studentViewModel.loadStudentById(studentId)
+        }
     }
 
     Scaffold(
@@ -113,10 +132,15 @@ fun StudentDetailScreen(
                     title = "Crear Anotación",
                     description = "Registra una observación sobre el estudiante",
                     icon = Icons.Default.Edit,
+                    // 2. Deshabilita el botón si teacherId aún no está cargado
+                    enabled = teacherId != 0,
                     onClick = {
-                        navController.navigate(
-                            Screen.CreateAnnotation.createRoute(studentId, classId, teacherId)
-                        )
+                        // Doble chequeo por seguridad
+                        if (teacherId != 0) {
+                            navController.navigate(
+                                Screen.CreateAnnotation.createRoute(studentId, classId, teacherId)
+                            )
+                        }
                     }
                 )
                 // - Ver historial Del alumno
@@ -136,10 +160,14 @@ fun StudentDetailScreen(
                     title = "Enviar Mensaje",
                     description = "Comunicarse con los apoderados",
                     icon = Icons.AutoMirrored.Filled.Message,
+                    // 2. Deshabilita el botón si teacherId aún no está cargado
+                    enabled = teacherId != 0,
                     onClick = {
-                        navController.navigate(
-                            Screen.SendMessage.createRoute(teacherId)
-                        )
+                        if (teacherId != 0) {
+                            navController.navigate(
+                                Screen.SendMessage.createRoute(teacherId)
+                            )
+                        }
                     }
                 )
             }
@@ -196,12 +224,13 @@ private fun ActionCard(
     title: String,
     description: String,
     icon: ImageVector,
+    enabled: Boolean = true, // 3. Añadir esto
     onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick), // 3. Usar 'enabled'
         shape = AppShapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface

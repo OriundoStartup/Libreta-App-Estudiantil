@@ -56,6 +56,7 @@ import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.MessageViewModel
 fun ConversationThreadScreen(
     parentId: Int,
     teacherId: Int,
+    studentId: Int,
     navController: NavController,
     messageViewModel: MessageViewModel = hiltViewModel()
 ) {
@@ -64,6 +65,7 @@ fun ConversationThreadScreen(
     val conversationMessages by messageViewModel.conversationMessages.collectAsState()
     val sendState by messageViewModel.sendState.collectAsState()
     val listState = rememberLazyListState()
+
 
     // Cargar conversación
     LaunchedEffect(parentId, teacherId) {
@@ -154,12 +156,18 @@ fun ConversationThreadScreen(
                     maxLines = 5
                 )
 
+
+
+                // ... dentro del Row
                 IconButton(
                     onClick = {
                         if (messageContent.isNotBlank()) {
+                            // Usamos el ID de estudiante que se pasó como argumento a la pantalla.
+                            // Esto garantiza que el studentId nunca es nulo/0 (si la navegación lo pasó bien).
                             messageViewModel.sendReply(
                                 senderId = parentId,
                                 recipientId = teacherId,
+                                studentId = studentId, // <-- ¡USAMOS EL PARÁMETRO DE LA FUNCIÓN!
                                 content = messageContent,
                                 parentMessageId = conversationMessages.lastOrNull()?.id
                             )

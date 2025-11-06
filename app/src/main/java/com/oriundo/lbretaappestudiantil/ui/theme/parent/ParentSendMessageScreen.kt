@@ -53,6 +53,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope // ✅ Import para coroutines
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,14 +76,18 @@ import com.oriundo.lbretaappestudiantil.ui.theme.states.MessageUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.states.ProfileListUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.MessageViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentViewModel
+import kotlinx.coroutines.delay // ✅ Import para delay
+import kotlinx.coroutines.launch // ✅ Import para launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ParentSendMessageScreen(
     parentId: Int,
+    preselectedStudentId: Int? = null,
     onNavigateBack: () -> Unit,
     messageViewModel: MessageViewModel = hiltViewModel(),
-    studentViewModel: StudentViewModel = hiltViewModel()
+    studentViewModel: StudentViewModel = hiltViewModel(),
+    onNavigateToConversation: (parentId: Int, teacherId: Int, studentId: Int) -> Unit,
 ) {
     val teachersState by messageViewModel.teachersListState.collectAsStateWithLifecycle()
     val sendState by messageViewModel.sendState.collectAsStateWithLifecycle()
@@ -90,6 +95,8 @@ fun ParentSendMessageScreen(
 
     var selectedTeacher by remember { mutableStateOf<ProfileEntity?>(null) }
     var selectedStudent by remember { mutableStateOf<StudentWithClass?>(null) }
+    var teacherForNavigation by remember { mutableStateOf<ProfileEntity?>(null) }
+    var studentForNavigation by remember { mutableStateOf<StudentWithClass?>(null) }
     var subject by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
     var showTeacherSelector by remember { mutableStateOf(false) }
@@ -103,15 +110,29 @@ fun ParentSendMessageScreen(
         studentViewModel.loadStudentsByParent(parentId)
     }
 
+    LaunchedEffect(preselectedStudentId, studentsByParent) {
+        if (preselectedStudentId != null && studentsByParent.isNotEmpty()) {
+            selectedStudent = studentsByParent.find { it.student.id == preselectedStudentId }
+        }
+    }
+
+    // ... dentro de LaunchedEffect(sendState)
     LaunchedEffect(sendState) {
         when (sendState) {
             is MessageUiState.Success -> {
+                // 1. 🌟 CAPTURAR IDs ANTES DE LIMPIAR
+                teacherForNavigation = selectedTeacher
+                studentForNavigation = selectedStudent
+
                 showSuccessDialog = true
+
+                // 2. Limpieza de campos (esto ya estaba en tu código)
                 selectedTeacher = null
                 selectedStudent = null
                 subject = ""
                 content = ""
             }
+            // ...
             else -> {}
         }
     }
@@ -208,6 +229,7 @@ fun ParentSendMessageScreen(
                 if (sendState is MessageUiState.Error) {
                     item {
                         ErrorMessageCard(
+                            // Se debe acceder directamente a la propiedad 'message' de sendState
                             message = (sendState as MessageUiState.Error).message
                         )
                     }
@@ -244,18 +266,35 @@ fun ParentSendMessageScreen(
                 )
             }
 
+            // ... al final de ParentSendMessageScreen
             if (showSuccessDialog) {
                 SuccessDialog(
                     onDismiss = {
                         showSuccessDialog = false
                         messageViewModel.resetSendState()
-                        onNavigateBack()
+
+                        // 🌟 ACCIÓN NORMALIZADA: Navegar al chat
+                        if (teacherForNavigation != null) {
+                            // Usar 0 si el studentId es nulo o no se seleccionó
+                            val finalStudentId = studentForNavigation?.student?.id ?: 0
+
+                            // 🚀 Llama a la función que navega a ConversationThreadScreen
+                            onNavigateToConversation(
+                                parentId,
+                                teacherForNavigation!!.id,
+                                finalStudentId
+                            )
+                        } else {
+                            // Si falla la captura del profesor, solo retrocedemos
+                            onNavigateBack()
+                        }
                     }
                 )
             }
         }
     }
 }
+// ...
 
 @Composable
 private fun TeacherSelectorCard(
@@ -473,6 +512,7 @@ private fun SendMessageButton(
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp),
+        // La lógica de habilitación es correcta: solo habilitado si 'enabled' es true Y NO está cargando
         enabled = enabled && !isLoading,
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.primary,
@@ -481,6 +521,7 @@ private fun SendMessageButton(
         shape = MaterialTheme.shapes.medium
     ) {
         if (isLoading) {
+            // El indicador de carga es blanco, lo cual funciona bien sobre el color primario del botón.
             CircularProgressIndicator(
                 modifier = Modifier.size(24.dp),
                 color = Color.White,
@@ -828,6 +869,9 @@ private fun ErrorStateMessage(message: String) {
 
 @Composable
 private fun SuccessDialog(onDismiss: () -> Unit) {
+    // ✅ CORRECCIÓN: Usar rememberCoroutineScope para manejar el delay
+    val coroutineScope = rememberCoroutineScope()
+
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = {
@@ -864,7 +908,13 @@ private fun SuccessDialog(onDismiss: () -> Unit) {
         },
         confirmButton = {
             Button(
-                onClick = onDismiss,
+                // ✅ CORRECCIÓN: Añadir delay antes de llamar a onDismiss
+                onClick = {
+                    coroutineScope.launch {
+                        delay(200L) // Espera 200ms para asegurar que el diálogo se cierre
+                        onDismiss()
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary

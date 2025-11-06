@@ -30,6 +30,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -40,6 +43,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,8 +55,10 @@ import com.oriundo.lbretaappestudiantil.domain.model.StudentWithClass
 import com.oriundo.lbretaappestudiantil.ui.theme.AppAvatar
 import com.oriundo.lbretaappestudiantil.ui.theme.AppShapes
 import com.oriundo.lbretaappestudiantil.ui.theme.AvatarType
+import com.oriundo.lbretaappestudiantil.ui.theme.states.MessageUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.MessageViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,11 +76,49 @@ fun SendMessageScreen(
 
     val allStudents by studentViewModel.allStudents.collectAsState()
 
+    // 🎯 INSERCIÓN 1: Observación de estado y Coroutine Scope
+    val sendState by messageViewModel.sendState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    // ----------------------------------------------------
+
     LaunchedEffect(teacherId) {
         studentViewModel.loadAllStudents()
     }
 
+    // 🎯 INSERCIÓN 2: LaunchedEffect para manejar el resultado del envío
+    LaunchedEffect(sendState) {
+        when (val state = sendState) {
+            is MessageUiState.Success -> {
+                // ✅ CORRECCIÓN: Llamar a showSnackbar directamente.
+                // Esto pausará el LaunchedEffect hasta que el Snackbar se muestre.
+                snackbarHostState.showSnackbar(
+                    message = "Mensaje(s) enviado(s) exitosamente.",
+                    duration = SnackbarDuration.Short // Se mostrará por un corto tiempo
+                )
+
+                isSending = false
+                messageViewModel.resetSendState()
+                // La navegación ocurre AHORA, después de que el Snackbar apareció.
+                navController.navigateUp()
+            }
+            is MessageUiState.Error -> {
+                // Aquí usamos coroutineScope.launch para mostrar el error, ya que NO navegamos.
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar("Error al enviar: ${state.message}")
+                }
+                isSending = false
+                messageViewModel.resetSendState()
+            }
+            else -> {}
+        }
+    }
+    // ----------------------------------------------------
+
     Scaffold(
+        // 🎯 INSERCIÓN 3: Añadir el SnackbarHost
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        // ----------------------------------------------------
         topBar = {
             TopAppBar(
                 title = {
@@ -98,17 +142,18 @@ fun SendMessageScreen(
                                 content.isNotBlank() &&
                                 selectedStudents.isNotEmpty() &&
                                 !isSending) {
-                                isSending = true
                                 // Enviar mensaje a cada padre
                                 selectedStudents.forEach { studentWithClass ->
                                     messageViewModel.sendMessageToParent(
                                         teacherId = teacherId,
                                         parentId = studentWithClass.primaryParentId ?: 0,
+                                        studentId = studentWithClass.student.id, // Se necesita el studentId para contexto
                                         subject = subject,
                                         content = content
                                     )
                                 }
-                                navController.navigateUp()
+                                // ❌ IMPORTANTE: Eliminamos navController.navigateUp() de aquí.
+                                // La navegación se gestiona ahora en LaunchedEffect.
                             }
                         },
                         enabled = subject.isNotBlank() &&
@@ -259,10 +304,14 @@ fun SendMessageScreen(
                 students = allStudents,
                 selectedStudents = selectedStudents,
                 onStudentsSelected = { selected ->
+                    // ✅ CORRECCIÓN 1: Actualiza la lista Y luego CIERRA el diálogo.
                     selectedStudents = selected
                     showStudentSelector = false
                 },
-                onDismiss = { showStudentSelector = false }
+                onDismiss = {
+                    // ✅ CORRECCIÓN 2: Cierra el diálogo al presionar 'Cancelar' o fuera.
+                    showStudentSelector = false
+                }
             )
         }
     }

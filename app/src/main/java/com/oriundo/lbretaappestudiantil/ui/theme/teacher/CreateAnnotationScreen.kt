@@ -1,7 +1,6 @@
 package com.oriundo.lbretaappestudiantil.ui.theme.teacher
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,6 +26,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -35,8 +37,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -45,6 +47,7 @@ import androidx.navigation.NavController
 import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AnnotationUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AnnotationViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,20 +59,52 @@ fun CreateAnnotationScreen(
     onAnnotationCreated: () -> Unit,
     viewModel: AnnotationViewModel = hiltViewModel()
 ) {
+    // 1. Estados para la UI
+    val snackbarHostState = remember { SnackbarHostState() } // ⬅️ Nuevo: Estado del Snackbar
+    val scope = rememberCoroutineScope() // ⬅️ Nuevo: Scope para la corrutina del Snackbar
+
     var selectedType by remember { mutableStateOf(AnnotationType.POSITIVE) }
     var subject by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
 
     val createState by viewModel.createState.collectAsState()
 
+    // --- Side Effect: Manejar la navegación y los mensajes de éxito/error ---
     LaunchedEffect(createState) {
-        if (createState is AnnotationUiState.Success) {
-            onAnnotationCreated()
-            navController.popBackStack()
+        when (createState) {
+            is AnnotationUiState.Success -> {
+                // 1. Mostrar Snackbar (función suspendida)
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = "✅ ¡Anotación creada con éxito!",
+                        duration = SnackbarDuration.Short
+                    )
+                    // 2. Ejecutar la acción de refresco
+                    onAnnotationCreated()
+                    // 3. Limpiar el estado y navegar
+                    viewModel.resetState()
+                    navController.popBackStack()
+                }
+            }
+            is AnnotationUiState.Error -> {
+                // 1. Mostrar Error con Snackbar
+                scope.launch {
+                    val errorMessage = (createState as AnnotationUiState.Error).message
+                    snackbarHostState.showSnackbar(
+                        message = "❌ Error: $errorMessage",
+                        duration = SnackbarDuration.Long,
+                        actionLabel = "Aceptar"
+                    )
+                    // 2. Limpiar el estado para reintentar
+                    viewModel.resetState()
+                }
+            }
+            else -> Unit
         }
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }, // ⬅️ Agregado el SnackbarHost
         topBar = {
             TopAppBar(
                 title = { Text("Nueva Anotación") },
@@ -189,7 +224,7 @@ fun CreateAnnotationScreen(
                         title = subject,
                         description = description,
                         type = selectedType,
-                        classId = classId  // ← AGREGADO
+                        classId = classId
                     )
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -198,35 +233,18 @@ fun CreateAnnotationScreen(
                         createState !is AnnotationUiState.Loading
             ) {
                 if (createState is AnnotationUiState.Loading) {
+                    // Muestra el indicador de carga en lugar del texto
                     CircularProgressIndicator(
-                        modifier = Modifier.padding(end = 8.dp),
+                        modifier = Modifier.height(24.dp),
                         color = MaterialTheme.colorScheme.onPrimary
                     )
+                } else {
+                    Text(text = "Crear Anotación")
                 }
-                Text(
-                    text = if (createState is AnnotationUiState.Loading)
-                        "Creando..."
-                    else
-                        "Crear Anotación"
-                )
             }
 
-            // Mostrar error si existe
-            (createState as? AnnotationUiState.Error)?.let { error ->
-                Spacer(modifier = Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = error.message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            }
+            // El Box de error fue removido porque el Snackbar maneja ahora los errores.
+            // Si quieres mantener el Box, puedes descomentar y ajustar el código anterior.
         }
     }
 }

@@ -38,7 +38,13 @@ class MessageRepositoryImpl@Inject constructor(
             val messageId = messageDao.insertMessage(message).toInt()
             ApiResult.Success(message.copy(id = messageId))
         } catch (e: Exception) {
+            // Código a insertar
+            println("--- FOREIGN KEY FAILED ---")
+            println("Sender ID: $senderId, Recipient ID: $recipientId, Student ID: $studentId")
+            println("Subject: $subject")
+            println("--- ERROR: ${e.message}")
             ApiResult.Error("Error al enviar mensaje: ${e.message}", e)
+
         }
     }
 

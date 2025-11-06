@@ -7,7 +7,9 @@ import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
 import com.oriundo.lbretaappestudiantil.domain.model.repository.AnnotationRepository
+
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 class AnnotationRepositoryImpl @Inject constructor(
@@ -25,14 +27,15 @@ class AnnotationRepositoryImpl @Inject constructor(
         description: String
     ): ApiResult<AnnotationEntity> {
         return try {
-            // ✅ VALIDAR que el profesor existe
-            profileDao.getProfileById(teacherId)
+            // Validar que el profesor existe
+            val teacherProfile = profileDao.getProfileById(teacherId)
                 ?: return ApiResult.Error("Error: El profesor no se encuentra sincronizado. Cierra sesión y vuelve a iniciar.")
 
-            // ✅ VALIDAR que el estudiante existe
-            studentDao.getStudentById(studentId)
+            // Validar que el estudiante existe
+            val student = studentDao.getStudentById(studentId)
                 ?: return ApiResult.Error("Error: El estudiante no se encuentra en la base de datos local.")
 
+            // Crear anotación local
             val annotation = AnnotationEntity(
                 studentId = studentId,
                 teacherId = teacherId,
@@ -45,6 +48,29 @@ class AnnotationRepositoryImpl @Inject constructor(
 
             val id = annotationDao.insertAnnotation(annotation)
             val createdAnnotation = annotation.copy(id = id.toInt())
+
+            // ✅ GUARDAR EN FIRESTORE
+            val teacherFirebaseUid = teacherProfile.firebaseUid
+                ?: return ApiResult.Error("Error: El profesor no tiene Firebase UID")
+
+            val studentFirestoreId = student.firestoreId
+                ?: return ApiResult.Error("Error: El estudiante no tiene ID de Firestore")
+
+            val annotationData = hashMapOf(
+                "teacherId" to teacherFirebaseUid,
+                "studentId" to studentFirestoreId,
+                "classId" to classId,
+                "title" to subject,
+                "description" to description,
+                "type" to type.name,
+                "date" to System.currentTimeMillis(),
+                "isRead" to false
+            )
+
+            com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                .collection("annotations")
+                .add(annotationData)
+                .await()
 
             ApiResult.Success(createdAnnotation)
         } catch (e: Exception) {

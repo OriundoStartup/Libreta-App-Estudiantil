@@ -46,22 +46,18 @@ import com.oriundo.lbretaappestudiantil.ui.theme.AppAvatar
 import com.oriundo.lbretaappestudiantil.ui.theme.AppShapes
 import com.oriundo.lbretaappestudiantil.ui.theme.AvatarType
 import com.oriundo.lbretaappestudiantil.ui.theme.Screen
-import com.oriundo.lbretaappestudiantil.ui.theme.states.AuthUiState
-import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AuthViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ParentStudentDetailScreen(
+    parentId: Int,
     studentId: Int,
     classId: Int,
     navController: NavController,
     studentViewModel: StudentViewModel = hiltViewModel(),
-    authViewModel: AuthViewModel = hiltViewModel()
 ) {
     val student by studentViewModel.selectedStudent.collectAsState()
-    val authUiState by authViewModel.uiState.collectAsState()
-    val parentId = (authUiState as? AuthUiState.Success)?.userWithProfile?.profile?.id ?: 0
 
     LaunchedEffect(studentId) {
         studentViewModel.loadStudentById(studentId)
@@ -123,7 +119,11 @@ fun ParentStudentDetailScreen(
                     icon = Icons.AutoMirrored.Filled.Message,
                     onClick = {
                         navController.navigate(
-                            Screen.ParentSendMessage.createRoute(parentId)
+                            // CORRECCIÓN: Usamos argumentos nombrados (parentId = valor, studentId = valor)
+                            Screen.ParentSendMessage.createRoute(
+                                parentId = parentId,
+                                studentId = studentId
+                            )
                         )
                     }
                 )

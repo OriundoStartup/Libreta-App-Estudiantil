@@ -1,12 +1,14 @@
 package com.oriundo.lbretaappestudiantil.data.local
 
 import com.google.firebase.firestore.FirebaseFirestore
+import com.oriundo.lbretaappestudiantil.data.local.daos.AnnotationDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.ClassDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.ProfileDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.SchoolEventDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.StudentDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.StudentParentRelationDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.UserDao
+import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.ClassEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.ProfileEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.StudentEntity
@@ -26,7 +28,8 @@ class LocalDatabaseRepository @Inject constructor(
     private val classDao: ClassDao,
     private val studentDao: StudentDao,
     private val schoolEventDao: SchoolEventDao,
-    private val studentParentRelationDao: StudentParentRelationDao
+    private val studentParentRelationDao: StudentParentRelationDao,
+    private val annotationDao: AnnotationDao
 ) {
 
     // =====================================================
@@ -48,6 +51,8 @@ class LocalDatabaseRepository @Inject constructor(
             if (localProfile.isTeacher) {
                 syncTeacherClasses(firebaseUid, localProfile.id)
                 syncTeacherStudents(localProfile.id)  // ✅ AGREGAR ESTA LÍNEA
+                //  Sincronizar anotaciones
+                syncAnnotations(firebaseUid, localProfile.id)
             }
 
             // 4. Si es apoderado, sincronizar sus estudiantes
@@ -518,6 +523,89 @@ class LocalDatabaseRepository @Inject constructor(
         } catch (e: Exception) {
             println(" Error sincronizando estudiantes: ${e.message}")
             e.printStackTrace()
+        }
+    }
+    private suspend fun syncAnnotations(firebaseUid: String, localProfileId: Int) {
+        try {
+            val localProfile = profileDao.getProfileById(localProfileId) ?: return
+
+            // Si es profesor, sincronizar anotaciones que creó
+            if (localProfile.isTeacher) {
+                val annotationsSnapshot = firestore.collection("annotations")
+                    .whereEqualTo("teacherId", firebaseUid)
+                    .get()
+                    .await()
+
+                for (doc in annotationsSnapshot.documents) {
+                    val studentFirestoreId = doc.getString("studentId") ?: continue
+                    val localStudent = studentDao.getStudentByFirestoreId(studentFirestoreId) ?: continue
+
+                    val annotation = AnnotationEntity(
+                        id = 0,
+                        studentId = localStudent.id,
+                        teacherId = localProfileId,
+                        title = doc.getString("title") ?: "",
+                        description = doc.getString("description") ?: "",
+                        type = try {
+                            com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType.valueOf(
+                                doc.getString("type") ?: "NEUTRAL"
+                            )
+                        } catch (_: Exception) {
+                            com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType.NEUTRAL
+                        },
+                        date = doc.getLong("date") ?: System.currentTimeMillis(),
+                        isRead = doc.getBoolean("isRead") ?: false
+                    )
+
+                    annotationDao.insertAnnotation(annotation)
+                }
+            }
+
+            // Si es apoderado, sincronizar anotaciones de sus estudiantes
+            if (localProfile.isParent) {
+                val studentsSnapshot = firestore.collection("users")
+                    .document(firebaseUid)
+                    .collection("students")
+                    .get()
+                    .await()
+
+                for (studentDoc in studentsSnapshot.documents) {
+                    val studentFirestoreId = studentDoc.id
+                    val localStudent = studentDao.getStudentByFirestoreId(studentFirestoreId) ?: continue
+
+                    val annotationsSnapshot = firestore.collection("annotations")
+                        .whereEqualTo("studentId", studentFirestoreId)
+                        .get()
+                        .await()
+
+                    for (annotationDoc in annotationsSnapshot.documents) {
+                        val teacherFirebaseUid = annotationDoc.getString("teacherId") ?: continue
+                        val teacherUser = userDao.getUserByFirebaseUid(teacherFirebaseUid) ?: continue
+                        val teacherProfile = profileDao.getProfileByUserId(teacherUser.id) ?: continue
+
+                        val annotation = AnnotationEntity(
+                            id = 0,
+                            studentId = localStudent.id,
+                            teacherId = teacherProfile.id,
+                            title = annotationDoc.getString("title") ?: "",
+                            description = annotationDoc.getString("description") ?: "",
+                            type = try {
+                                com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType.valueOf(
+                                    annotationDoc.getString("type") ?: "NEUTRAL"
+                                )
+                            } catch (_: Exception) {
+                                com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType.NEUTRAL
+                            },
+                            date = annotationDoc.getLong("date") ?: System.currentTimeMillis(),
+                            isRead = annotationDoc.getBoolean("isRead") ?: false
+                        )
+
+                        annotationDao.insertAnnotation(annotation)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            println("❌ Error sincronizando anotaciones: ${e.message}")
         }
     }
 

@@ -73,9 +73,8 @@ fun ClassStudentsScreen(
 ) {
     val students by viewModel.studentsByClass.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
-    val authUiState by authViewModel.uiState.collectAsState()
-    val currentUser = (authUiState as? AuthUiState.Success)?.userWithProfile
-
+    val currentUser by authViewModel.currentUser.collectAsState() // ✅ CAMBIO
+    println("🟢 ClassStudentsScreen - currentUser: ${currentUser?.profile?.id}")
     var isFabMenuExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(classId) {

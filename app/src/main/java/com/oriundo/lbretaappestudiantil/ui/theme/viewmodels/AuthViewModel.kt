@@ -16,6 +16,7 @@ import com.oriundo.lbretaappestudiantil.domain.model.LoginCredentials
 import com.oriundo.lbretaappestudiantil.domain.model.ParentRegistrationForm
 import com.oriundo.lbretaappestudiantil.domain.model.StudentRegistrationForm
 import com.oriundo.lbretaappestudiantil.domain.model.TeacherRegistrationForm
+import com.oriundo.lbretaappestudiantil.domain.model.UserWithProfile
 import com.oriundo.lbretaappestudiantil.domain.model.repository.AuthRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.StudentRepository
 import com.oriundo.lbretaappestudiantil.ui.theme.states.AuthUiState
@@ -35,8 +36,32 @@ class AuthViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
+
+    private val _currentUser = MutableStateFlow<UserWithProfile?>(null)
+    val currentUser: StateFlow<UserWithProfile?> = _currentUser.asStateFlow()
+
+    // ✅ NUEVO: Obtener el ID del usuario actual
+    val currentUserId: Int?
+        get() = _currentUser.value?.user?.id
+
+    val currentProfileId: Int?
+        get() = _currentUser.value?.profile?.id
     private var pendingGoogleIdToken: String? = null
     private var pendingGooglePhotoUrl: String? = null
+
+    init {
+        // ✅ Cargar usuario actual al iniciar
+        viewModelScope.launch {
+            try {
+                val user = authRepository.getCurrentUser()
+                _currentUser.value = user
+                println("🟢 Usuario cargado en init: ${user?.profile?.id}")
+            } catch (e: Exception) {
+                println("🔴 Error cargando usuario en init: ${e.message}")
+            }
+        }
+    }
+
 
     @Volatile
     private var isRegistering = false
@@ -52,7 +77,12 @@ class AuthViewModel @Inject constructor(
             val result = authRepository.login(LoginCredentials(email, password))
 
             _uiState.value = when (result) {
-                is ApiResult.Success -> AuthUiState.Success(result.data)
+                is ApiResult.Success -> {
+                    _currentUser.value = result.data // ✅ GUARDAR USUARIO
+                    println("🟢 Login exitoso, currentUser = ${result.data.profile.id}")
+                    AuthUiState.Success(result.data)
+                }
+
                 is ApiResult.Error -> AuthUiState.Error(result.message)
                 ApiResult.Loading -> AuthUiState.Loading
             }
@@ -100,8 +130,10 @@ class AuthViewModel @Inject constructor(
 
                         when (authResult) {
                             is ApiResult.Success -> {
+                                _currentUser.value = authResult.data // ✅ GUARDAR USUARIO
                                 pendingGoogleIdToken = null
                                 pendingGooglePhotoUrl = null
+                                println("🟢 Google login exitoso, currentUser = ${authResult.data.profile.id}")
                                 _uiState.value = AuthUiState.Success(authResult.data)
                             }
                             is ApiResult.Error -> {
@@ -230,8 +262,10 @@ class AuthViewModel @Inject constructor(
 
                 _uiState.value = when (result) {
                     is ApiResult.Success -> {
+                        _currentUser.value = result.data // ✅ GUARDAR USUARIO
                         pendingGoogleIdToken = null
                         pendingGooglePhotoUrl = null
+                        println("🟢 Registro profesor exitoso, currentUser = ${result.data.profile.id}")
                         AuthUiState.Success(result.data)
                     }
                     is ApiResult.Error -> AuthUiState.Error(result.message)
@@ -289,8 +323,12 @@ class AuthViewModel @Inject constructor(
                         } catch (_: Exception) {
                         }
 
+                        _currentUser.value = userWithProfile // ✅ GUARDAR USUARIO
                         pendingGoogleIdToken = null
                         pendingGooglePhotoUrl = null
+                        println("🟢 Registro apoderado exitoso, currentUser = ${userWithProfile.profile.id}")
+
+                        AuthUiState.Success(userWithProfile)
 
                         AuthUiState.Success(userWithProfile)
                     }
@@ -312,6 +350,7 @@ class AuthViewModel @Inject constructor(
     fun logout() {
         viewModelScope.launch {
             authRepository.logout()
+            _currentUser.value = null // ✅ LIMPIAR USUARIO
             _uiState.value = AuthUiState.Idle
             pendingGoogleIdToken = null
             pendingGooglePhotoUrl = null

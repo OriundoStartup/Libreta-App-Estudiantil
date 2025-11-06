@@ -43,7 +43,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -77,11 +76,14 @@ import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ParentDashboardViewM
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ParentDashboardScreen(
+
     userWithProfile: UserWithProfile,
     navController: NavController,
     onLogout: () -> Unit,
-    // ✅ CORRECCIÓN 1: La firma debe aceptar studentId y classId con sus tipos explícitos
-    onNavigateToChildDetail: (studentId: Int, classId: Int) -> Unit,
+
+    //1: La firma debe aceptar studentId y classId con sus tipos explícitos
+    onNavigateToChildDetail: (studentId: Int, classId: Int, parentId: Int) -> Unit, // Firmada con tipos explícitos de Id
+
     viewModel: ParentDashboardViewModel = hiltViewModel()
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -361,16 +363,7 @@ fun ParentDashboardScreen(
                         fontWeight = FontWeight.Bold
                     )
 
-                    if (state.students.isNotEmpty()) {
-                        TextButton(onClick = { /* TODO: Ver todos */ }) {
-                            Text("Ver todos")
-                            Icon(
-                                imageVector = Icons.Filled.ChevronRight,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
+
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -416,11 +409,12 @@ fun ParentDashboardScreen(
                     state.students.forEach { student ->
                         StudentCard(
                             studentWithClass = student,
-                            // ✅ CORRECCIÓN 2: Pasamos ambos IDs al hacer clic
+                            // ✅ CORRECCIÓN FINAL: Pasamos los tres IDs
                             onClick = {
                                 onNavigateToChildDetail(
                                     student.student.id,
-                                    student.classEntity.id
+                                    student.classEntity.id,
+                                    userWithProfile.profile.id // <-- ¡Aquí se añade el parámetro faltante!
                                 )
                             }
                         )

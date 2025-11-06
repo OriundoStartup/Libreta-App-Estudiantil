@@ -1,9 +1,18 @@
 package com.oriundo.lbretaappestudiantil.ui.theme
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -30,8 +39,6 @@ import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateClassScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateEventScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.NotificationsScreenTeacher
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.SendMessageScreen
-import com.oriundo.lbretaappestudiantil.ui.theme.teacher.StudentDetailScreen
-import com.oriundo.lbretaappestudiantil.ui.theme.teacher.StudentHistoryScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TakeAttendanceScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherDashboardScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherProfileScreen
@@ -48,6 +55,8 @@ sealed class Screen(val route: String) {
     object TeacherProfile : Screen("teacher_profile")
     object TeacherSettings : Screen("teacher_settings")
     object CreateClass : Screen("create_class")
+
+
     object ClassStudents : Screen("class_students/{classId}") {
         fun createRoute(classId: Int) = "class_students/$classId"
     }
@@ -75,8 +84,11 @@ sealed class Screen(val route: String) {
         fun createRoute(studentId: Int, classId: Int) = "student_history/$studentId/$classId"
     }
     object ParentDashboard : Screen("parent_dashboard")
+
     object ParentProfile : Screen("parent_profile")
+
     object ParentSettings : Screen("parent_settings")
+
     object Notifications : Screen("notifications/{parentId}") {
         fun createRoute(parentId: Int) = "notifications/$parentId"
     }
@@ -84,14 +96,17 @@ sealed class Screen(val route: String) {
         fun createRoute(parentId: Int, teacherId: Int, studentId: Int?) =
             "parent_conversation/$parentId/$teacherId/${studentId ?: 0}"
     }
-    object ParentSendMessage : Screen("parent_send_message/{parentId}") {
-        fun createRoute(parentId: Int) = "parent_send_message/$parentId"
+    object ParentSendMessage : Screen("parent_send_message/{parentId}?studentId={studentId}") {
+        fun createRoute(parentId: Int, studentId: Int? = null) =
+            "parent_send_message/$parentId?studentId=${studentId ?: -1}"
     }
+
     object ParentMessages : Screen("parent_messages/{parentId}") {
         fun createRoute(parentId: Int) = "parent_messages/$parentId"
     }
-    object ParentStudentDetail : Screen("parent_student_detail/{studentId}/{classId}") {
-        fun createRoute(studentId: Int, classId: Int) = "parent_student_detail/$studentId/$classId"
+
+    object ParentStudentDetail : Screen("parent_student_detail/{studentId}/{classId}/{parentId}") {
+        fun createRoute(studentId: Int, classId: Int, parentId: Int) = "parent_student_detail/$studentId/$classId/$parentId"
     }
 }
 
@@ -101,6 +116,9 @@ fun AppNavigation(
 ) {
     val authViewModel: AuthViewModel = hiltViewModel()
     val authUiState by authViewModel.uiState.collectAsState()
+    val currentUser by authViewModel.currentUser.collectAsState()
+    println("🟢 AppNavigation - currentUser: ${currentUser?.profile?.id}")
+    println("🟢 AppNavigation - authUiState: $authUiState")
 
     // Navegación automática después de login/registro exitoso
     LaunchedEffect(authUiState) {
@@ -122,7 +140,8 @@ fun AppNavigation(
     NavHost(
         navController = navController,
         startDestination = Screen.RoleSelection.route
-    ) {
+    )
+    {
         composable(Screen.RoleSelection.route) {
             RoleSelectionScreen(
                 onNavigateToTeacherRegister = {
@@ -166,11 +185,12 @@ fun AppNavigation(
 
         composable(Screen.TeacherDashboard.route) {
             val classViewModel: ClassViewModel = hiltViewModel()
-            val state = authUiState as? AuthUiState.Success
 
-            state?.let { successState ->
+            // ✅ CAMBIO: Usar currentUser en lugar de authUiState
+            currentUser?.let { user ->
+                println("🟢 TeacherDashboard - teacherId: ${user.profile.id}")
                 TeacherDashboardScreen(
-                    userWithProfile = successState.userWithProfile,
+                    userWithProfile = user,
                     navController = navController,
                     onNavigateToCreateClass = {
                         navController.navigate(Screen.CreateClass.route)
@@ -186,15 +206,26 @@ fun AppNavigation(
                     },
                     viewModel = classViewModel
                 )
+            } ?: run {
+                // Si no hay usuario, redirigir al login
+                LaunchedEffect(Unit) {
+                    println("🔴 TeacherDashboard - No hay usuario, redirigiendo al login")
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
             }
         }
 
-        composable(Screen.ParentDashboard.route) {
-            val state = authUiState as? AuthUiState.Success
+        // Archivo: AppNavigation.kt
 
-            state?.let { successState ->
+// ... (arriba de esta sección)
+
+        composable(Screen.ParentDashboard.route) {
+            currentUser?.let { user ->
+                println("🟢 ParentDashboard - parentId: ${user.profile.id}")
                 ParentDashboardScreen(
-                    userWithProfile = successState.userWithProfile,
+                    userWithProfile = user,
                     navController = navController,
                     onLogout = {
                         authViewModel.logout()
@@ -202,12 +233,25 @@ fun AppNavigation(
                             popUpTo(0) { inclusive = true }
                         }
                     },
-                    onNavigateToChildDetail = { studentId, classId ->
-                        navController.navigate(Screen.ParentStudentDetail.createRoute(studentId, classId))
-                    }
+                    // CORRECCIÓN: DEBE RECIBIR 3 IDS Y USARLOS AL NAVEGAR
+                    onNavigateToChildDetail = { studentId: Int, classId: Int, parentId: Int ->
+                        navController.navigate(
+                            // Creamos la ruta con los tres IDs
+                            Screen.ParentStudentDetail.createRoute(studentId, classId, parentId)
+                        )
+                    },
                 )
+            } ?: run {
+                LaunchedEffect(Unit) {
+                    println("🔴 ParentDashboard - No hay usuario, redirigiendo al login")
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
             }
         }
+
+// ... (resto del NavHost)
 
         composable(Screen.CreateClass.route) {
             val classViewModel: ClassViewModel = hiltViewModel()
@@ -236,29 +280,28 @@ fun AppNavigation(
             )
         }
 
+        // ...
         composable(
-            route = Screen.StudentDetail.route,
+            route = Screen.ParentStudentDetail.route,
             arguments = listOf(
                 navArgument("studentId") { type = NavType.IntType },
-                navArgument("classId") { type = NavType.IntType }
+                navArgument("classId") { type = NavType.IntType },
+                navArgument("parentId") { type = NavType.IntType } // ⬅️ Nuevo argumento
             )
         ) { backStackEntry ->
             val studentId = backStackEntry.arguments?.getInt("studentId") ?: 0
             val classId = backStackEntry.arguments?.getInt("classId") ?: 0
-            StudentDetailScreen(studentId = studentId, classId = classId, navController = navController)
-        }
+            val parentId = backStackEntry.arguments?.getInt("parentId") ?: 0 // ⬅️ Recuperar parentId
 
-        composable(
-            route = Screen.StudentHistory.route,
-            arguments = listOf(
-                navArgument("studentId") { type = NavType.IntType },
-                navArgument("classId") { type = NavType.IntType }
+            // ASUMIMOS que tu pantalla acepta el parámetro parentId
+            ParentStudentDetailScreen(
+                studentId = studentId,
+                classId = classId,
+                parentId = parentId,
+                navController = navController
             )
-        ) { backStackEntry ->
-            val studentId = backStackEntry.arguments?.getInt("studentId") ?: 0
-            val classId = backStackEntry.arguments?.getInt("classId") ?: 0
-            StudentHistoryScreen(studentId = studentId, classId = classId, navController = navController)
         }
+// ...
 
         composable(
             route = Screen.CreateAnnotation.route,
@@ -271,6 +314,9 @@ fun AppNavigation(
             val studentId = backStackEntry.arguments?.getInt("studentId") ?: 0
             val classId = backStackEntry.arguments?.getInt("classId") ?: 0
             val teacherId = backStackEntry.arguments?.getInt("teacherId") ?: 0
+
+            println("🟢 CreateAnnotation - Params: studentId=$studentId, classId=$classId, teacherId=$teacherId")
+
             CreateAnnotationScreen(
                 studentId = studentId,
                 classId = classId,
@@ -337,29 +383,86 @@ fun AppNavigation(
         ) { backStackEntry ->
             val parentId = backStackEntry.arguments?.getInt("parentId") ?: 0
             val teacherId = backStackEntry.arguments?.getInt("teacherId") ?: 0
-            ConversationThreadScreen(parentId = parentId, teacherId = teacherId, navController = navController)
+
+            // 1. EXTRAER studentId del Bundle
+            val studentId = backStackEntry.arguments?.getInt("studentId") ?: 0 // <-- ¡AÑADIDO!
+
+            // 2. PASAR studentId a la pantalla
+            ConversationThreadScreen(
+                parentId = parentId,
+                teacherId = teacherId,
+                studentId = studentId, // <-- ¡AÑADIDO!
+                navController = navController
+            )
         }
+
 
         composable(
             route = Screen.ParentSendMessage.route,
-            arguments = listOf(navArgument("parentId") { type = NavType.IntType })
-        ) { backStackEntry ->
-            val parentId = backStackEntry.arguments?.getInt("parentId") ?: 0
-            ParentSendMessageScreen(
-                parentId = parentId,
-                onNavigateBack = { navController.popBackStack() }
+            arguments = listOf(
+                navArgument("parentId") { type = NavType.IntType },
+                navArgument("studentId") {
+                    type = NavType.IntType
+                    defaultValue = -1
+                }
             )
+        ) { backStackEntry ->
+            // 1. Obtener el ID sin valor por defecto 0
+            val parentId = backStackEntry.arguments?.getInt("parentId")
+            val studentId = backStackEntry.arguments?.getInt("studentId")?.takeIf { it != -1 }
+
+            // 2. Validación de seguridad
+            if (parentId != null && parentId > 0) {
+                // Solo si el parentId es válido, muestra la pantalla
+                ParentSendMessageScreen(
+                    parentId = parentId, // <-- Ahora 'parentId' está garantizado a ser > 0
+                    preselectedStudentId = studentId,
+                    onNavigateBack = { navController.popBackStack() },
+
+                    onNavigateToConversation = { pId: Int, tId: Int, sId: Int ->
+                        navController.navigate(
+                            Screen.ParentConversation.createRoute(pId, tId, sId)
+                        ) {
+                            popUpTo(Screen.ParentSendMessage.route) { inclusive = true }
+                        }
+                    }
+                )
+            } else {
+                // Si el parentId es nulo o 0, muestra un error en lugar de crashear
+                println("🔴 ERROR AppNavigation: Se intentó navegar a ParentSendMessageScreen con un parentId inválido: $parentId")
+
+                // Muestra un mensaje de error en la UI
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Error: ID de usuario no encontrado ($parentId). No se puede enviar el mensaje.",
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
         composable(
             route = Screen.ParentStudentDetail.route,
             arguments = listOf(
                 navArgument("studentId") { type = NavType.IntType },
-                navArgument("classId") { type = NavType.IntType }
+                navArgument("classId") { type = NavType.IntType },
+                navArgument("parentId") { type = NavType.IntType }
             )
         ) { backStackEntry ->
             val studentId = backStackEntry.arguments?.getInt("studentId") ?: 0
             val classId = backStackEntry.arguments?.getInt("classId") ?: 0
-            ParentStudentDetailScreen(studentId = studentId, classId = classId, navController = navController)
+            val parentId = backStackEntry.arguments?.getInt("parentId") ?: 0
+            ParentStudentDetailScreen(
+                parentId = parentId, // <-- Lo pasamos a la pantalla
+                studentId = studentId,
+                classId = classId,
+                navController = navController
+            )
         }
 
         composable(
@@ -371,8 +474,10 @@ fun AppNavigation(
         }
 
         composable(Screen.TeacherProfile.route) {
-            val state = authUiState as? AuthUiState.Success
-            state?.let { TeacherProfileScreen(userWithProfile = it.userWithProfile, navController = navController) }
+            // ✅ CAMBIO: Usar currentUser
+            currentUser?.let { user ->
+                TeacherProfileScreen(userWithProfile = user, navController = navController)
+            }
         }
 
         composable(Screen.TeacherSettings.route) {
@@ -380,12 +485,17 @@ fun AppNavigation(
         }
 
         composable(Screen.ParentProfile.route) {
-            val state = authUiState as? AuthUiState.Success
-            state?.let { ParentProfileScreen(userWithProfile = it.userWithProfile, navController = navController) }
+            // ✅ CAMBIO: Usar currentUser
+            currentUser?.let { user ->
+                ParentProfileScreen(userWithProfile = user, navController = navController)
+            }
         }
 
         composable(Screen.ParentSettings.route) {
             ParentSettingsScreen(navController = navController)
         }
+
     }
+
+
 }
