@@ -1,4 +1,4 @@
-package com.oriundo.lbretaappestudiantil.ui.theme.teacher
+package com.oriundo.lbretaappestudiantil.ui.theme.shared
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -47,14 +47,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType
+import com.oriundo.lbretaappestudiantil.data.local.models.AttendanceEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.AttendanceStatus
+import com.oriundo.lbretaappestudiantil.data.local.models.SchoolEventEntity
 import com.oriundo.lbretaappestudiantil.ui.theme.AppShapes
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AnnotationViewModel
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AttendanceStats
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AttendanceViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.SchoolEventViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentViewModel
@@ -222,7 +229,7 @@ fun StudentHistoryScreen(
 
 @Composable
 private fun AnnotationsHistoryContent(
-    annotations: List<com.oriundo.lbretaappestudiantil.data.local.models.AnnotationEntity>
+    annotations: List<AnnotationEntity>
 ) {
     if (annotations.isEmpty()) {
         EmptyStateCard(
@@ -293,7 +300,7 @@ private fun AnnotationsHistoryContent(
 
 @Composable
 private fun AnnotationHistoryCard(
-    annotation: com.oriundo.lbretaappestudiantil.data.local.models.AnnotationEntity
+    annotation: AnnotationEntity
 ) {
     val (color, icon) = when (annotation.type) {
         AnnotationType.POSITIVE -> Pair(
@@ -374,8 +381,8 @@ private fun AnnotationHistoryCard(
 
 @Composable
 private fun AttendanceHistoryContent(
-    stats: com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AttendanceStats,
-    records: List<com.oriundo.lbretaappestudiantil.data.local.models.AttendanceEntity>
+    stats: AttendanceStats,
+    records: List<AttendanceEntity>
 ) {
     // Tarjeta de estadísticas
     Card(
@@ -470,7 +477,7 @@ private fun AttendanceHistoryContent(
 
 @Composable
 private fun AttendanceRecordCard(
-    record: com.oriundo.lbretaappestudiantil.data.local.models.AttendanceEntity
+    record: AttendanceEntity
 ) {
     // ✅ CORREGIDO - usa status en lugar de isPresent
     record.status == AttendanceStatus.PRESENT
@@ -543,7 +550,7 @@ private fun AttendanceRecordCard(
                             text = note,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                            fontStyle = FontStyle.Italic
                         )
                     }
                 }
@@ -558,7 +565,7 @@ private fun AttendanceRecordCard(
 
 @Composable
 private fun EventsHistoryContent(
-    events: List<com.oriundo.lbretaappestudiantil.data.local.models.SchoolEventEntity>
+    events: List<SchoolEventEntity>
 ) {
     if (events.isEmpty()) {
         EmptyStateCard(
@@ -584,7 +591,7 @@ private fun EventsHistoryContent(
 
 @Composable
 private fun EventHistoryCard(
-    event: com.oriundo.lbretaappestudiantil.data.local.models.SchoolEventEntity
+    event: SchoolEventEntity
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -679,7 +686,7 @@ private fun StatItem(
 
 @Composable
 private fun EmptyStateCard(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     title: String,
     description: String
 ) {
@@ -712,7 +719,7 @@ private fun EmptyStateCard(
                 text = description,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
         }
     }

@@ -32,6 +32,7 @@ import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentProfileScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentSendMessageScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentSettingsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentStudentDetailScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.shared.StudentHistoryScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.states.AuthUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.ClassStudentsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateAnnotationScreen
@@ -39,6 +40,7 @@ import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateClassScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateEventScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.NotificationsScreenTeacher
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.SendMessageScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.teacher.StudentDetailScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TakeAttendanceScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherDashboardScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherProfileScreen
@@ -217,9 +219,7 @@ fun AppNavigation(
             }
         }
 
-        // Archivo: AppNavigation.kt
 
-// ... (arriba de esta sección)
 
         composable(Screen.ParentDashboard.route) {
             currentUser?.let { user ->
@@ -447,18 +447,35 @@ fun AppNavigation(
             }
         }
         composable(
-            route = Screen.ParentStudentDetail.route,
+            route = Screen.StudentDetail.route,
             arguments = listOf(
                 navArgument("studentId") { type = NavType.IntType },
-                navArgument("classId") { type = NavType.IntType },
-                navArgument("parentId") { type = NavType.IntType }
+                navArgument("classId") { type = NavType.IntType }
             )
         ) { backStackEntry ->
             val studentId = backStackEntry.arguments?.getInt("studentId") ?: 0
             val classId = backStackEntry.arguments?.getInt("classId") ?: 0
-            val parentId = backStackEntry.arguments?.getInt("parentId") ?: 0
-            ParentStudentDetailScreen(
-                parentId = parentId, // <-- Lo pasamos a la pantalla
+
+            // ✅ La pantalla específica para el flujo del Profesor
+            StudentDetailScreen(
+                studentId = studentId,
+                classId = classId,
+                navController = navController
+            )
+        }
+
+        composable(
+            route = Screen.StudentHistory.route,
+            arguments = listOf(
+                navArgument("studentId") { type = NavType.IntType },
+                navArgument("classId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val studentId = backStackEntry.arguments?.getInt("studentId") ?: 0
+            val classId = backStackEntry.arguments?.getInt("classId") ?: 0
+
+            // ✅ Llamada a tu pantalla existente y funcional
+            StudentHistoryScreen(
                 studentId = studentId,
                 classId = classId,
                 navController = navController
@@ -472,6 +489,12 @@ fun AppNavigation(
             val parentId = backStackEntry.arguments?.getInt("parentId") ?: 0
             ParentMessagesListScreen(parentId = parentId, navController = navController)
         }
+
+
+        // ⬇️ FUNCIÓN AÑADIDA PARA CORREGIR LA EXCEPCIÓN: student_history/{studentId}/{classId}
+        // ... (dentro del NavHost)
+
+
 
         composable(Screen.TeacherProfile.route) {
             // ✅ CAMBIO: Usar currentUser
