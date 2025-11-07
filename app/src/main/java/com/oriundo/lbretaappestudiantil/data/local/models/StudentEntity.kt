@@ -17,11 +17,19 @@ import androidx.room.PrimaryKey
             parentColumns = ["id"],
             childColumns = ["class_id"],
             onDelete = ForeignKey.RESTRICT
+        ),
+        ForeignKey(
+            entity = ProfileEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["primary_parent_id"],
+            onDelete = ForeignKey.SET_NULL
         )
     ],
     indices = [
         Index(value = ["class_id"]),
-        Index(value = ["rut"], unique = true)
+        Index(value = ["rut"], unique = true),
+        Index(value = ["primary_parent_id"])
+
     ]
 )
 data class StudentEntity(
@@ -30,6 +38,7 @@ data class StudentEntity(
 
     @ColumnInfo(name = "class_id")
     val classId: Int,
+
 
     @ColumnInfo(name = "rut")
     val rut: String,
@@ -54,6 +63,9 @@ data class StudentEntity(
 
     @ColumnInfo(name = "notes")
     val notes: String? = null,
+
+    @ColumnInfo(name = "primary_parent_id")
+    val primaryParentId: Int? = null,
 
     // ✅ NUEVOS CAMPOS DE SINCRONIZACIÓN
     @ColumnInfo(name = "firestore_id")

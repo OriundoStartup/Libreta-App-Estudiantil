@@ -36,6 +36,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -58,6 +59,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -101,12 +103,22 @@ fun SendMessageScreen(
     LaunchedEffect(teacherId) {
         studentViewModel.loadAllStudents()
     }
+    // En SendMessageScreen, después de cargar estudiantes
+    LaunchedEffect(teacherId) {
+        studentViewModel.loadAllStudents()
+
+
+    }
 
     // Manejar estados de envío
     LaunchedEffect(sendState) {
         when (sendState) {
             is MessageUiState.Success -> {
                 showSuccessDialog = true
+                // ⭐ CORRECCIÓN 2: Limpiar campos al enviar con éxito
+                subject = ""
+                content = ""
+                selectedStudents = emptyList()
             }
             is MessageUiState.Error -> {
                 // El error se muestra en la UI, no es necesario hacer nada aquí
@@ -193,7 +205,8 @@ fun SendMessageScreen(
                         onClick = {
                             focusManager.clearFocus()
                             selectedStudents.forEach { studentWithClass ->
-                                studentWithClass.primaryParentId?.let { parentId ->
+                                // ⭐ CORRECCIÓN 3: Acceso correcto a primaryParentId
+                                studentWithClass.student.primaryParentId?.let { parentId ->
                                     messageViewModel.sendMessageToParent(
                                         teacherId = teacherId,
                                         parentId = parentId,
@@ -306,6 +319,7 @@ private fun RecipientSelectorCard(
                 Text(
                     text = when (count) {
                         0 -> "Toca para seleccionar destinatarios"
+                        // ⭐ CORRECCIÓN 4: Acceso consistente a student.fullName
                         1 -> selectedStudents.first().student.fullName
                         else -> "${selectedStudents.first().student.fullName} y ${count - 1} más"
                     },
@@ -453,6 +467,7 @@ private fun ErrorMessageCard(message: String) {
     }
 }
 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ParentSelectorBottomSheet(
@@ -464,19 +479,36 @@ private fun ParentSelectorBottomSheet(
     val tempSelectedStudents = remember { selectedStudents.toMutableStateList() }
     var searchQuery by remember { mutableStateOf("") }
 
-    // Usar derivedStateOf para optimizar el filtrado
+    // Filtra solo los estudiantes con PrimaryParentId válido (seleccionables)
+    val selectableStudents by remember {
+        derivedStateOf {
+            students.filter { it.student.primaryParentId != null && it.student.primaryParentId != 0 }
+        }
+    }
+
+    // Usar derivedStateOf para optimizar el filtrado de seleccionables
     val filteredStudents by remember {
         derivedStateOf {
             if (searchQuery.isBlank()) {
-                students
+                selectableStudents // Usar solo los seleccionables
             } else {
-                students.filter {
+                selectableStudents.filter { // Filtrar la lista de seleccionables
                     it.student.fullName.contains(searchQuery, ignoreCase = true) ||
                             it.classEntity.className.contains(searchQuery, ignoreCase = true)
                 }
             }
         }
     }
+
+    // Detecta si hay estudiantes inválidos (sin PrimaryParentId)
+    val hasInvalidStudents by remember {
+        derivedStateOf {
+            students.any { it.student.primaryParentId == null || it.student.primaryParentId == 0 }
+        }
+    }
+
+    // Variable clave para la activación de botones
+    val hasSelections by remember { derivedStateOf { tempSelectedStudents.isNotEmpty() } }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -487,7 +519,7 @@ private fun ParentSelectorBottomSheet(
                 .fillMaxWidth()
                 .padding(bottom = 16.dp)
         ) {
-            // Header con título y acciones
+            // Header con título y acción principal
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -495,7 +527,7 @@ private fun ParentSelectorBottomSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Seleccionar Apoderados",
                         style = MaterialTheme.typography.titleLarge,
@@ -508,20 +540,54 @@ private fun ParentSelectorBottomSheet(
                     )
                 }
 
-                Row {
-                    if (tempSelectedStudents.isNotEmpty()) {
-                        TextButton(onClick = { tempSelectedStudents.clear() }) {
-                            Text("Limpiar")
-                        }
-                    }
-                    TextButton(
-                        onClick = {
+                // Solo botón Aceptar en el header
+                TextButton(
+                    onClick = {
+                        if (hasSelections) {
                             onStudentsSelected(tempSelectedStudents.toList())
-                        },
-                        enabled = tempSelectedStudents.isNotEmpty()
-                    ) {
-                        Text("Aceptar")
-                    }
+                        } else {
+                            onDismiss()
+                        }
+                    },
+                    enabled = hasSelections
+                ) {
+                    Text("Aceptar")
+                }
+            }
+
+            // ⚠️ ADVERTENCIA DE DATOS INCONSISTENTES
+            if (hasInvalidStudents) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "⚠️ Atención: Hay estudiantes sin apoderado primario asignado. Solo se pueden seleccionar destinatarios válidos.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+            }
+
+            // Botón Limpiar (encima del campo de búsqueda)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.Start
+            ) {
+                TextButton(
+                    onClick = { tempSelectedStudents.clear() },
+                    enabled = hasSelections
+                ) {
+                    Text("Limpiar selección")
                 }
             }
 
@@ -552,10 +618,10 @@ private fun ParentSelectorBottomSheet(
             // Lista de estudiantes o estado vacío
             if (filteredStudents.isEmpty()) {
                 EmptyStateMessage(
-                    message = if (searchQuery.isBlank())
-                        "No tienes estudiantes asignados en este momento."
+                    message = if (selectableStudents.isEmpty())
+                        "No hay estudiantes con apoderado primario asignado."
                     else
-                        "No se encontraron estudiantes para \"$searchQuery\".",
+                        "No se encontraron estudiantes seleccionables para \"$searchQuery\".",
                     icon = Icons.Default.School
                 )
             } else {
@@ -576,11 +642,6 @@ private fun ParentSelectorBottomSheet(
                             studentWithClass = studentWithClass,
                             isSelected = isSelected,
                             onClick = {
-                                val hasParent = studentWithClass.primaryParentId != null &&
-                                        studentWithClass.primaryParentId != 0
-
-                                if (!hasParent) return@ParentRecipientListItem
-
                                 if (isSelected) {
                                     tempSelectedStudents.removeAll {
                                         it.student.id == studentWithClass.student.id
@@ -597,14 +658,19 @@ private fun ParentSelectorBottomSheet(
     }
 }
 
+
 @Composable
 private fun ParentRecipientListItem(
     studentWithClass: StudentWithClass,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val hasParent = studentWithClass.primaryParentId != null &&
-            studentWithClass.primaryParentId != 0
+    // 1. Lógica de validación
+    val hasParent = studentWithClass.student.primaryParentId != null &&
+            studentWithClass.student.primaryParentId != 0
+
+    // 2. Control visual
+    val contentAlpha = if (hasParent) 1f else 0.5f
 
     Card(
         modifier = Modifier
@@ -612,15 +678,17 @@ private fun ParentRecipientListItem(
             .clickable(enabled = hasParent, onClick = onClick),
         colors = CardDefaults.cardColors(
             containerColor = when {
-                isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                hasParent -> MaterialTheme.colorScheme.surfaceVariant
-                else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                !hasParent -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+                else -> MaterialTheme.colorScheme.surfaceVariant
             }
         )
     ) {
         Row(
+            // 3. Aplicamos el factor de transparencia al contenido
             modifier = Modifier
                 .fillMaxWidth()
+                .alpha(contentAlpha)
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -655,10 +723,11 @@ private fun ParentRecipientListItem(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
+                    // 4. Se mantiene el mensaje de error junto al nombre de la clase
                     if (!hasParent) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "(Sin Apoderado)",
+                            text = " (Sin Apoderado)",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
                             fontWeight = FontWeight.Bold
@@ -676,12 +745,11 @@ private fun ParentRecipientListItem(
                     modifier = Modifier.size(24.dp)
                 )
             } else {
+                // Indicador para guiar el click
                 Icon(
                     imageVector = Icons.Default.ChevronRight,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                        alpha = if (hasParent) 1f else 0.3f
-                    )
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

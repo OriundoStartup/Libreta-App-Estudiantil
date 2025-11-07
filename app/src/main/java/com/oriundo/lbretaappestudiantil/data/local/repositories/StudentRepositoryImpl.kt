@@ -81,7 +81,13 @@ class StudentRepositoryImpl @Inject constructor(
         return studentParentRelationDao.getStudentsByParent(parentId).map { students ->
             students.mapNotNull { student ->
                 val classEntity = classDao.getClassById(student.classId)
-                classEntity?.let { StudentWithClass(student, it) }
+                classEntity?.let {
+                    StudentWithClass(
+                        student = student,
+                        classEntity = it
+                        // Quitar: primaryParentId = parentId
+                    )
+                }
             }
         }
     }
@@ -109,6 +115,10 @@ class StudentRepositoryImpl @Inject constructor(
                 isPrimary = isPrimary
             )
             studentParentRelationDao.insertRelation(relation)
+            if (isPrimary) {
+                studentDao.updatePrimaryParent(studentId, parentId)
+            }
+
             ApiResult.Success(Unit)
         } catch (e: Exception) {
             ApiResult.Error("Error al vincular apoderado: ${e.message}", e)
@@ -118,6 +128,7 @@ class StudentRepositoryImpl @Inject constructor(
     override fun getParentsByStudent(studentId: Int): Flow<List<ProfileEntity>> {
         return studentParentRelationDao.getParentsByStudent(studentId)
     }
+
     override fun getAllStudentsWithClass(): Flow<List<StudentWithClass>> {
         return studentDao.getAllStudentsWithClassAndParent().map { dtoList ->
             dtoList.mapNotNull { dto ->
@@ -134,10 +145,10 @@ class StudentRepositoryImpl @Inject constructor(
                             photoUrl = dto.photoUrl,
                             enrollmentDate = dto.enrollmentDate,
                             isActive = dto.isActive,
-                            notes = dto.notes
+                            notes = dto.notes,
+                            primaryParentId = dto.primaryParentId
                         ),
                         classEntity = it,
-                        primaryParentId = dto.primaryParentId // ✅ Incluye el parentId
                     )
                 }
             }

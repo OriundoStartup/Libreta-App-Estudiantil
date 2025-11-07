@@ -502,6 +502,7 @@ class LocalDatabaseRepository @Inject constructor(
 
                 // ✅ PASO 7: VINCULAR ESTUDIANTE Y APODERADO (LA CLAVE)
                 // Usamos tu modelo StudentParentRelation
+                // ✅ PASO 7: VINCULAR ESTUDIANTE Y APODERADO (Crea/Actualiza la relación)
                 try {
                     val relation = com.oriundo.lbretaappestudiantil.data.local.models.StudentParentRelation(
                         studentId = localStudentId,
@@ -519,12 +520,34 @@ class LocalDatabaseRepository @Inject constructor(
                     println("⚠️ Error al crear/actualizar relación: ${e.message}")
                     e.printStackTrace()
                 }
+
+                // 💡 PASO 8: ¡CORRECCIÓN CRÍTICA! ACTUALIZAR EL PRIMARY_PARENT_ID en StudentEntity
+                // Esto asegura que el campo directo que usa tu pantalla esté lleno.
+                if (isPrimary) {
+                    // Buscamos el estudiante actualizado/existente para modificarlo
+                    val studentToUpdate = studentDao.getStudentById(localStudentId)
+
+                    // Si existe y el primaryParentId actual es diferente al que descargamos de Firebase, lo actualizamos.
+                    if (studentToUpdate != null && studentToUpdate.primaryParentId != localProfileId) {
+
+                        // Actualizamos la entidad con el ID de Room del apoderado
+                        studentDao.updateStudent(
+                            studentToUpdate.copy(
+                                primaryParentId = localProfileId // <-- ¡El ID del apoderado primario en Room!
+                            )
+                        )
+                        println("✅ PrimaryParentId ACTUALIZADO para estudiante $localStudentId con apoderado $localProfileId")
+                    }
+                }
             }
         } catch (e: Exception) {
-            println(" Error sincronizando estudiantes: ${e.message}")
+            println("❌ Error sincronizando estudiantes: ${e.message}")
             e.printStackTrace()
         }
     }
+
+
+
     private suspend fun syncAnnotations(firebaseUid: String, localProfileId: Int) {
         try {
             val localProfile = profileDao.getProfileById(localProfileId) ?: return

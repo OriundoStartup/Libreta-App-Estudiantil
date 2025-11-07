@@ -1,12 +1,20 @@
 package com.oriundo.lbretaappestudiantil.domain.model
 
+import com.oriundo.lbretaappestudiantil.data.local.models.StudentEntity
+import com.oriundo.lbretaappestudiantil.data.local.models.ClassEntity
+
 /**
  * Data class para estudiante con su clase
  */
 data class StudentWithClass(
-    val student: com.oriundo.lbretaappestudiantil.data.local.models.StudentEntity,
-    val classEntity: com.oriundo.lbretaappestudiantil.data.local.models.ClassEntity,
-    val primaryParentId: Int? = null,
+    val student: StudentEntity,
+    val classEntity: ClassEntity,
     val recentActivity: String? = "Todo al día"
+) {
+    // AÑADIR ESTAS PROPIEDADES CALCULADAS:
+    val primaryParentId: Int?
+        get() = student.primaryParentId
 
-)
+    val hasPrimaryParent: Boolean
+        get() = student.primaryParentId != null
+}
