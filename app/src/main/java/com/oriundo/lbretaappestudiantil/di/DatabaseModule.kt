@@ -3,6 +3,7 @@ package com.oriundo.lbretaappestudiantil.di
 import android.content.Context
 import androidx.room.Room
 import com.oriundo.lbretaappestudiantil.data.local.LibretAppDatabase
+import com.oriundo.lbretaappestudiantil.data.local.daos.AbsenceJustificationDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.AnnotationDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.AttendanceDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.ClassDao
@@ -92,6 +93,13 @@ object DatabaseModule {
     fun provideSchoolEventDao(database: LibretAppDatabase): SchoolEventDao {
         return database.schoolEventDao()
     }
+
+    @Provides
+    @Singleton
+    fun provideAbsenceJustificationDao(database: LibretAppDatabase): AbsenceJustificationDao {
+        return database.absenceJustificationDao()
+    }
+
 
 
 

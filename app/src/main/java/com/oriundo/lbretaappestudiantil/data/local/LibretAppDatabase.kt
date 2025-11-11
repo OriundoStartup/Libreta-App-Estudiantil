@@ -4,6 +4,7 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.oriundo.lbretaappestudiantil.data.local.converters.Converters
+import com.oriundo.lbretaappestudiantil.data.local.daos.AbsenceJustificationDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.AnnotationDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.AttendanceDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.ClassDao
@@ -13,6 +14,7 @@ import com.oriundo.lbretaappestudiantil.data.local.daos.SchoolEventDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.StudentDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.StudentParentRelationDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.UserDao
+import com.oriundo.lbretaappestudiantil.data.local.models.AbsenceJustificationEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.AttendanceEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.ClassEntity
@@ -33,8 +35,9 @@ import com.oriundo.lbretaappestudiantil.data.local.models.UserEntity
         AnnotationEntity::class,
         AttendanceEntity::class,
         MessageEntity::class,
-        SchoolEventEntity::class
-    ],
+        SchoolEventEntity::class,
+        AbsenceJustificationEntity::class
+        ],
     version = 2,
     exportSchema = false
 )
@@ -50,4 +53,7 @@ abstract class LibretAppDatabase : RoomDatabase() {
     abstract fun attendanceDao(): AttendanceDao
     abstract fun messageDao(): MessageDao
     abstract fun schoolEventDao(): SchoolEventDao
+    abstract fun absenceJustificationDao(): AbsenceJustificationDao
+
+
 }

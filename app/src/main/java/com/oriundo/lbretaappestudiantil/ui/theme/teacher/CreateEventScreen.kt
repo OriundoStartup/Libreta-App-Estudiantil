@@ -247,6 +247,7 @@ fun CreateEventScreen(
                                 EventType.FIELD_TRIP -> "🚌 Salida Pedagógica"
                                 EventType.MEETING -> "👥 Reunión"
                                 EventType.HOLIDAY -> "🎉 Festivo"
+                                EventType.GENERAL -> "Casos Generales    "
                                 EventType.OTHER -> "📌 Otro"
                             },
                             onValueChange = {},
@@ -424,21 +425,20 @@ fun CreateEventScreen(
         )
 
         DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
+            onDismissRequest = { },
             confirmButton = {
                 TextButton(
                     onClick = {
                         datePickerState.selectedDateMillis?.let {
                             eventDate = it
                         }
-                        showDatePicker = false
                     }
                 ) {
                     Text("Aceptar")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
+                TextButton(onClick = { }) {
                     Text("Cancelar")
                 }
             }

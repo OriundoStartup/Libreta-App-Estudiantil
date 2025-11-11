@@ -1,7 +1,7 @@
 package com.oriundo.lbretaappestudiantil.domain.model
 
-import com.oriundo.lbretaappestudiantil.data.local.models.StudentEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.ClassEntity
+import com.oriundo.lbretaappestudiantil.data.local.models.StudentEntity
 
 /**
  * Data class para estudiante con su clase

@@ -64,11 +64,13 @@ data class SchoolEventEntity(
     val lastSyncedAt: Long? = null
 )
 enum class EventType {
+
     TEST,           // Prueba
     ASSIGNMENT,     // Tarea
     PROJECT,        // Proyecto
     FIELD_TRIP,     // Salida pedagógica
     MEETING,        // Reunión
     HOLIDAY,        // Festivo
+    GENERAL,        // General
     OTHER           // Otro
 }

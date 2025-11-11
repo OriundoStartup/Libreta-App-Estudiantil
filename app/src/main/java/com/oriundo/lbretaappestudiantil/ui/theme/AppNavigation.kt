@@ -25,6 +25,7 @@ import com.oriundo.lbretaappestudiantil.ui.theme.auth.ParentRegisterScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.auth.RoleSelectionScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.auth.TeacherRegisterScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ConversationThreadScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.parent.JustifyAbsenceScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.NotificationsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentDashboardScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentMessagesListScreen
@@ -32,6 +33,9 @@ import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentProfileScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentSendMessageScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentSettingsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ParentStudentDetailScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.parent.StudentAnnotationsScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.parent.StudentAttendanceScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.parent.StudentEventsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.shared.StudentHistoryScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.states.AuthUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.ClassStudentsScreen
@@ -57,6 +61,7 @@ sealed class Screen(val route: String) {
     object TeacherProfile : Screen("teacher_profile")
     object TeacherSettings : Screen("teacher_settings")
     object CreateClass : Screen("create_class")
+
 
 
     object ClassStudents : Screen("class_students/{classId}") {
@@ -109,6 +114,21 @@ sealed class Screen(val route: String) {
 
     object ParentStudentDetail : Screen("parent_student_detail/{studentId}/{classId}/{parentId}") {
         fun createRoute(studentId: Int, classId: Int, parentId: Int) = "parent_student_detail/$studentId/$classId/$parentId"
+    }
+
+    object JustifyAbsence : Screen("justify_absence/{studentId}/{parentId}")
+    {
+        fun createRoute(studentId: Int, parentId: Int) = "justify_absence/$studentId/$parentId"
+    }
+    object StudentAnnotations : Screen("student_annotations/{studentId}/{parentId}")
+    {
+        fun createRoute(studentId: Int, parentId: Int) = "student_annotations/$studentId/$parentId"
+    }
+    object StudentAttendance : Screen("student_attendance/{studentId}/{classId}") {
+        fun createRoute(studentId: Int, classId: Int) = "student_attendance/$studentId/$classId"
+    }
+    object StudentEvents : Screen("student_events/{studentId}/{classId}") {
+        fun createRoute(studentId: Int, classId: Int) = "student_events/$studentId/$classId"
     }
 }
 
@@ -517,8 +537,72 @@ fun AppNavigation(
         composable(Screen.ParentSettings.route) {
             ParentSettingsScreen(navController = navController)
         }
+        composable(
+            route = Screen.StudentEvents.route,
+            arguments = listOf(
+                navArgument("studentId") { type = NavType.IntType },
+                navArgument("classId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val studentId = backStackEntry.arguments?.getInt("studentId") ?: 0
+            val classId = backStackEntry.arguments?.getInt("classId") ?: 0
+            StudentEventsScreen(
+                studentId = studentId,
+                classId = classId,
+                navController = navController
+            )
+        }
 
+        composable(
+            route = Screen.StudentAttendance.route,
+            arguments = listOf(
+                navArgument("studentId") { type = NavType.IntType },
+                navArgument("classId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val studentId = backStackEntry.arguments?.getInt("studentId") ?: 0
+            val classId = backStackEntry.arguments?.getInt("classId") ?: 0
+            StudentAttendanceScreen(
+                studentId = studentId,
+                classId = classId,
+                navController = navController
+            )
+        }
+
+        composable(
+            route = Screen.JustifyAbsence.route,
+            arguments = listOf(
+                navArgument("studentId") { type = NavType.IntType },
+                navArgument("parentId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val studentId = backStackEntry.arguments?.getInt("studentId") ?: 0
+            val parentId = backStackEntry.arguments?.getInt("parentId") ?: 0
+            JustifyAbsenceScreen(
+                studentId = studentId,
+                parentId = parentId,
+                navController = navController
+            )
+        }
+
+        composable(
+            route = Screen.StudentAnnotations.route,
+            arguments = listOf(
+                navArgument("studentId") { type = NavType.IntType },
+                navArgument("parentId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val studentId = backStackEntry.arguments?.getInt("studentId") ?: 0
+            val parentId = backStackEntry.arguments?.getInt("parentId") ?: 0
+            StudentAnnotationsScreen(
+                studentId = studentId,
+                parentId = parentId,
+                navController = navController
+            )
+        }
     }
+
+
 
 
 }

@@ -2,6 +2,7 @@ package com.oriundo.lbretaappestudiantil.di
 
 import com.google.firebase.auth.FirebaseAuth
 import com.oriundo.lbretaappestudiantil.data.local.LocalDatabaseRepository
+import com.oriundo.lbretaappestudiantil.data.local.daos.AbsenceJustificationDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.AnnotationDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.AttendanceDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.ClassDao
@@ -13,6 +14,7 @@ import com.oriundo.lbretaappestudiantil.data.local.daos.StudentParentRelationDao
 import com.oriundo.lbretaappestudiantil.data.local.repositories.AnnotationRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.AttendanceRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.ClassRepositoryImpl
+import com.oriundo.lbretaappestudiantil.data.local.repositories.JustificationRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.MessageRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.ProfileRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.SchoolEventRepositoryImpl
@@ -20,6 +22,7 @@ import com.oriundo.lbretaappestudiantil.data.local.repositories.StudentRepositor
 import com.oriundo.lbretaappestudiantil.domain.model.repository.AnnotationRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.AttendanceRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.ClassRepository
+import com.oriundo.lbretaappestudiantil.domain.model.repository.JustificationRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.MessageRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.ProfileRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.SchoolEventRepository
@@ -108,6 +111,16 @@ object RepositoryModule {
         return SchoolEventRepositoryImpl(schoolEventDao)
     }
 
+
+    @Provides
+    @Singleton
+    fun provideJustificationRepository(
+        // Hilt buscará automáticamente una instancia de AbsenceJustificationDao
+        // que deberá ser proporcionada en tu módulo de bases de datos (DatabaseModule)
+        dao: AbsenceJustificationDao
+    ): JustificationRepository {
+        return JustificationRepositoryImpl(dao)
+    }
 
 
 }

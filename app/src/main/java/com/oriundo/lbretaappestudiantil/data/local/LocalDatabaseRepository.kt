@@ -1,6 +1,7 @@
 package com.oriundo.lbretaappestudiantil.data.local
 
 import com.google.firebase.firestore.FirebaseFirestore
+import com.oriundo.lbretaappestudiantil.data.local.daos.AbsenceJustificationDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.AnnotationDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.ClassDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.ProfileDao
@@ -29,7 +30,8 @@ class LocalDatabaseRepository @Inject constructor(
     private val studentDao: StudentDao,
     private val schoolEventDao: SchoolEventDao,
     private val studentParentRelationDao: StudentParentRelationDao,
-    private val annotationDao: AnnotationDao
+    private val annotationDao: AnnotationDao,
+    private val absenceJustificationDao: AbsenceJustificationDao
 ) {
 
     // =====================================================
@@ -817,5 +819,7 @@ class LocalDatabaseRepository @Inject constructor(
         } catch (e: Exception) {
             println("Error en migración: ${e.message}")
         }
+
     }
+
 }
