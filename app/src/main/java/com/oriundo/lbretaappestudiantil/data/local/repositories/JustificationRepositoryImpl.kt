@@ -1,22 +1,21 @@
 package com.oriundo.lbretaappestudiantil.data.local.repositories
 
-// Archivo: JustificationRepositoryImpl.kt
 
 import android.net.Uri
 import com.oriundo.lbretaappestudiantil.data.local.daos.AbsenceJustificationDao
 import com.oriundo.lbretaappestudiantil.data.local.models.AbsenceJustificationEntity
+import com.oriundo.lbretaappestudiantil.data.local.models.JustificationStatus
 import com.oriundo.lbretaappestudiantil.domain.model.AbsenceReason
 import com.oriundo.lbretaappestudiantil.domain.model.repository.JustificationRepository
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
-import javax.inject.Singleton
 
-@Singleton
+/**
+ * Implementación del repositorio.
+ * Coordina la base de datos local (DAO) y la API remota.
+ */
 class JustificationRepositoryImpl @Inject constructor(
-    private val dao: AbsenceJustificationDao
-    // private val networkService: JustificationNetworkService // Se inyectaría el servicio de red real
+    private val dao: AbsenceJustificationDao,
+    // TODO: private val api: MyApiService
 ) : JustificationRepository {
 
     override suspend fun submitJustification(
@@ -26,40 +25,63 @@ class JustificationRepositoryImpl @Inject constructor(
         reason: AbsenceReason,
         description: String,
         attachmentUri: Uri?
-    ) = withContext(Dispatchers.IO) {
+    ) {
+        // Lógica de implementación real:
+        // 1. Subir el archivo (attachmentUri) a un servicio (ej. Firebase Storage, S3)
+        //    y obtener la URL de descarga.
+        //    val fileUrl = uploadFileToStorage(attachmentUri)
+        val fileUrl: String? = null // TODO: Implementar subida de archivo
 
-        // 1. SIMULACIÓN DE LÓGICA DE RED (Subida de archivo y envío a API)
-
-        // Simular la subida del archivo y obtener una URL de servidor
-        val attachmentUrl: String? = if (attachmentUri != null) {
-            // Lógica real: uploadFile(attachmentUri)
-            delay(1000) // Simular un retraso en la subida de 1 segundo
-            "https://server.com/attachments/${attachmentUri.lastPathSegment}.pdf"
-        } else {
-            null
-        }
-
-        // Lógica real: networkService.sendJustification(datos)
-        delay(500) // Simular un retraso en la llamada a la API
-
-        // 2. PERSISTENCIA LOCAL (Guardar en Room)
-
-        val newJustification = AbsenceJustificationEntity(
+        val justification = AbsenceJustificationEntity(
             studentId = studentId,
             parentId = parentId,
             absenceDate = dateMillis,
             reason = reason,
             description = description,
-            attachmentUrl = attachmentUrl,
-            // Los campos de status y revisión se mantienen con los valores por defecto (PENDING)
+            attachmentUrl = fileUrl,
+            status = JustificationStatus.PENDING,
+            createdAt = System.currentTimeMillis(),
+            updatedAt = System.currentTimeMillis()
         )
 
-        // Insertar en la base de datos local
-        val insertedId = dao.insertJustification(newJustification)
+        // 2. Enviar la entidad a la API
+        //    val result = api.submitJustification(justification)
 
-        println("Justificación ID $insertedId enviada y guardada localmente.")
+        // 3. Guardar en la base de datos local (puede ser para offline o caché)
+        //    En tu caso, parece que el DAO es para insertar localmente.
+        dao.insertJustification(justification)
 
-        // Nota: En caso de error de red, aquí se podría lanzar una excepción
-        // para que el ViewModel la capture y actualice el estado de error.
+        // Simulación de envío a red
+        kotlinx.coroutines.delay(1000)
+    }
+
+    // --- ESTA ES UNA DE LAS FUNCIONES QUE TE FALTABA ---
+    override suspend fun getJustificationDetails(justificationId: Int): AbsenceJustificationEntity {
+        // TODO: En una app real, esto vendría de la API
+        // return api.getJustification(justificationId)
+
+        // Simulación de datos (usando la lógica de tu pantalla de profesor)
+        kotlinx.coroutines.delay(500)
+        return AbsenceJustificationEntity(
+            id = justificationId,
+            studentId = 101,
+            parentId = 202,
+            absenceDate = System.currentTimeMillis() - 86400000, // Ayer
+            reason = AbsenceReason.ILLNESS,
+            description = "Mi hijo amaneció con fiebre y dolor de garganta.",
+            attachmentUrl = "uploads/certificado_123.pdf",
+            status = JustificationStatus.PENDING
+        )
+    }
+
+    // --- ESTA ES LA OTRA FUNCIÓN QUE TE FALTABA ---
+    override suspend fun updateJustificationStatus(
+        justificationId: Int,
+        teacherId: Int,
+        newStatus: JustificationStatus,
+        reviewNotes: String
+    ) {
+
+        kotlinx.coroutines.delay(1000)
     }
 }

@@ -115,8 +115,6 @@ object RepositoryModule {
     @Provides
     @Singleton
     fun provideJustificationRepository(
-        // Hilt buscará automáticamente una instancia de AbsenceJustificationDao
-        // que deberá ser proporcionada en tu módulo de bases de datos (DatabaseModule)
         dao: AbsenceJustificationDao
     ): JustificationRepository {
         return JustificationRepositoryImpl(dao)
