@@ -37,4 +37,6 @@ interface JustificationRepository {
         newStatus: JustificationStatus,
         reviewNotes: String
     )
+
+    suspend fun getPendingJustifications(teacherId: Int): List<AbsenceJustificationEntity>
 }

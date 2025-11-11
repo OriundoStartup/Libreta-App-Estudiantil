@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.FactCheck
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.automirrored.filled.Note
@@ -25,7 +26,6 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Class
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.HowToReg
-import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.People
@@ -68,6 +68,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.oriundo.lbretaappestudiantil.domain.model.UserWithProfile
 import com.oriundo.lbretaappestudiantil.ui.theme.AppColors
+import com.oriundo.lbretaappestudiantil.ui.theme.Screen
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ClassViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.MessageViewModel
 
@@ -117,7 +118,7 @@ fun TeacherDashboardScreen(
                     // ✅ Botón de notificaciones con badge conectado al MessageViewModel
                     IconButton(onClick = {
                         navController.navigate(
-                            com.oriundo.lbretaappestudiantil.ui.theme.Screen.TeacherNotifications.createRoute(
+                            Screen.TeacherNotifications.createRoute(
                                 userWithProfile.profile.id
                             )
                         )
@@ -163,7 +164,7 @@ fun TeacherDashboardScreen(
                                 onClick = {
                                     showMenu = false
                                     navController.navigate(
-                                        com.oriundo.lbretaappestudiantil.ui.theme.Screen.TeacherProfile.route
+                                        Screen.TeacherProfile.route
                                     )
                                 },
                                 leadingIcon = {
@@ -175,7 +176,7 @@ fun TeacherDashboardScreen(
                                 onClick = {
                                     showMenu = false
                                     navController.navigate(
-                                        com.oriundo.lbretaappestudiantil.ui.theme.Screen.TeacherSettings.route
+                                        Screen.TeacherSettings.route
                                     )
                                 },
                                 leadingIcon = {
@@ -285,7 +286,7 @@ fun TeacherDashboardScreen(
                     onClick = {
                         // ✅ CONECTADO: Click navega a notificaciones
                         navController.navigate(
-                            com.oriundo.lbretaappestudiantil.ui.theme.Screen.TeacherNotifications.createRoute(
+                            Screen.TeacherNotifications.createRoute(
                                 userWithProfile.profile.id
                             )
                         )
@@ -295,7 +296,7 @@ fun TeacherDashboardScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Quick Actions
+            // Quick Actions Rapidas
             Column(
                 modifier = Modifier.padding(horizontal = 24.dp)
             ) {
@@ -334,10 +335,15 @@ fun TeacherDashboardScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     QuickActionCard(
-                        title = "Materiales",
-                        icon = Icons.Filled.Inventory,
+                        title = "Justificaciones",
+                        icon = Icons.AutoMirrored.Filled.FactCheck,
                         color = MaterialTheme.colorScheme.secondary,
-                        onClick = { /* TODO */ },
+                        onClick = {
+                            // ✅ NAVEGACIÓN CORREGIDA: Ahora navega a la pantalla de la LISTA
+                            navController.navigate(
+                                Screen.TeacherPendingJustifications.createRoute(userWithProfile.profile.id)
+                            )
+                        },
                         modifier = Modifier.weight(1f)
                     )
                     QuickActionCard(

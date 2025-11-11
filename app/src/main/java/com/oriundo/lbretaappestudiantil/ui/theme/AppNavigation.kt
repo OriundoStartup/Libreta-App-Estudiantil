@@ -43,10 +43,12 @@ import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateAnnotationScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateClassScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.CreateEventScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.NotificationsScreenTeacher
+import com.oriundo.lbretaappestudiantil.ui.theme.teacher.ReviewJustificationScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.SendMessageScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.StudentDetailScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TakeAttendanceScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherDashboardScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherPendingJustificationsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherProfileScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherSettingsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AuthViewModel
@@ -130,6 +132,20 @@ sealed class Screen(val route: String) {
     object StudentEvents : Screen("student_events/{studentId}/{classId}") {
         fun createRoute(studentId: Int, classId: Int) = "student_events/$studentId/$classId"
     }
+
+    /**
+     * (NUEVA) Pantalla para la LISTA de justificaciones pendientes del profesor.
+     */
+    object TeacherPendingJustifications : Screen("teacher_pending_justifications/{teacherId}") {
+        fun createRoute(teacherId: Int) = "teacher_pending_justifications/$teacherId"
+    }
+
+    /**
+     * (NUEVA) Pantalla para el DETALLE de revisión de una justificación específica.
+     */
+    object ReviewJustification : Screen("review_justification/{justificationId}/{teacherId}") {
+        fun createRoute(justificationId: Int, teacherId: Int) = "review_justification/$justificationId/$teacherId"
+    }
 }
 
 @Composable
@@ -155,6 +171,7 @@ fun AppNavigation(
                     popUpTo(Screen.RoleSelection.route) { inclusive = true }
                 }
             }
+
             else -> {}
         }
     }
@@ -311,7 +328,8 @@ fun AppNavigation(
         ) { backStackEntry ->
             val studentId = backStackEntry.arguments?.getInt("studentId") ?: 0
             val classId = backStackEntry.arguments?.getInt("classId") ?: 0
-            val parentId = backStackEntry.arguments?.getInt("parentId") ?: 0 // ⬅️ Recuperar parentId
+            val parentId =
+                backStackEntry.arguments?.getInt("parentId") ?: 0 // ⬅️ Recuperar parentId
 
             // ASUMIMOS que tu pantalla acepta el parámetro parentId
             ParentStudentDetailScreen(
@@ -366,7 +384,11 @@ fun AppNavigation(
         ) { backStackEntry ->
             val classId = backStackEntry.arguments?.getInt("classId") ?: 0
             val teacherId = backStackEntry.arguments?.getInt("teacherId") ?: 0
-            TakeAttendanceScreen(classId = classId, teacherId = teacherId, navController = navController)
+            TakeAttendanceScreen(
+                classId = classId,
+                teacherId = teacherId,
+                navController = navController
+            )
         }
 
         composable(
@@ -515,7 +537,6 @@ fun AppNavigation(
         // ... (dentro del NavHost)
 
 
-
         composable(Screen.TeacherProfile.route) {
             // ✅ CAMBIO: Usar currentUser
             currentUser?.let { user ->
@@ -600,9 +621,45 @@ fun AppNavigation(
                 navController = navController
             )
         }
+        /**
+         * (NUEVO) Composable para la LISTA de justificaciones.
+         * TODO: Necesitarás crear la pantalla "PendingJustificationsScreen".
+         * Por ahora, es un placeholder.
+         */
+        composable(
+            route = Screen.TeacherPendingJustifications.route,
+            arguments = listOf(navArgument("teacherId") { type = NavType.IntType })
+        ) { backStackEntry ->
+            val teacherId = backStackEntry.arguments?.getInt("teacherId") ?: 0
+
+            TeacherPendingJustificationsScreen(
+                teacherId = teacherId,
+                navController = navController
+            )
+        }
+        /**
+         * (NUEVO) Composable para el DETALLE (ReviewJustificationScreen).
+         * Esta es la pantalla que ya creamos en el paso anterior.
+         */
+        composable(
+            route = Screen.ReviewJustification.route,
+            arguments = listOf(
+                navArgument("justificationId") { type = NavType.IntType },
+                navArgument("teacherId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val justificationId = backStackEntry.arguments?.getInt("justificationId") ?: 0
+            val teacherId = backStackEntry.arguments?.getInt("teacherId") ?: 0
+
+            // Llama a la pantalla que te proporcioné, pasando los IDs
+            ReviewJustificationScreen(
+                navController = navController,
+                justificationId = justificationId,
+                teacherId = teacherId
+            )
+        }
     }
-
-
-
-
 }
+
+
+

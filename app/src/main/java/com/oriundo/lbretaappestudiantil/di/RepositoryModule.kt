@@ -1,6 +1,7 @@
 package com.oriundo.lbretaappestudiantil.di
 
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.oriundo.lbretaappestudiantil.data.local.LocalDatabaseRepository
 import com.oriundo.lbretaappestudiantil.data.local.daos.AbsenceJustificationDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.AnnotationDao
@@ -115,9 +116,15 @@ object RepositoryModule {
     @Provides
     @Singleton
     fun provideJustificationRepository(
-        dao: AbsenceJustificationDao
+        dao: AbsenceJustificationDao,
+        // ✅ Hilt usará la instancia provista por tu 'FirebaseModule'
+        firestore: FirebaseFirestore
     ): JustificationRepository {
-        return JustificationRepositoryImpl(dao)
+        // ✅ Se pasan los dos argumentos al constructor de la implementación
+        return JustificationRepositoryImpl(
+            dao = dao,
+            firestore = firestore
+        )
     }
 
 

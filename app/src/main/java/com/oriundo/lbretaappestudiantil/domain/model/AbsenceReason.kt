@@ -12,5 +12,6 @@ enum class AbsenceReason(val label: String, val icon: androidx.compose.ui.graphi
     MEDICAL_APPOINTMENT("Consulta médica", Icons.Filled.LocalHospital),
     FAMILY_EMERGENCY("Emergencia familiar", Icons.Filled.FamilyRestroom),
     TRAVEL("Viaje", Icons.Filled.Flight),
+
     OTHER("Otro motivo", Icons.Filled.MoreHoriz)
 }
