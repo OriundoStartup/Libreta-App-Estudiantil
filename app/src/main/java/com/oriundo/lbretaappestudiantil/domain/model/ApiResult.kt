@@ -1,10 +1,7 @@
 package com.oriundo.lbretaappestudiantil.domain.model
 
-// Importación de StudentEntity no es necesaria aquí, pero no hace daño.
-// import com.oriundo.lbretaappestudiantil.data.local.models.StudentEntity
-
 /**
- * Clase sellada para manejar resultados de operaciones
+ * Clase sellada para manejar resultados de operaciones (Success, Error, Loading).
  */
 
 sealed class ApiResult<out T> {
@@ -17,8 +14,20 @@ sealed class ApiResult<out T> {
     // 3. Loading es un objeto singleton (no tiene datos)
     object Loading : ApiResult<Nothing>()
 
-    // El companion object debe estar vacío o contener solo lógica estática, no propiedades abstractas.
-    // companion object {
-    //     val data: StudentEntity <-- ¡SE ELIMINA ESTO!
-    // }
+    // =========================================================================
+    // ✅ SOLUCIÓN AL ERROR DE TIPADO: Companion Object
+    // Estas funciones genéricas permiten a Kotlin inferir el tipo T
+    // correctamente cuando se utiliza Error o Loading en un contexto ApiResult<T>.
+    // =========================================================================
+    companion object {
+        fun <T> error(message: String, exception: Throwable? = null): ApiResult<T> {
+            // Internamente retorna ApiResult.Error, pero el tipo de retorno es forzado a ApiResult<T>
+            return Error(message, exception)
+        }
+
+        fun <T> loading(): ApiResult<T> {
+            // Internamente retorna ApiResult.Loading, pero el tipo de retorno es forzado a ApiResult<T>
+            return Loading
+        }
+    }
 }

@@ -71,25 +71,18 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.oriundo.lbretaappestudiantil.domain.model.StudentWithClass
+
 import com.oriundo.lbretaappestudiantil.domain.model.UserWithProfile
 import com.oriundo.lbretaappestudiantil.ui.theme.AppColors
+import com.oriundo.lbretaappestudiantil.ui.theme.NavigationType
 import com.oriundo.lbretaappestudiantil.ui.theme.Screen
+import com.oriundo.lbretaappestudiantil.ui.theme.states.ParentDashboardUiEvent
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ParentDashboardViewModel
 import kotlinx.coroutines.launch
 
-// ============================================================================
-// ENUM PARA TIPOS DE NAVEGACIÓN
-// ============================================================================
-
-enum class NavigationType {
-    EVENTS,
-    ATTENDANCE,
-    JUSTIFY,
-    ANNOTATIONS
-}
 
 // ============================================================================
-// PANTALLA PRINCIPAL
+// PANTALLA PRINCIPAL (Refactorizada y Corregida)
 // ============================================================================
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -103,9 +96,9 @@ fun ParentDashboardScreen(
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
-    // ✅ Estados para Modal Bottom Sheet
+    // ✅ Estados para Modal Bottom Sheet (Refactorizados)
     var showStudentSelector by remember { mutableStateOf(false) }
-    var pendingNavigation by remember { mutableStateOf<NavigationType?>(null) }
+    var pendingActionType by remember { mutableStateOf<NavigationType?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // ✅ Estados para Snackbar
@@ -114,16 +107,44 @@ fun ParentDashboardScreen(
 
     val state by viewModel.dashboardState.collectAsState()
 
+    // ✅ CORRECCIÓN: Definir variables desde el estado
     val studentCount = state.students.size
     val totalAnnotations = state.unreadAnnotations.size
     val unreadMessagesCount = state.unreadMessagesCount
-    val totalAbsences = 0
+    val totalAbsences = 0 // (O tu lógica para esto)
 
+    // ✅ Carga inicial (Se mantiene igual)
     LaunchedEffect(userWithProfile.profile.id) {
         viewModel.loadDashboard(userWithProfile.profile.id)
         println("🔍 ParentDashboard - Usuario: ${userWithProfile.user.email}")
         println("🔍 ParentDashboard - Perfil ID: ${userWithProfile.profile.id}")
         println("🔍 ParentDashboard - Firebase UID: ${userWithProfile.user.firebaseUid}")
+    }
+
+    // ============================================================================
+    // ✅ NUEVO: Lector de Eventos del ViewModel
+    // ============================================================================
+    LaunchedEffect(key1 = true) {
+        viewModel.uiEvent.collect { event ->
+            when (event) {
+                is ParentDashboardUiEvent.Navigate -> {
+                    navController.navigate(event.route)
+                }
+                is ParentDashboardUiEvent.ShowSnackbar -> {
+                    scope.launch {
+                        snackbarHostState.showSnackbar(
+                            message = event.message,
+                            duration = SnackbarDuration.Short
+                        )
+                    }
+                }
+                is ParentDashboardUiEvent.ShowStudentSelector -> {
+                    // El ViewModel nos pide mostrar el selector
+                    pendingActionType = event.navigationType
+                    showStudentSelector = true
+                }
+            }
+        }
     }
 
     Scaffold(
@@ -247,7 +268,7 @@ fun ParentDashboardScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Quick Stats - DINÁMICO
+            // Quick Stats - DINÁMICO (Corregido)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -258,7 +279,7 @@ fun ParentDashboardScreen(
                     title = "Hijos",
                     value = studentCount.toString(),
                     icon = Icons.Filled.ChildCare,
-                    gradient = AppColors.PrimaryGradient,
+                    gradient = AppColors.PrimaryGradient, // <-- CORREGIDO
                     modifier = Modifier.weight(1f),
                     onClick = { }
                 )
@@ -266,31 +287,11 @@ fun ParentDashboardScreen(
                     title = "Anotaciones",
                     value = totalAnnotations.toString(),
                     icon = Icons.Filled.Description,
-                    gradient = AppColors.SuccessGradient,
+                    gradient = AppColors.SuccessGradient, // <-- CORREGIDO
                     modifier = Modifier.weight(1f),
                     onClick = {
-                        when {
-                            state.students.isEmpty() -> {
-                                scope.launch {
-                                    snackbarHostState.showSnackbar(
-                                        message = "No tienes estudiantes asociados. Contacta a la escuela.",
-                                        duration = SnackbarDuration.Short
-                                    )
-                                }
-                            }
-                            state.students.size == 1 -> {
-                                navController.navigate(
-                                    Screen.StudentAnnotations.createRoute(
-                                        studentId = state.students.first().student.id,
-                                        parentId = userWithProfile.profile.id
-                                    )
-                                )
-                            }
-                            else -> {
-                                pendingNavigation = NavigationType.ANNOTATIONS
-                                showStudentSelector = true
-                            }
-                        }
+                        // ✅ REFACTORIZADO
+                        viewModel.onQuickActionClick(NavigationType.ANNOTATIONS)
                     }
                 )
             }
@@ -307,7 +308,7 @@ fun ParentDashboardScreen(
                     title = "Faltas",
                     value = totalAbsences.toString(),
                     icon = Icons.Filled.Warning,
-                    gradient = AppColors.ErrorGradient,
+                    gradient = AppColors.ErrorGradient, // <-- CORREGIDO
                     modifier = Modifier.weight(1f),
                     onClick = { }
                 )
@@ -315,9 +316,10 @@ fun ParentDashboardScreen(
                     title = "Mensajes",
                     value = unreadMessagesCount.toString(),
                     icon = Icons.AutoMirrored.Filled.Message,
-                    gradient = AppColors.SecondaryGradient,
+                    gradient = AppColors.SecondaryGradient, // <-- CORREGIDO
                     modifier = Modifier.weight(1f),
                     onClick = {
+                        // (Navegación directa se mantiene)
                         navController.navigate(
                             Screen.ParentMessages.createRoute(
                                 userWithProfile.profile.id
@@ -329,7 +331,7 @@ fun ParentDashboardScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Quick Actions
+            // Quick Actions (Refactorizado)
             Column(
                 modifier = Modifier.padding(horizontal = 24.dp)
             ) {
@@ -350,28 +352,8 @@ fun ParentDashboardScreen(
                         icon = Icons.Filled.CalendarMonth,
                         color = MaterialTheme.colorScheme.tertiary,
                         onClick = {
-                            when {
-                                state.students.isEmpty() -> {
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar(
-                                            message = "No tienes estudiantes asociados. Contacta a la escuela.",
-                                            duration = SnackbarDuration.Short
-                                        )
-                                    }
-                                }
-                                state.students.size == 1 -> {
-                                    navController.navigate(
-                                        Screen.StudentEvents.createRoute(
-                                            studentId = state.students.first().student.id,
-                                            classId = state.students.first().classEntity.id
-                                        )
-                                    )
-                                }
-                                else -> {
-                                    pendingNavigation = NavigationType.EVENTS
-                                    showStudentSelector = true
-                                }
-                            }
+                            // ✅ REFACTORIZADO
+                            viewModel.onQuickActionClick(NavigationType.EVENTS)
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -381,28 +363,8 @@ fun ParentDashboardScreen(
                         icon = Icons.Filled.HowToReg,
                         color = MaterialTheme.colorScheme.primary,
                         onClick = {
-                            when {
-                                state.students.isEmpty() -> {
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar(
-                                            message = "No tienes estudiantes asociados. Contacta a la escuela.",
-                                            duration = SnackbarDuration.Short
-                                        )
-                                    }
-                                }
-                                state.students.size == 1 -> {
-                                    navController.navigate(
-                                        Screen.StudentAttendance.createRoute(
-                                            studentId = state.students.first().student.id,
-                                            classId = state.students.first().classEntity.id
-                                        )
-                                    )
-                                }
-                                else -> {
-                                    pendingNavigation = NavigationType.ATTENDANCE
-                                    showStudentSelector = true
-                                }
-                            }
+                            // ✅ REFACTORIZADO
+                            viewModel.onQuickActionClick(NavigationType.ATTENDANCE)
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -419,28 +381,8 @@ fun ParentDashboardScreen(
                         icon = Icons.Filled.EventAvailable,
                         color = MaterialTheme.colorScheme.secondary,
                         onClick = {
-                            when {
-                                state.students.isEmpty() -> {
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar(
-                                            message = "No tienes estudiantes asociados. Contacta a la escuela.",
-                                            duration = SnackbarDuration.Short
-                                        )
-                                    }
-                                }
-                                state.students.size == 1 -> {
-                                    navController.navigate(
-                                        Screen.JustifyAbsence.createRoute(
-                                            studentId = state.students.first().student.id,
-                                            parentId = userWithProfile.profile.id
-                                        )
-                                    )
-                                }
-                                else -> {
-                                    pendingNavigation = NavigationType.JUSTIFY
-                                    showStudentSelector = true
-                                }
-                            }
+                            // ✅ REFACTORIZADO
+                            viewModel.onQuickActionClick(NavigationType.JUSTIFY)
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -450,28 +392,8 @@ fun ParentDashboardScreen(
                         icon = Icons.Filled.Description,
                         color = MaterialTheme.colorScheme.error,
                         onClick = {
-                            when {
-                                state.students.isEmpty() -> {
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar(
-                                            message = "No tienes estudiantes asociados. Contacta a la escuela.",
-                                            duration = SnackbarDuration.Short
-                                        )
-                                    }
-                                }
-                                state.students.size == 1 -> {
-                                    navController.navigate(
-                                        Screen.StudentAnnotations.createRoute(
-                                            studentId = state.students.first().student.id,
-                                            parentId = userWithProfile.profile.id
-                                        )
-                                    )
-                                }
-                                else -> {
-                                    pendingNavigation = NavigationType.ANNOTATIONS
-                                    showStudentSelector = true
-                                }
-                            }
+                            // ✅ REFACTORIZADO
+                            viewModel.onQuickActionClick(NavigationType.ANNOTATIONS)
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -554,67 +476,41 @@ fun ParentDashboardScreen(
         }
     }
 
-    // ✅ MODAL BOTTOM SHEET
+    // ============================================================================
+    // ✅ MODAL BOTTOM SHEET (Refactorizado)
+    // ============================================================================
     if (showStudentSelector) {
         ModalBottomSheet(
             onDismissRequest = {
                 showStudentSelector = false
-                pendingNavigation = null
+                pendingActionType = null // Limpiar la acción
             },
             sheetState = sheetState
         ) {
-            StudentSelectorBottomSheet(
-                students = state.students,
-                onStudentSelected = { selectedStudent ->
-                    when (pendingNavigation) {
-                        NavigationType.EVENTS -> {
-                            navController.navigate(
-                                Screen.StudentEvents.createRoute(
-                                    selectedStudent.student.id,
-                                    selectedStudent.classEntity.id
-                                )
-                            )
-                        }
-                        NavigationType.ATTENDANCE -> {
-                            navController.navigate(
-                                Screen.StudentAttendance.createRoute(
-                                    selectedStudent.student.id,
-                                    selectedStudent.classEntity.id
-                                )
-                            )
-                        }
-                        NavigationType.JUSTIFY -> {
-                            navController.navigate(
-                                Screen.JustifyAbsence.createRoute(
-                                    selectedStudent.student.id,
-                                    userWithProfile.profile.id
-                                )
-                            )
-                        }
-                        NavigationType.ANNOTATIONS -> {
-                            navController.navigate(
-                                Screen.StudentAnnotations.createRoute(
-                                    selectedStudent.student.id,
-                                    userWithProfile.profile.id
-                                )
-                            )
-                        }
-                        null -> {}
+            // Solo mostramos el contenido si sabemos QUÉ acción estamos realizando
+            pendingActionType?.let { actionType ->
+                StudentSelectorBottomSheet(
+                    students = state.students,
+                    onStudentSelected = { selectedStudent ->
+                        // ✅ REFACTORIZADO: Informamos al ViewModel
+                        viewModel.onStudentSelectedFromSheet(selectedStudent, actionType)
+
+                        // Cerramos el modal
+                        showStudentSelector = false
+                        pendingActionType = null
+                    },
+                    onDismiss = {
+                        showStudentSelector = false
+                        pendingActionType = null
                     }
-                    showStudentSelector = false
-                    pendingNavigation = null
-                },
-                onDismiss = {
-                    showStudentSelector = false
-                    pendingNavigation = null
-                }
-            )
+                )
+            }
         }
     }
 }
 
 // ============================================================================
-// COMPONENTES AUXILIARES
+// COMPONENTES AUXILIARES (Sin cambios en sus definiciones)
 // ============================================================================
 
 @Composable
@@ -630,13 +526,13 @@ fun StatCard(
         modifier = modifier
             .height(120.dp)
             .clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.medium,
+        shape = MaterialTheme.shapes.medium, // Usa AppShapes
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(gradient)
+                .background(gradient) // Usa el gradiente
                 .padding(16.dp)
         ) {
             Column(
@@ -652,13 +548,13 @@ fun StatCard(
                 Column {
                     Text(
                         text = value,
-                        style = MaterialTheme.typography.headlineMedium,
+                        style = MaterialTheme.typography.headlineMedium, // Usa AppTypography
                         color = Color.White,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodyMedium, // Usa AppTypography
                         color = Color.White.copy(alpha = 0.9f)
                     )
                 }
@@ -679,7 +575,7 @@ fun QuickActionCard(
         modifier = modifier
             .height(100.dp)
             .clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.medium,
+        shape = MaterialTheme.shapes.medium, // Usa AppShapes
         colors = CardDefaults.cardColors(
             containerColor = color.copy(alpha = 0.1f)
         )
@@ -698,7 +594,7 @@ fun QuickActionCard(
             )
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleSmall, // Usa AppTypography
                 color = color,
                 fontWeight = FontWeight.SemiBold
             )
@@ -734,7 +630,7 @@ fun StudentCard(
                     .size(56.dp)
                     .background(
                         MaterialTheme.colorScheme.primaryContainer,
-                        MaterialTheme.shapes.small
+                        MaterialTheme.shapes.small // Usa AppShapes
                     ),
                 contentAlignment = Alignment.Center
             ) {
@@ -753,7 +649,7 @@ fun StudentCard(
             ) {
                 Text(
                     text = "${studentWithClass.student.firstName} ${studentWithClass.student.lastName}",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleMedium, // Usa AppTypography
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -762,7 +658,7 @@ fun StudentCard(
 
                 Text(
                     text = "Curso: ${studentWithClass.classEntity.className}",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall, // Usa AppTypography
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
@@ -770,7 +666,7 @@ fun StudentCard(
 
                 Text(
                     text = "Última actividad: $recentActivity",
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelMedium, // Usa AppTypography
                     color = MaterialTheme.colorScheme.secondary,
                     fontWeight = FontWeight.Medium
                 )
@@ -787,7 +683,7 @@ fun StudentCard(
 }
 
 // ============================================================================
-// MODAL BOTTOM SHEET COMPONENTS
+// MODAL BOTTOM SHEET COMPONENTS (Sin cambios)
 // ============================================================================
 
 @Composable
@@ -804,7 +700,7 @@ fun StudentSelectorBottomSheet(
     ) {
         Text(
             text = "Selecciona un estudiante",
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleLarge, // Usa AppTypography
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(vertical = 16.dp)
         )
@@ -842,14 +738,14 @@ fun StudentSelectorItem(
         headlineContent = {
             Text(
                 text = "${studentWithClass.student.firstName} ${studentWithClass.student.lastName}",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium, // Usa AppTypography
                 fontWeight = FontWeight.SemiBold
             )
         },
         supportingContent = {
             Text(
                 text = "Curso: ${studentWithClass.classEntity.className}",
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium, // Usa AppTypography
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },

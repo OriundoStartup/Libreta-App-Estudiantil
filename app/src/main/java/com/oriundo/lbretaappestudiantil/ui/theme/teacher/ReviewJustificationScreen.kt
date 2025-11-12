@@ -97,7 +97,6 @@ fun ReviewJustificationScreen(
         reason = AbsenceReason.ILLNESS,
         description = "Mi hijo amaneció con fiebre y dolor de garganta. No podrá asistir a clases.",
         attachmentUrl = "uploads/certificado_123.pdf", // URL de ejemplo
-        status = JustificationStatus.PENDING
     )
 
     Scaffold(

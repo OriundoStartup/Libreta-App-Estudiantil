@@ -1,6 +1,5 @@
 package com.oriundo.lbretaappestudiantil.data.local.models
 
-
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -26,7 +25,8 @@ import com.oriundo.lbretaappestudiantil.domain.model.AbsenceReason
     indices = [
         Index(value = ["studentId"]),
         Index(value = ["parentId"]),
-        Index(value = ["absenceDate"])
+        Index(value = ["absenceDate"]),
+        Index(value = ["remoteId"], unique = true) // Índice para el ID de Firebase
     ]
 )
 data class AbsenceJustificationEntity(
@@ -40,19 +40,20 @@ data class AbsenceJustificationEntity(
     val description: String,
     val attachmentUrl: String? = null,
 
+    // ====================================================================
+    // CAMPOS DE SINCRONIZACIÓN (añadidos en el paso anterior)
+    // ====================================================================
+    val remoteId: String? = null,
+    val syncStatus: SyncStatus = SyncStatus.PENDING,
+    // ====================================================================
+
+    // Ya no necesita import porque JustificationStatus está en el mismo paquete
     val status: JustificationStatus = JustificationStatus.PENDING,
     val reviewedByTeacherId: Int? = null,
     val reviewNotes: String? = null,
     val reviewedAt: Long? = null,
 
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    val submittedAt: Long = System.currentTimeMillis()
 )
-
-enum class JustificationStatus {
-    PENDING,
-    APPROVED,
-    REJECTED
-
-
-}

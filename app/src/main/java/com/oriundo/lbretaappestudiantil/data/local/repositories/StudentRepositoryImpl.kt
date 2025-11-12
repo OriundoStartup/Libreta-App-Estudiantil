@@ -11,6 +11,8 @@ import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
 import com.oriundo.lbretaappestudiantil.domain.model.StudentWithClass
 import com.oriundo.lbretaappestudiantil.domain.model.repository.StudentRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -77,19 +79,31 @@ class StudentRepositoryImpl @Inject constructor(
         return studentDao.getStudentsByClass(classId)
     }
 
-    override fun getStudentsByParent(parentId: Int): Flow<List<StudentWithClass>> {
-        return studentParentRelationDao.getStudentsByParent(parentId).map { students ->
-            students.mapNotNull { student ->
-                val classEntity = classDao.getClassById(student.classId)
-                classEntity?.let {
-                    StudentWithClass(
-                        student = student,
-                        classEntity = it
-                        // Quitar: primaryParentId = parentId
-                    )
+    // Dentro de StudentRepositoryImpl.kt
+    override fun getStudentsByParent(parentId: Int): Flow<ApiResult<List<StudentWithClass>>> = flow {
+
+        // 1. Aquí podrías usar ApiResult.loading<List<StudentWithClass>>() si emitieras este estado
+        // emit(ApiResult.loading<List<StudentWithClass>>())
+
+        // 2. Colectar del DAO de Room (Flow)...
+        studentParentRelationDao.getStudentsByParent(parentId)
+            .map { students ->
+                // Tu lógica de mapeo...
+                students.mapNotNull { student ->
+                    val classEntity = classDao.getClassById(student.classId)
+                    classEntity?.let {
+                        StudentWithClass(student = student, classEntity = it)
+                    }
                 }
             }
-        }
+            // 3. Transformar la lista en un ApiResult.Success y emitir
+            .collect { list ->
+                emit(ApiResult.Success(list))
+            }
+
+    }.catch { e ->
+
+        emit(ApiResult.error<List<StudentWithClass>>("Error de repositorio: ${e.message}") as ApiResult.Success<List<StudentWithClass>>)
     }
 
     override suspend fun updateStudent(student: StudentEntity): ApiResult<Unit> {

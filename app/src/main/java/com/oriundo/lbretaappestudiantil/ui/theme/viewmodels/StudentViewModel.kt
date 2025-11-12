@@ -62,9 +62,28 @@ class StudentViewModel @Inject constructor( // 6. Inyección del Repository
 
     fun loadStudentsByParent(parentId: Int) {
         viewModelScope.launch {
-            // El tipo de retorno ya es Flow<List<StudentWithClass>>, no se requiere casting.
-            studentRepository.getStudentsByParent(parentId).collect {
-                _studentsByParent.value = it
+            // ⚠️ Usaremos 'apiResult' en lugar de 'it' para mayor claridad
+            studentRepository.getStudentsByParent(parentId).collect { apiResult ->
+
+                when (apiResult) {
+                    is ApiResult.Success -> {
+                        // ✅ CORRECCIÓN: Desenvolvemos el ApiResult y asignamos solo la data (la lista)
+                        _studentsByParent.value = apiResult.data
+
+                        // Si tienes un estado de carga global, lo desactivas aquí
+                        // _dashboardState.value = _dashboardState.value.copy(isLoading = false)
+                    }
+
+                    is ApiResult.Loading -> {
+                        // Opcional: Si tienes un estado de carga, actívalo
+                        // _dashboardState.value = _dashboardState.value.copy(isLoading = true)
+                    }
+
+                    is ApiResult.Error -> {
+                        // Opcional: Emitir un evento de UI para mostrar un Snackbar con el error
+                        // emitEvent(ParentDashboardUiEvent.ShowSnackbar(apiResult.message))
+                    }
+                }
             }
         }
     }

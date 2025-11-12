@@ -44,7 +44,6 @@ class PendingJustificationsViewModel @Inject constructor(
                         // ✅ CORREGIDO: Usando ILLNESS
                         reason = com.oriundo.lbretaappestudiantil.domain.model.AbsenceReason.ILLNESS,
                         description = "Fiebre y dolor de garganta.",
-                        createdAt = System.currentTimeMillis()
                     ),
                     AbsenceJustificationEntity(
                         id = 102, studentId = 3, parentId = 4,
@@ -52,7 +51,6 @@ class PendingJustificationsViewModel @Inject constructor(
                         // ✅ CORREGIDO: Usando FAMILY_EMERGENCY
                         reason = com.oriundo.lbretaappestudiantil.domain.model.AbsenceReason.FAMILY_EMERGENCY,
                         description = "Asistencia a boda familiar fuera de la ciudad.",
-                        createdAt = System.currentTimeMillis()
                     )
                 )
                 kotlinx.coroutines.delay(1000) // Simular carga

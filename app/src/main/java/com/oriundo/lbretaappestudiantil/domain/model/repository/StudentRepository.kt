@@ -18,7 +18,7 @@ interface StudentRepository {
     suspend fun getStudentById(studentId: Int): ApiResult<StudentEntity>
     suspend fun getStudentByRut(rut: String): ApiResult<StudentEntity>
     fun getStudentsByClass(classId: Int): Flow<List<StudentEntity>>
-    fun getStudentsByParent(parentId: Int): Flow<List<StudentWithClass>>
+    fun getStudentsByParent(parentId: Int): Flow<ApiResult<List<StudentWithClass>>>
     suspend fun updateStudent(student: StudentEntity): ApiResult<Unit>
     suspend fun linkParentToStudent(
         studentId: Int,

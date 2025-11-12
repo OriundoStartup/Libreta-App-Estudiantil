@@ -8,11 +8,13 @@ import com.google.firebase.firestore.Query
 import com.oriundo.lbretaappestudiantil.data.local.daos.AbsenceJustificationDao
 import com.oriundo.lbretaappestudiantil.data.local.models.AbsenceJustificationEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.JustificationStatus
+import com.oriundo.lbretaappestudiantil.data.local.models.SyncStatus
 import com.oriundo.lbretaappestudiantil.domain.model.AbsenceReason
 import com.oriundo.lbretaappestudiantil.domain.model.repository.JustificationRepository
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
+// Asumo que esta función de mapeo existe en alguna extensión o util
 // Asumo que esta función de mapeo existe en alguna extensión o util
 fun DocumentSnapshot.toAbsenceJustificationEntity(): AbsenceJustificationEntity? {
     // Este mapeo es crucial. Aquí va tu lógica real.
@@ -29,11 +31,22 @@ fun DocumentSnapshot.toAbsenceJustificationEntity(): AbsenceJustificationEntity?
             description = getString("description") ?: "",
             attachmentUrl = getString("attachmentUrl"),
             status = JustificationStatus.valueOf(getString("status") ?: "PENDING"),
-            createdAt = getLong("createdAt") ?: 0L,
-            updatedAt = getLong("updatedAt") ?: 0L,
+
+            // ✅ CORRECCIÓN: Añadir 'submittedAt' recuperándolo de Firestore
+            submittedAt = getLong("submittedAt") ?: 0L,
+
             reviewedByTeacherId = (getLong("reviewedByTeacherId") ?: 0).toInt().takeIf { it != 0 },
             reviewNotes = getString("reviewNotes"),
             reviewedAt = getLong("reviewedAt"),
+            createdAt = getLong("createdAt") ?: 0L,
+            updatedAt = getLong("updatedAt") ?: 0L,
+
+            // ⚠️ NOTA: Si incluiste 'remoteId' y 'syncStatus' en la entidad
+            // (que se usa para la justificación local/offline), deberías
+            // asignarlos aquí también, al menos con valores por defecto o
+            // mapeando el ID de Firebase:
+            // remoteId = id, // Si el ID de Firestore es el que se usa en el repo
+            // syncStatus = SyncStatus.SYNCED // Ya que viene de Firestore
         )
     } catch (e: Exception) {
         Log.e("Mapper", "Error mapeando justificación desde Firestore: ${e.message}")
@@ -70,7 +83,7 @@ class JustificationRepositoryImpl @Inject constructor(
 ) : JustificationRepository {
 
     // =========================================================================
-    // 1. SUBMIT JUSTIFICATION (APODERADO) - Envía a Firebase y guarda en local
+    // ✅ submitJustification: Guardar Local (PENDING) -> Subir a Firebase -> Actualizar Local (SYNCED)
     // =========================================================================
     override suspend fun submitJustification(
         studentId: Int,
@@ -80,36 +93,63 @@ class JustificationRepositoryImpl @Inject constructor(
         description: String,
         attachmentUri: Uri?
     ) {
-        val fileUrl: String? = null // TODO: Implementar subida a Firebase Storage
+        val submittedAt = System.currentTimeMillis() // ⬅️ Usamos submittedAt
 
-        val justification = AbsenceJustificationEntity(
+        // 1. Crear una entidad local inicial con estado PENDING
+        val initialJustification = AbsenceJustificationEntity(
+            // id se genera automáticamente por Room (es 0 aquí)
             studentId = studentId,
             parentId = parentId,
             absenceDate = dateMillis,
             reason = reason,
             description = description,
-            attachmentUrl = fileUrl,
+            attachmentUrl = attachmentUri?.toString(),
+
+            // ✅ CORRECCIÓN: Pasar el valor a su respectivo parámetro
+            submittedAt = submittedAt,
+
             status = JustificationStatus.PENDING,
-            createdAt = System.currentTimeMillis(),
-            updatedAt = System.currentTimeMillis()
+
+            // Estos campos ya deberían tener valores por defecto en tu entidad (createdAt = submittedAt)
+            // Pero si no tienen default, también necesitan ser pasados.
+            // Lo hacemos por seguridad:
+            createdAt = submittedAt,
+            updatedAt = submittedAt,
+
+            syncStatus = SyncStatus.PENDING
         )
 
-        try {
-            // 1. Enviar a Firebase y obtener el ID de Firestore
-            val firestoreData = justification.toMap()
-            val docRef = firestore.collection("justifications").add(firestoreData).await()
+        // 2. Guardar en Room para obtener el ID local y garantizar la persistencia
+        // 🛑 CORRECCIÓN: Usar la instancia 'dao' y el nombre correcto 'insertJustification'
+        val localId = dao.insertJustification(initialJustification).toInt()
+        val justificationToUpload = initialJustification.copy(id = localId)
 
-            // 2. Guardar en la base de datos local (con el ID de Firestore)
-            // Asumiendo que AbsenceJustificationEntity tiene un campo 'firestoreId: String?'
-            // dao.insertJustification(justification.copy(firestoreId = docRef.id))
-            dao.insertJustification(justification) // Usando solo el DAO por ahora
+        try {
+            // 3. Subir a Firestore
+            // 🛑 CORRECCIÓN: Usar la función helper 'toMap()' que definiste
+            val firestoreData = justificationToUpload.toMap()
+
+            val documentReference = firestore
+                .collection("justifications")
+                .add(firestoreData)
+                .await()
+
+            val remoteId = documentReference.id
+
+            // 4. Éxito: Actualizar el registro en Room con el ID remoto y estado SYNCED
+            val syncedJustification = justificationToUpload.copy(
+                // Asumo que la Entidad YA TIENE el campo 'remoteId'
+                remoteId = remoteId,
+                syncStatus = SyncStatus.SYNCED
+            )
+            // 🛑 CORRECCIÓN: Usar la instancia 'dao' y el nombre correcto 'updateJustification'
+            dao.updateJustification(syncedJustification)
 
         } catch (e: Exception) {
-            Log.e("JustificationRepo", "Error al enviar justificación a Firebase: ${e.message}")
-            throw e // Relanza la excepción para que el ViewModel la maneje
+            Log.e("JustificationRepo", "Falla al sincronizar justificación (Local ID: $localId): ${e.message}")
+            // 5. Falla de Red: El registro ya está en Room como PENDING.
+            throw e // Relanzar el error para que el ViewModel/UI lo maneje.
         }
-
-        // ❌ Eliminado: kotlinx.coroutines.delay(1000)
     }
 
     // =========================================================================
