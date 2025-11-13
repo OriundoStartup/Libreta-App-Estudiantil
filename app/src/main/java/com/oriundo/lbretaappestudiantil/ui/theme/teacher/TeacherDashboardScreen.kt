@@ -49,12 +49,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,12 +68,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
-import com.oriundo.lbretaappestudiantil.data.local.models.SchoolEventEntity // Asegúrate de que este import esté presente
+import com.oriundo.lbretaappestudiantil.data.local.models.ClassEntity
+import com.oriundo.lbretaappestudiantil.data.local.models.SchoolEventEntity
 import com.oriundo.lbretaappestudiantil.domain.model.UserWithProfile
 import com.oriundo.lbretaappestudiantil.ui.theme.AppColors
 import com.oriundo.lbretaappestudiantil.ui.theme.Screen
+import com.oriundo.lbretaappestudiantil.ui.theme.teacher.components.ClassSelectorBottomSheet
+import com.oriundo.lbretaappestudiantil.ui.theme.teacher.components.StudentSelectorBottomSheet
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.MessageViewModel
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.TeacherDashboardViewModel
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -87,6 +94,9 @@ fun TeacherDashboardScreen(
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
+    // ✅ Scope para cerrar los bottom sheets con animación
+    val scope = rememberCoroutineScope()
+
     // ✅ Inicialización del TeacherDashboardViewModel
     val dashboardViewModel: TeacherDashboardViewModel = hiltViewModel()
     val dashboardState by dashboardViewModel.dashboardState.collectAsState()
@@ -94,6 +104,23 @@ fun TeacherDashboardScreen(
     // ViewModel para notificaciones (usando MessageViewModel)
     val messageViewModel: MessageViewModel = hiltViewModel()
     val unreadMessages by messageViewModel.unreadMessages.collectAsState()
+
+    // ✅ Estados para controlar la visibilidad de los Bottom Sheets
+    var showClassSelectorForAttendance by remember { mutableStateOf(false) }
+    var showClassSelectorForAnnotation by remember { mutableStateOf(false) }
+    var showClassSelectorForCalendar by remember { mutableStateOf(false) }
+    var showStudentSelectorForAnnotation by remember { mutableStateOf(false) }
+    var selectedClassForAction by remember { mutableStateOf<ClassEntity?>(null) }
+
+    // ✅ Sheet states para las animaciones de los modales
+    val attendanceSheetState = rememberModalBottomSheetState()
+    val annotationClassSheetState = rememberModalBottomSheetState()
+    val annotationStudentSheetState = rememberModalBottomSheetState()
+    val calendarSheetState = rememberModalBottomSheetState()
+
+    // ✅ ViewModel adicional para cargar estudiantes por curso
+    val studentViewModel: StudentViewModel = hiltViewModel()
+    val studentsByClass by studentViewModel.studentsByClass.collectAsState()
 
     // 🔄 Cargar datos del dashboard y mensajes
     LaunchedEffect(userWithProfile.profile.id) {
@@ -299,7 +326,7 @@ fun TeacherDashboardScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Quick Actions Rapidas (Se mantienen igual)
+            // Quick Actions - ACCIONES RÁPIDAS
             Column(
                 modifier = Modifier.padding(horizontal = 24.dp)
             ) {
@@ -311,6 +338,7 @@ fun TeacherDashboardScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // Primera fila
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -319,20 +347,25 @@ fun TeacherDashboardScreen(
                         title = "Asistencia",
                         icon = Icons.Filled.HowToReg,
                         color = MaterialTheme.colorScheme.tertiary,
-                        onClick = { /* TODO */ },
+                        onClick = {
+                            showClassSelectorForAttendance = true
+                        },
                         modifier = Modifier.weight(1f)
                     )
                     QuickActionCard(
                         title = "Anotación",
                         icon = Icons.Filled.Edit,
                         color = MaterialTheme.colorScheme.primary,
-                        onClick = { /* TODO */ },
+                        onClick = {
+                            showClassSelectorForAnnotation = true
+                        },
                         modifier = Modifier.weight(1f)
                     )
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
+                // Segunda fila
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -352,7 +385,9 @@ fun TeacherDashboardScreen(
                         title = "Calendario",
                         icon = Icons.Filled.CalendarMonth,
                         color = MaterialTheme.colorScheme.error,
-                        onClick = { /* TODO */ },
+                        onClick = {
+                            showClassSelectorForCalendar = true
+                        },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -442,7 +477,7 @@ fun TeacherDashboardScreen(
                 }
             }
 
-            // Próximos Eventos - AHORA CORREGIDO
+            // Próximos Eventos
             if (dashboardState.upcomingEvents.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(32.dp))
                 UpcomingEventsSection(dashboardState.upcomingEvents)
@@ -451,18 +486,120 @@ fun TeacherDashboardScreen(
             Spacer(modifier = Modifier.height(100.dp))
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🎯 BOTTOM SHEETS - ESTOS DEBEN ESTAR AQUÍ, AL FINAL DE LA FUNCIÓN
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // 🎯 Bottom Sheet: Selector de Curso para ASISTENCIA
+    if (showClassSelectorForAttendance) {
+        ClassSelectorBottomSheet(
+            sheetState = attendanceSheetState,
+            classes = dashboardState.classes,
+            onClassSelected = { selectedClass ->
+                scope.launch {
+                    attendanceSheetState.hide()
+                    showClassSelectorForAttendance = false
+                    navController.navigate(
+                        Screen.TakeAttendance.createRoute(
+                            classId = selectedClass.id,
+                            teacherId = userWithProfile.profile.id
+                        )
+                    )
+                }
+            },
+            onDismiss = {
+                showClassSelectorForAttendance = false
+            },
+            title = "Selecciona un curso para tomar asistencia"
+        )
+    }
+
+    // 🎯 Bottom Sheet: Selector de Curso para ANOTACIÓN (Paso 1/2)
+    if (showClassSelectorForAnnotation) {
+        ClassSelectorBottomSheet(
+            sheetState = annotationClassSheetState,
+            classes = dashboardState.classes,
+            onClassSelected = { selectedClass ->
+                scope.launch {
+                    annotationClassSheetState.hide()
+                    showClassSelectorForAnnotation = false
+                    selectedClassForAction = selectedClass
+                    studentViewModel.loadStudentsByClass(selectedClass.id)
+                    showStudentSelectorForAnnotation = true
+                }
+            },
+            onDismiss = {
+                showClassSelectorForAnnotation = false
+            },
+            title = "Selecciona un curso"
+        )
+    }
+
+    // 🎯 Bottom Sheet: Selector de Estudiante para ANOTACIÓN (Paso 2/2)
+    if (showStudentSelectorForAnnotation && selectedClassForAction != null) {
+        StudentSelectorBottomSheet(
+            sheetState = annotationStudentSheetState,
+            students = studentsByClass,
+            selectedClassName = selectedClassForAction!!.className,
+            onStudentSelected = { selectedStudent ->
+                scope.launch {
+                    annotationStudentSheetState.hide()
+                    showStudentSelectorForAnnotation = false
+                    navController.navigate(
+                        Screen.CreateAnnotation.createRoute(
+                            studentId = selectedStudent.id,
+                            classId = selectedClassForAction!!.id,
+                            teacherId = userWithProfile.profile.id
+                        )
+                    )
+                    selectedClassForAction = null
+                }
+            },
+            onDismiss = {
+                showStudentSelectorForAnnotation = false
+                selectedClassForAction = null
+            },
+            onBack = {
+                scope.launch {
+                    annotationStudentSheetState.hide()
+                    showStudentSelectorForAnnotation = false
+                    showClassSelectorForAnnotation = true
+                }
+            }
+        )
+    }
+
+    // 🎯 Bottom Sheet: Selector de Curso para CALENDARIO
+    if (showClassSelectorForCalendar) {
+        ClassSelectorBottomSheet(
+            sheetState = calendarSheetState,
+            classes = dashboardState.classes,
+            onClassSelected = { selectedClass ->
+                scope.launch {
+                    calendarSheetState.hide()
+                    showClassSelectorForCalendar = false
+                    navController.navigate(
+                        Screen.CreateEvent.createRoute(
+                            teacherId = userWithProfile.profile.id,
+                            classId = selectedClass.id
+                        )
+                    )
+                }
+            },
+            onDismiss = {
+                showClassSelectorForCalendar = false
+            },
+            title = "Selecciona un curso para crear evento"
+        )
+    }
 }
 
 // ============================================================================
 // COMPONENTES AUXILIARES Y UTILIDADES
 // ============================================================================
 
-/**
- * Convierte un timestamp Long a una cadena de fecha simple (ej: 15/05/2024).
- * @param timestamp El valor Long de tiempo en milisegundos.
- */
 fun formatTimestampToDateString(timestamp: Long): String {
-    // Usamos el locale por defecto del sistema
     val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
     return formatter.format(Date(timestamp))
 }
@@ -480,7 +617,6 @@ fun UpcomingEventsSection(events: List<SchoolEventEntity>) {
         Spacer(modifier = Modifier.height(16.dp))
 
         events.forEach { event ->
-            // ✅ CORRECCIÓN FINAL: Usamos 'eventDate' y lo formateamos
             EventItem(event.title, formatTimestampToDateString(event.eventDate))
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
         }
@@ -513,7 +649,6 @@ fun EventItem(title: String, date: String) {
     }
 }
 
-// El resto de componentes (StatCard, QuickActionCard, ClassCard) se mantienen sin cambios.
 @Composable
 fun StatCard(
     title: String,
