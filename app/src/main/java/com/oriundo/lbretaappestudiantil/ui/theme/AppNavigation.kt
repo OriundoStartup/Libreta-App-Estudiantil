@@ -243,7 +243,6 @@ fun AppNavigation(
                             popUpTo(0) { inclusive = true }
                         }
                     },
-                    viewModel = classViewModel
                 )
             } ?: run {
                 // Si no hay usuario, redirigir al login

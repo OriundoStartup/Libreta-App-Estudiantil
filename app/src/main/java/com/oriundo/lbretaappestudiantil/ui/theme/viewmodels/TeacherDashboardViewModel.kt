@@ -100,7 +100,5 @@ class TeacherDashboardViewModel @Inject constructor(
         }
     }
 
-    fun clearError() {
-        _dashboardState.value = _dashboardState.value.copy(error = null)
-    }
+
 }

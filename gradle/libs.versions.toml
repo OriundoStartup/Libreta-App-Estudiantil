@@ -2,7 +2,7 @@
 
 [versions]
 # Build
-agp = "8.13.0"
+agp = "8.13.1"
 kotlin = "2.0.21"
 ksp = "2.0.21-1.0.28"
 

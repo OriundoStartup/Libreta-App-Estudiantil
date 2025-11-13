@@ -66,11 +66,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
+import com.oriundo.lbretaappestudiantil.data.local.models.SchoolEventEntity // Asegúrate de que este import esté presente
 import com.oriundo.lbretaappestudiantil.domain.model.UserWithProfile
 import com.oriundo.lbretaappestudiantil.ui.theme.AppColors
 import com.oriundo.lbretaappestudiantil.ui.theme.Screen
-import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ClassViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.MessageViewModel
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.TeacherDashboardViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,20 +84,20 @@ fun TeacherDashboardScreen(
     onNavigateToCreateClass: () -> Unit,
     onNavigateToClassDetail: (Int) -> Unit,
     onLogout: () -> Unit,
-    viewModel: ClassViewModel
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
-    // ✅ ViewModel para notificaciones (usando MessageViewModel en lugar de MaterialRequest)
+    // ✅ Inicialización del TeacherDashboardViewModel
+    val dashboardViewModel: TeacherDashboardViewModel = hiltViewModel()
+    val dashboardState by dashboardViewModel.dashboardState.collectAsState()
+
+    // ViewModel para notificaciones (usando MessageViewModel)
     val messageViewModel: MessageViewModel = hiltViewModel()
     val unreadMessages by messageViewModel.unreadMessages.collectAsState()
 
-    // Observar los cursos del profesor
-    val teacherClasses by viewModel.teacherClasses.collectAsState()
-
-    // ✅ Cargar cursos y mensajes no leídos
+    // 🔄 Cargar datos del dashboard y mensajes
     LaunchedEffect(userWithProfile.profile.id) {
-        viewModel.loadTeacherClasses(userWithProfile.profile.id)
+        dashboardViewModel.loadDashboard(userWithProfile.profile.id)
         messageViewModel.loadUnreadMessagesForTeacher(userWithProfile.profile.id)
     }
 
@@ -115,7 +119,7 @@ fun TeacherDashboardScreen(
                     }
                 },
                 actions = {
-                    // ✅ Botón de notificaciones con badge conectado al MessageViewModel
+                    // Botón de notificaciones con badge conectado al MessageViewModel
                     IconButton(onClick = {
                         navController.navigate(
                             Screen.TeacherNotifications.createRoute(
@@ -236,7 +240,7 @@ fun TeacherDashboardScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Quick Stats - DINÁMICO
+            // Quick Stats - DINÁMICO con TeacherDashboardState
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -245,7 +249,7 @@ fun TeacherDashboardScreen(
             ) {
                 StatCard(
                     title = "Cursos",
-                    value = teacherClasses.size.toString(),
+                    value = dashboardState.classes.size.toString(),
                     icon = Icons.Filled.Class,
                     gradient = AppColors.PrimaryGradient,
                     modifier = Modifier.weight(1f),
@@ -253,7 +257,7 @@ fun TeacherDashboardScreen(
                 )
                 StatCard(
                     title = "Estudiantes",
-                    value = "0",
+                    value = dashboardState.totalStudents.toString(),
                     icon = Icons.Filled.People,
                     gradient = AppColors.SecondaryGradient,
                     modifier = Modifier.weight(1f),
@@ -271,7 +275,7 @@ fun TeacherDashboardScreen(
             ) {
                 StatCard(
                     title = "Anotaciones",
-                    value = "0",
+                    value = dashboardState.pendingAnnotations.toString(),
                     icon = Icons.AutoMirrored.Filled.Note,
                     gradient = AppColors.SuccessGradient,
                     modifier = Modifier.weight(1f),
@@ -279,12 +283,11 @@ fun TeacherDashboardScreen(
                 )
                 StatCard(
                     title = "Mensajes",
-                    value = unreadMessages.size.toString(),  // ✅ CONECTADO al MessageViewModel
+                    value = unreadMessages.size.toString(),
                     icon = Icons.AutoMirrored.Filled.Message,
                     gradient = AppColors.ErrorGradient,
                     modifier = Modifier.weight(1f),
                     onClick = {
-                        // ✅ CONECTADO: Click navega a notificaciones
                         navController.navigate(
                             Screen.TeacherNotifications.createRoute(
                                 userWithProfile.profile.id
@@ -296,7 +299,7 @@ fun TeacherDashboardScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Quick Actions Rapidas
+            // Quick Actions Rapidas (Se mantienen igual)
             Column(
                 modifier = Modifier.padding(horizontal = 24.dp)
             ) {
@@ -339,7 +342,6 @@ fun TeacherDashboardScreen(
                         icon = Icons.AutoMirrored.Filled.FactCheck,
                         color = MaterialTheme.colorScheme.secondary,
                         onClick = {
-                            // ✅ NAVEGACIÓN CORREGIDA: Ahora navega a la pantalla de la LISTA
                             navController.navigate(
                                 Screen.TeacherPendingJustifications.createRoute(userWithProfile.profile.id)
                             )
@@ -358,7 +360,7 @@ fun TeacherDashboardScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Mis Cursos - DINÁMICO
+            // Mis Cursos - DINÁMICO con TeacherDashboardState
             Column(
                 modifier = Modifier.padding(horizontal = 24.dp)
             ) {
@@ -373,7 +375,7 @@ fun TeacherDashboardScreen(
                         fontWeight = FontWeight.Bold
                     )
 
-                    if (teacherClasses.isNotEmpty()) {
+                    if (dashboardState.classes.isNotEmpty()) {
                         TextButton(onClick = { /* TODO: Ver todos */ }) {
                             Text("Ver todos")
                             Icon(
@@ -387,7 +389,7 @@ fun TeacherDashboardScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                if (teacherClasses.isEmpty()) {
+                if (dashboardState.classes.isEmpty()) {
                     // Estado vacío
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -426,11 +428,11 @@ fun TeacherDashboardScreen(
                     }
                 } else {
                     // Lista de cursos reales
-                    teacherClasses.forEach { classEntity ->
+                    dashboardState.classes.forEach { classEntity ->
                         ClassCard(
                             className = classEntity.className,
                             schoolName = classEntity.schoolName,
-                            studentCount = 0,
+                            studentCount = 0, // Nota: Requiere lógica adicional para ser preciso
                             code = classEntity.classCode,
                             recentActivity = "Todo al día",
                             onClick = { onNavigateToClassDetail(classEntity.id) }
@@ -440,11 +442,78 @@ fun TeacherDashboardScreen(
                 }
             }
 
+            // Próximos Eventos - AHORA CORREGIDO
+            if (dashboardState.upcomingEvents.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(32.dp))
+                UpcomingEventsSection(dashboardState.upcomingEvents)
+            }
+
             Spacer(modifier = Modifier.height(100.dp))
         }
     }
 }
 
+// ============================================================================
+// COMPONENTES AUXILIARES Y UTILIDADES
+// ============================================================================
+
+/**
+ * Convierte un timestamp Long a una cadena de fecha simple (ej: 15/05/2024).
+ * @param timestamp El valor Long de tiempo en milisegundos.
+ */
+fun formatTimestampToDateString(timestamp: Long): String {
+    // Usamos el locale por defecto del sistema
+    val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+    return formatter.format(Date(timestamp))
+}
+
+@Composable
+fun UpcomingEventsSection(events: List<SchoolEventEntity>) {
+    Column(
+        modifier = Modifier.padding(horizontal = 24.dp)
+    ) {
+        Text(
+            text = "Próximos Eventos",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        events.forEach { event ->
+            // ✅ CORRECCIÓN FINAL: Usamos 'eventDate' y lo formateamos
+            EventItem(event.title, formatTimestampToDateString(event.eventDate))
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        }
+    }
+}
+
+@Composable
+fun EventItem(title: String, date: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Filled.CalendarMonth,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.tertiary,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.size(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(date, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+// El resto de componentes (StatCard, QuickActionCard, ClassCard) se mantienen sin cambios.
 @Composable
 fun StatCard(
     title: String,
