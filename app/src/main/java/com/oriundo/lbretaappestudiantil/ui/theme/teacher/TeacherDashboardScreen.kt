@@ -75,6 +75,7 @@ import com.oriundo.lbretaappestudiantil.ui.theme.AppColors
 import com.oriundo.lbretaappestudiantil.ui.theme.Screen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.components.ClassSelectorBottomSheet
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.components.StudentSelectorBottomSheet
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ClassViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.MessageViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.TeacherDashboardViewModel
@@ -121,11 +122,23 @@ fun TeacherDashboardScreen(
     // ✅ ViewModel adicional para cargar estudiantes por curso
     val studentViewModel: StudentViewModel = hiltViewModel()
     val studentsByClass by studentViewModel.studentsByClass.collectAsState()
-
+    // ✅ Instanciar ClassViewModel para la carga/sincronización
+    val classViewModel: ClassViewModel = hiltViewModel()
+    // 🔄 Cargar datos del dashboard y mensajes
     // 🔄 Cargar datos del dashboard y mensajes
     LaunchedEffect(userWithProfile.profile.id) {
-        dashboardViewModel.loadDashboard(userWithProfile.profile.id)
-        messageViewModel.loadUnreadMessagesForTeacher(userWithProfile.profile.id)
+        // La ID del perfil local es el teacherId
+        val teacherId = userWithProfile.profile.id
+        // Asumimos que el UID de Firebase está en el perfil
+        val firebaseUid = userWithProfile.profile.firebaseUid
+
+        // 1. ✅ LLAMADA CRÍTICA: Forzar la sincronización antes de cargar.
+        // Esto resuelve el problema de inconsistencia de datos.
+        classViewModel.syncAndLoadTeacherClasses(teacherId, firebaseUid)
+
+        // 2. Mantener la carga de stats y mensajes
+        dashboardViewModel.loadDashboard(teacherId)
+        messageViewModel.loadUnreadMessagesForTeacher(teacherId)
     }
 
     Scaffold(

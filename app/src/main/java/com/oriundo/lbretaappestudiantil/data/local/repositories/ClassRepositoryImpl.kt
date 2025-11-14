@@ -219,31 +219,8 @@ class ClassRepositoryImpl @Inject constructor(
         return (letterPart + lastDigits).uppercase()
     }
 
-    /**
-     * Método auxiliar para migrar códigos existentes a mayúsculas
-     * Se puede llamar una vez para normalizar datos existentes
-     */
-    suspend fun migrateExistingCodesToUpperCase() {
-        try {
-            val allClasses = classDao.getAllClasses() // Necesitarás agregar este método al DAO
-
-            allClasses.forEach { classEntity ->
-                if (classEntity.classCode != classEntity.classCode.uppercase()) {
-                    val updatedClass = classEntity.copy(
-                        classCode = classEntity.classCode.uppercase()
-                    )
-                    classDao.updateClass(updatedClass)
-
-                    // También sincronizar con Firestore
-                    val firebaseUser = firebaseAuth.currentUser
-                    if (firebaseUser != null) {
-                        localDatabaseRepository.syncClassToFirestore(firebaseUser.uid, updatedClass)
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            // Log del error pero no interrumpir la aplicación
-            e.printStackTrace()
-        }
+    // ✅ IMPLEMENTACIÓN DE LA NUEVA FUNCIÓN DE SINCRONIZACIÓN
+    override suspend fun syncTeacherClassesAndStudents(firebaseUid: String?, localProfileId: Int): ApiResult<Unit> {
+        return localDatabaseRepository.forceTeacherDashboardSync(firebaseUid, localProfileId)
     }
 }

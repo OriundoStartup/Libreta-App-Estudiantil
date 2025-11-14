@@ -36,9 +36,6 @@ interface ClassDao {
     @Query("DELETE FROM classes WHERE id = :classId")
     suspend fun deleteClass(classId: Int)
 
-    // --- AGREGA ESTA FUNCIÓN ---
-    @Query("SELECT * FROM classes")
-    suspend fun getAllClasses(): List<ClassEntity>
     @Query("SELECT * FROM classes WHERE teacher_id = :teacherId AND is_active = 1")
     suspend fun getClassesByTeacherList(teacherId: Int): List<ClassEntity>
 }

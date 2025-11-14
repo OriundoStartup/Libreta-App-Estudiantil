@@ -19,9 +19,7 @@ interface ClassRepository {
     suspend fun getAndSyncClassByCodeFromRemote(classCode: String): ApiResult<ClassEntity>
     fun getClassesByTeacher(teacherId: Int): Flow<List<ClassEntity>>
     suspend fun updateClass(classEntity: ClassEntity): ApiResult<Unit>
-    /**
-     * Busca la clase en la base de datos remota (Firebase) por código,
-     * la guarda localmente (Room) y luego la devuelve.
-     */
+
+    suspend fun syncTeacherClassesAndStudents(firebaseUid: String?, localProfileId: Int): ApiResult<Unit>
 
 }

@@ -1,29 +1,25 @@
 package com.oriundo.lbretaappestudiantil.ui.theme.viewmodels
 
-import androidx.lifecycle.ViewModel // 1. Cambiamos a la clase base ViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.oriundo.lbretaappestudiantil.data.local.models.RelationshipType
 import com.oriundo.lbretaappestudiantil.data.local.models.StudentEntity
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
 import com.oriundo.lbretaappestudiantil.domain.model.StudentWithClass
-import com.oriundo.lbretaappestudiantil.domain.model.repository.StudentRepository // 2. Importamos la interfaz del Repository
+import com.oriundo.lbretaappestudiantil.domain.model.repository.StudentRepository
 import com.oriundo.lbretaappestudiantil.ui.theme.states.StudentUiState
-import dagger.hilt.android.lifecycle.HiltViewModel // 3. Importación clave de Hilt
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import javax.inject.Inject // 4. Importación para Inyección
+import javax.inject.Inject
 
-
-
-
-@HiltViewModel // 5. Anotación para que Hilt sepa cómo construir
-class StudentViewModel @Inject constructor( // 6. Inyección del Repository
-    private val studentRepository: StudentRepository // Se inyecta la interfaz
-) : ViewModel() { // 7. Heredamos de ViewModel
-
-    //  private val studentRepository = RepositoryProvider.provideStudentDao(database = LibretAppDatabase.getDatabase(application))
+@HiltViewModel
+class StudentViewModel @Inject constructor(
+    private val studentRepository: StudentRepository
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow<StudentUiState>(StudentUiState.Initial)
     val uiState: StateFlow<StudentUiState> = _uiState.asStateFlow()
@@ -37,17 +33,57 @@ class StudentViewModel @Inject constructor( // 6. Inyección del Repository
     private val _selectedStudent = MutableStateFlow<StudentEntity?>(null)
     val selectedStudent: StateFlow<StudentEntity?> = _selectedStudent.asStateFlow()
 
-    // ✅ NUEVO - Para selector de estudiantes en envío de mensajes
     private val _allStudents = MutableStateFlow<List<StudentWithClass>>(emptyList())
     val allStudents: StateFlow<List<StudentWithClass>> = _allStudents.asStateFlow()
 
+    // ⭐ NUEVO - Lista de estudiantes seleccionables (con apoderado válido)
+    private val _selectableStudents = MutableStateFlow<List<StudentWithClass>>(emptyList())
+    val selectableStudents: StateFlow<List<StudentWithClass>> = _selectableStudents.asStateFlow()
+
+    // ⭐ NUEVO - Indicador si hay estudiantes sin apoderado
+    private val _hasInvalidStudents = MutableStateFlow(false)
+    val hasInvalidStudents: StateFlow<Boolean> = _hasInvalidStudents.asStateFlow()
+
     fun loadAllStudents() {
         viewModelScope.launch {
-            // Necesitarás agregar este método al StudentRepository también
             studentRepository.getAllStudentsWithClass().collect { students ->
                 _allStudents.value = students
+
+                // ⭐ Filtrar estudiantes seleccionables
+                val selectable = students.filter { student ->
+                    student.student.primaryParentId != null &&
+                            student.student.primaryParentId != 0
+                }
+                _selectableStudents.value = selectable
+
+                // ⭐ Detectar si hay estudiantes inválidos
+                _hasInvalidStudents.value = students.size > selectable.size
             }
         }
+    }
+
+    /**
+     * ⭐ NUEVO - Filtrar estudiantes por búsqueda (solo entre los seleccionables)
+     */
+    fun getFilteredSelectableStudents(query: String): StateFlow<List<StudentWithClass>> {
+        val filteredFlow = MutableStateFlow<List<StudentWithClass>>(emptyList())
+
+        viewModelScope.launch {
+            selectableStudents.map { students ->
+                if (query.isBlank()) {
+                    students
+                } else {
+                    students.filter { studentWithClass ->
+                        studentWithClass.student.fullName.contains(query, ignoreCase = true) ||
+                                studentWithClass.classEntity.className.contains(query, ignoreCase = true)
+                    }
+                }
+            }.collect { filtered ->
+                filteredFlow.value = filtered
+            }
+        }
+
+        return filteredFlow.asStateFlow()
     }
 
     fun loadStudentsByClass(classId: Int) {
@@ -62,34 +98,21 @@ class StudentViewModel @Inject constructor( // 6. Inyección del Repository
 
     fun loadStudentsByParent(parentId: Int) {
         viewModelScope.launch {
-            // ⚠️ Usaremos 'apiResult' en lugar de 'it' para mayor claridad
             studentRepository.getStudentsByParent(parentId).collect { apiResult ->
-
                 when (apiResult) {
                     is ApiResult.Success -> {
-                        // ✅ CORRECCIÓN: Desenvolvemos el ApiResult y asignamos solo la data (la lista)
                         _studentsByParent.value = apiResult.data
-
-                        // Si tienes un estado de carga global, lo desactivas aquí
-                        // _dashboardState.value = _dashboardState.value.copy(isLoading = false)
                     }
-
                     is ApiResult.Loading -> {
-                        // Opcional: Si tienes un estado de carga, actívalo
-                        // _dashboardState.value = _dashboardState.value.copy(isLoading = true)
+                        // Estado de carga si es necesario
                     }
-
                     is ApiResult.Error -> {
-                        // Opcional: Emitir un evento de UI para mostrar un Snackbar con el error
-                        // emitEvent(ParentDashboardUiEvent.ShowSnackbar(apiResult.message))
+                        // Manejar error si es necesario
                     }
                 }
             }
         }
     }
-
-    // ELIMINADA: private fun Unit.collect(function: Any) {} (Código incorrecto)
-
 
     fun registerStudent(
         classId: Int,
@@ -109,7 +132,6 @@ class StudentViewModel @Inject constructor( // 6. Inyección del Repository
                 birthDate = birthDate
             )
 
-            // CORRECCIÓN: Se accede a result.data y se elimina el casting innecesario
             _uiState.value = when (result) {
                 is ApiResult.Success -> StudentUiState.StudentCreated(result.data)
                 is ApiResult.Error -> StudentUiState.Error(result.message)
@@ -121,7 +143,6 @@ class StudentViewModel @Inject constructor( // 6. Inyección del Repository
     fun loadStudentById(studentId: Int) {
         viewModelScope.launch {
             when (val result = studentRepository.getStudentById(studentId)) {
-                // CORRECCIÓN: Se accede a result.data y se elimina el casting y el wildcard <*>.
                 is ApiResult.Success -> _selectedStudent.value = result.data
                 is ApiResult.Error -> _selectedStudent.value = null
                 ApiResult.Loading -> {}

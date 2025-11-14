@@ -25,10 +25,10 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.Subject
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -39,6 +39,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -54,12 +55,10 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -75,11 +74,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.oriundo.lbretaappestudiantil.domain.model.StudentWithClass
 import com.oriundo.lbretaappestudiantil.ui.theme.AppColors
-import com.oriundo.lbretaappestudiantil.ui.theme.states.MessageUiState
+import com.oriundo.lbretaappestudiantil.ui.theme.states.BulkSendUiState
+import com.oriundo.lbretaappestudiantil.ui.theme.states.SendResult
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.MessageViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentViewModel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,35 +91,22 @@ fun SendMessageScreen(
     var content by remember { mutableStateOf("") }
     var showStudentSelector by remember { mutableStateOf(false) }
     var selectedStudents by remember { mutableStateOf<List<StudentWithClass>>(emptyList()) }
-    var showSuccessDialog by remember { mutableStateOf(false) }
+    var showResultDialog by remember { mutableStateOf(false) }
 
-    val sendState by messageViewModel.sendState.collectAsStateWithLifecycle()
-    val allStudents by studentViewModel.allStudents.collectAsStateWithLifecycle()
+    val bulkSendState by messageViewModel.bulkSendState.collectAsStateWithLifecycle()
+    val selectableStudents by studentViewModel.selectableStudents.collectAsStateWithLifecycle()
+    val hasInvalidStudents by studentViewModel.hasInvalidStudents.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
 
-    // Cargar estudiantes al iniciar
     LaunchedEffect(teacherId) {
         studentViewModel.loadAllStudents()
     }
-    // En SendMessageScreen, después de cargar estudiantes
-    LaunchedEffect(teacherId) {
-        studentViewModel.loadAllStudents()
 
-
-    }
-
-    // Manejar estados de envío
-    LaunchedEffect(sendState) {
-        when (sendState) {
-            is MessageUiState.Success -> {
-                showSuccessDialog = true
-                // ⭐ CORRECCIÓN 2: Limpiar campos al enviar con éxito
-                subject = ""
-                content = ""
-                selectedStudents = emptyList()
-            }
-            is MessageUiState.Error -> {
-                // El error se muestra en la UI, no es necesario hacer nada aquí
+    LaunchedEffect(bulkSendState) {
+        when (bulkSendState) {
+            is BulkSendUiState.Success,
+            is BulkSendUiState.PartialSuccess -> {
+                showResultDialog = true
             }
             else -> {}
         }
@@ -169,7 +154,6 @@ fun SendMessageScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Selector de destinatarios
                 item {
                     RecipientSelectorCard(
                         selectedStudents = selectedStudents,
@@ -177,7 +161,6 @@ fun SendMessageScreen(
                     )
                 }
 
-                // Campo de asunto
                 item {
                     SubjectField(
                         value = subject,
@@ -186,7 +169,6 @@ fun SendMessageScreen(
                     )
                 }
 
-                // Campo de mensaje
                 item {
                     MessageContentField(
                         value = content,
@@ -195,38 +177,30 @@ fun SendMessageScreen(
                     )
                 }
 
-                // Botón de envío
+                if (bulkSendState is BulkSendUiState.Loading) {
+                    item {
+                        SendingProgressCard(
+                            state = bulkSendState as BulkSendUiState.Loading
+                        )
+                    }
+                }
+
                 item {
                     SendMessageButton(
                         enabled = selectedStudents.isNotEmpty() &&
                                 subject.isNotBlank() &&
                                 content.isNotBlank(),
-                        isLoading = sendState is MessageUiState.Loading,
+                        isLoading = bulkSendState is BulkSendUiState.Loading,
                         onClick = {
                             focusManager.clearFocus()
-                            selectedStudents.forEach { studentWithClass ->
-                                // ⭐ CORRECCIÓN 3: Acceso correcto a primaryParentId
-                                studentWithClass.student.primaryParentId?.let { parentId ->
-                                    messageViewModel.sendMessageToParent(
-                                        teacherId = teacherId,
-                                        parentId = parentId,
-                                        studentId = studentWithClass.student.id,
-                                        subject = subject,
-                                        content = content
-                                    )
-                                }
-                            }
+                            messageViewModel.sendMessageToMultipleParents(
+                                teacherId = teacherId,
+                                selectedStudents = selectedStudents,
+                                subject = subject,
+                                content = content
+                            )
                         }
                     )
-                }
-
-                // Mensaje de error si existe
-                if (sendState is MessageUiState.Error) {
-                    item {
-                        ErrorMessageCard(
-                            message = (sendState as MessageUiState.Error).message
-                        )
-                    }
                 }
 
                 item {
@@ -234,10 +208,10 @@ fun SendMessageScreen(
                 }
             }
 
-            // Bottom Sheet para seleccionar destinatarios
             if (showStudentSelector) {
                 ParentSelectorBottomSheet(
-                    students = allStudents,
+                    selectableStudents = selectableStudents,
+                    hasInvalidStudents = hasInvalidStudents,
                     selectedStudents = selectedStudents,
                     onDismiss = { showStudentSelector = false },
                     onStudentsSelected = { selected ->
@@ -247,13 +221,19 @@ fun SendMessageScreen(
                 )
             }
 
-            // Diálogo de éxito
-            if (showSuccessDialog) {
-                SuccessDialog(
+            if (showResultDialog) {
+                ResultDialog(
+                    state = bulkSendState,
                     onDismiss = {
-                        showSuccessDialog = false
-                        messageViewModel.resetSendState()
-                        navController.popBackStack()
+                        showResultDialog = false
+                        messageViewModel.resetBulkSendState()
+
+                        if (bulkSendState is BulkSendUiState.Success) {
+                            subject = ""
+                            content = ""
+                            selectedStudents = emptyList()
+                            navController.popBackStack()
+                        }
                     }
                 )
             }
@@ -283,7 +263,6 @@ private fun RecipientSelectorCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar con contador
             Box(
                 modifier = Modifier
                     .size(48.dp)
@@ -309,7 +288,6 @@ private fun RecipientSelectorCard(
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // Información de selección
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = if (count > 0) "Apoderados seleccionados" else "Seleccionar apoderados",
@@ -319,7 +297,6 @@ private fun RecipientSelectorCard(
                 Text(
                     text = when (count) {
                         0 -> "Toca para seleccionar destinatarios"
-                        // ⭐ CORRECCIÓN 4: Acceso consistente a student.fullName
                         1 -> selectedStudents.first().student.fullName
                         else -> "${selectedStudents.first().student.fullName} y ${count - 1} más"
                     },
@@ -401,6 +378,47 @@ private fun MessageContentField(
 }
 
 @Composable
+private fun SendingProgressCard(
+    state: BulkSendUiState.Loading
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Enviando mensajes...",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "${state.sent}/${state.total}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            LinearProgressIndicator(
+                progress = { state.sent.toFloat() / state.total.toFloat() },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
 private fun SendMessageButton(
     enabled: Boolean,
     isLoading: Boolean,
@@ -440,38 +458,11 @@ private fun SendMessageButton(
     }
 }
 
-@Composable
-private fun ErrorMessageCard(message: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer
-        )
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Default.Error,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.error
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onErrorContainer
-            )
-        }
-    }
-}
-
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ParentSelectorBottomSheet(
-    students: List<StudentWithClass>,
+    selectableStudents: List<StudentWithClass>,
+    hasInvalidStudents: Boolean,
     selectedStudents: List<StudentWithClass>,
     onDismiss: () -> Unit,
     onStudentsSelected: (List<StudentWithClass>) -> Unit
@@ -479,20 +470,12 @@ private fun ParentSelectorBottomSheet(
     val tempSelectedStudents = remember { selectedStudents.toMutableStateList() }
     var searchQuery by remember { mutableStateOf("") }
 
-    // Filtra solo los estudiantes con PrimaryParentId válido (seleccionables)
-    val selectableStudents by remember {
-        derivedStateOf {
-            students.filter { it.student.primaryParentId != null && it.student.primaryParentId != 0 }
-        }
-    }
-
-    // Usar derivedStateOf para optimizar el filtrado de seleccionables
     val filteredStudents by remember {
         derivedStateOf {
             if (searchQuery.isBlank()) {
-                selectableStudents // Usar solo los seleccionables
+                selectableStudents
             } else {
-                selectableStudents.filter { // Filtrar la lista de seleccionables
+                selectableStudents.filter {
                     it.student.fullName.contains(searchQuery, ignoreCase = true) ||
                             it.classEntity.className.contains(searchQuery, ignoreCase = true)
                 }
@@ -500,14 +483,6 @@ private fun ParentSelectorBottomSheet(
         }
     }
 
-    // Detecta si hay estudiantes inválidos (sin PrimaryParentId)
-    val hasInvalidStudents by remember {
-        derivedStateOf {
-            students.any { it.student.primaryParentId == null || it.student.primaryParentId == 0 }
-        }
-    }
-
-    // Variable clave para la activación de botones
     val hasSelections by remember { derivedStateOf { tempSelectedStudents.isNotEmpty() } }
 
     ModalBottomSheet(
@@ -519,7 +494,6 @@ private fun ParentSelectorBottomSheet(
                 .fillMaxWidth()
                 .padding(bottom = 16.dp)
         ) {
-            // Header con título y acción principal
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -540,7 +514,6 @@ private fun ParentSelectorBottomSheet(
                     )
                 }
 
-                // Solo botón Aceptar en el header
                 TextButton(
                     onClick = {
                         if (hasSelections) {
@@ -555,28 +528,34 @@ private fun ParentSelectorBottomSheet(
                 }
             }
 
-            // ⚠️ ADVERTENCIA DE DATOS INCONSISTENTES
             if (hasInvalidStudents) {
-                Column(
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        text = "⚠️ Atención: Hay estudiantes sin apoderado primario asignado. Solo se pueden seleccionar destinatarios válidos.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.SemiBold
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
                     )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Text(
+                            text = "Algunos estudiantes no tienen apoderado primario asignado y no aparecen en la lista.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
                 }
-
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
             }
 
-            // Botón Limpiar (encima del campo de búsqueda)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -591,7 +570,6 @@ private fun ParentSelectorBottomSheet(
                 }
             }
 
-            // Campo de búsqueda
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -615,13 +593,12 @@ private fun ParentSelectorBottomSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Lista de estudiantes o estado vacío
             if (filteredStudents.isEmpty()) {
                 EmptyStateMessage(
                     message = if (selectableStudents.isEmpty())
                         "No hay estudiantes con apoderado primario asignado."
                     else
-                        "No se encontraron estudiantes seleccionables para \"$searchQuery\".",
+                        "No se encontraron estudiantes para \"$searchQuery\".",
                     icon = Icons.Default.School
                 )
             } else {
@@ -638,7 +615,7 @@ private fun ParentSelectorBottomSheet(
                             it.student.id == studentWithClass.student.id
                         }
 
-                        ParentRecipientListItem(
+                        StudentSelectorItem(
                             studentWithClass = studentWithClass,
                             isSelected = isSelected,
                             onClick = {
@@ -658,41 +635,29 @@ private fun ParentSelectorBottomSheet(
     }
 }
 
-
 @Composable
-private fun ParentRecipientListItem(
+private fun StudentSelectorItem(
     studentWithClass: StudentWithClass,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    // 1. Lógica de validación
-    val hasParent = studentWithClass.student.primaryParentId != null &&
-            studentWithClass.student.primaryParentId != 0
-
-    // 2. Control visual
-    val contentAlpha = if (hasParent) 1f else 0.5f
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = hasParent, onClick = onClick),
+            .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
-            containerColor = when {
-                isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                !hasParent -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
-                else -> MaterialTheme.colorScheme.surfaceVariant
-            }
+            containerColor = if (isSelected)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+            else
+                MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
         Row(
-            // 3. Aplicamos el factor de transparencia al contenido
             modifier = Modifier
                 .fillMaxWidth()
-                .alpha(contentAlpha)
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar del estudiante
             Box(
                 modifier = Modifier
                     .size(48.dp)
@@ -710,33 +675,19 @@ private fun ParentRecipientListItem(
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // Información del estudiante
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = studentWithClass.student.fullName,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold
                 )
-                Row {
-                    Text(
-                        text = studentWithClass.classEntity.className,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    // 4. Se mantiene el mensaje de error junto al nombre de la clase
-                    if (!hasParent) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = " (Sin Apoderado)",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+                Text(
+                    text = studentWithClass.classEntity.className,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
 
-            // Indicador de selección
             if (isSelected) {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
@@ -745,7 +696,6 @@ private fun ParentRecipientListItem(
                     modifier = Modifier.size(24.dp)
                 )
             } else {
-                // Indicador para guiar el click
                 Icon(
                     imageVector = Icons.Default.ChevronRight,
                     contentDescription = null,
@@ -785,9 +735,33 @@ private fun EmptyStateMessage(
 }
 
 @Composable
-private fun SuccessDialog(onDismiss: () -> Unit) {
-    val coroutineScope = rememberCoroutineScope()
+private fun ResultDialog(
+    state: BulkSendUiState,
+    onDismiss: () -> Unit
+) {
+    when (state) {
+        is BulkSendUiState.Success -> {
+            SuccessDialog(
+                successCount = state.results.size,
+                onDismiss = onDismiss
+            )
+        }
+        is BulkSendUiState.PartialSuccess -> {
+            PartialSuccessDialog(
+                successful = state.successful,
+                failed = state.failed,
+                onDismiss = onDismiss
+            )
+        }
+        else -> {}
+    }
+}
 
+@Composable
+private fun SuccessDialog(
+    successCount: Int,
+    onDismiss: () -> Unit
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = {
@@ -816,7 +790,7 @@ private fun SuccessDialog(onDismiss: () -> Unit) {
         },
         text = {
             Text(
-                text = "Tus mensajes han sido enviados exitosamente. Los apoderados los recibirán pronto.",
+                text = "Se enviaron $successCount mensajes exitosamente. Los apoderados los recibirán pronto.",
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -824,18 +798,94 @@ private fun SuccessDialog(onDismiss: () -> Unit) {
         },
         confirmButton = {
             Button(
-                onClick = {
-                    coroutineScope.launch {
-                        delay(200L)
-                        onDismiss()
-                    }
-                },
+                onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary
                 )
             ) {
                 Text("Entendido")
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.large
+    )
+}
+
+@Composable
+private fun PartialSuccessDialog(
+    successful: List<SendResult>,
+    failed: List<SendResult>,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.tertiaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+        },
+        title = {
+            Text(
+                text = "Envío Parcial",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "${successful.size} mensajes enviados, ${failed.size} fallaron.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                if (failed.isNotEmpty()) {
+                    HorizontalDivider()
+                    Text(
+                        text = "Fallos:",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 200.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(failed) { result ->
+                            Text(
+                                text = "• ${result.studentName}: ${result.error}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Text("Cerrar")
             }
         },
         containerColor = MaterialTheme.colorScheme.surface,

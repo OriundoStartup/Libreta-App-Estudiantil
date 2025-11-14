@@ -5,12 +5,15 @@ import androidx.lifecycle.viewModelScope
 import com.oriundo.lbretaappestudiantil.data.local.models.MessageEntity
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
 import com.oriundo.lbretaappestudiantil.domain.model.ConversationThread
+import com.oriundo.lbretaappestudiantil.domain.model.StudentWithClass
 import com.oriundo.lbretaappestudiantil.domain.model.repository.MessageRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.ProfileRepository
+import com.oriundo.lbretaappestudiantil.ui.theme.states.BulkSendUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.states.ConversationUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.states.MessageUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.states.MessagesListUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.states.ProfileListUiState
+import com.oriundo.lbretaappestudiantil.ui.theme.states.SendResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +30,10 @@ class MessageViewModel @Inject constructor(
     // ========== ESTADOS PARA MENSAJES ==========
     private val _sendState = MutableStateFlow<MessageUiState>(MessageUiState.Initial)
     val sendState: StateFlow<MessageUiState> = _sendState.asStateFlow()
+
+    // ⭐ NUEVO - Estado para envío masivo
+    private val _bulkSendState = MutableStateFlow<BulkSendUiState>(BulkSendUiState.Initial)
+    val bulkSendState: StateFlow<BulkSendUiState> = _bulkSendState.asStateFlow()
 
     private val _messagesByUser = MutableStateFlow<List<MessageEntity>>(emptyList())
     val messagesByUser: StateFlow<List<MessageEntity>> = _messagesByUser.asStateFlow()
@@ -57,11 +64,121 @@ class MessageViewModel @Inject constructor(
     private val _teachersListState = MutableStateFlow<ProfileListUiState>(ProfileListUiState.Initial)
     val teachersListState: StateFlow<ProfileListUiState> = _teachersListState.asStateFlow()
 
-    // ========== FUNCIONES PARA CONVERSACIONES ==========
+    // ========== ⭐ NUEVA FUNCIÓN DE ENVÍO MASIVO ==========
 
     /**
-     * Cargar todas las conversaciones para el padre
+     * Envía un mensaje a múltiples apoderados de manera simultánea.
+     * Reporta progreso y resultados individuales.
      */
+    fun sendMessageToMultipleParents(
+        teacherId: Int,
+        selectedStudents: List<StudentWithClass>,
+        subject: String,
+        content: String
+    ) {
+        viewModelScope.launch {
+            // Validación inicial
+            if (teacherId <= 0) {
+                _bulkSendState.value = BulkSendUiState.PartialSuccess(
+                    successful = emptyList(),
+                    failed = selectedStudents.map {
+                        SendResult(
+                            studentName = it.student.fullName,
+                            studentId = it.student.id,
+                            success = false,
+                            error = "ID de profesor inválido"
+                        )
+                    }
+                )
+                return@launch
+            }
+
+            val total = selectedStudents.size
+            val results = mutableListOf<SendResult>()
+            var sentCount = 0
+
+            _bulkSendState.value = BulkSendUiState.Loading(sent = 0, total = total)
+
+            // Enviar a cada apoderado
+            selectedStudents.forEach { studentWithClass ->
+                val parentId = studentWithClass.student.primaryParentId
+                val studentId = studentWithClass.student.id
+                val studentName = studentWithClass.student.fullName
+
+                val result = if (parentId == null || parentId <= 0) {
+                    // Sin apoderado válido
+                    SendResult(
+                        studentName = studentName,
+                        studentId = studentId,
+                        success = false,
+                        error = "Estudiante sin apoderado primario asignado"
+                    )
+                } else {
+                    // Intentar enviar
+                    when (val apiResult = messageRepository.sendMessage(
+                        senderId = teacherId,
+                        recipientId = parentId,
+                        studentId = studentId,
+                        subject = subject,
+                        content = content
+                    )) {
+                        is ApiResult.Success -> {
+                            SendResult(
+                                studentName = studentName,
+                                studentId = studentId,
+                                success = true
+                            )
+                        }
+                        is ApiResult.Error -> {
+                            SendResult(
+                                studentName = studentName,
+                                studentId = studentId,
+                                success = false,
+                                error = apiResult.message
+                            )
+                        }
+                        ApiResult.Loading -> {
+                            SendResult(
+                                studentName = studentName,
+                                studentId = studentId,
+                                success = false,
+                                error = "Error inesperado en el envío"
+                            )
+                        }
+                    }
+                }
+
+                results.add(result)
+                sentCount++
+
+                // Actualizar progreso
+                _bulkSendState.value = BulkSendUiState.Loading(sent = sentCount, total = total)
+            }
+
+            // Estado final
+            val successful = results.filter { it.success }
+            val failed = results.filter { !it.success }
+
+            _bulkSendState.value = if (failed.isEmpty()) {
+                BulkSendUiState.Success(results = results)
+            } else {
+                BulkSendUiState.PartialSuccess(
+                    successful = successful,
+                    failed = failed
+                )
+            }
+        }
+    }
+
+    /**
+     * Resetear el estado de envío masivo
+     */
+    fun resetBulkSendState() {
+        _bulkSendState.value = BulkSendUiState.Initial
+    }
+
+    // ========== FUNCIONES PARA CONVERSACIONES ==========
+
     fun loadConversationsForParent(parentId: Int) {
         viewModelScope.launch {
             _conversationsListState.value = MessagesListUiState.Loading
@@ -82,9 +199,6 @@ class MessageViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Cargar conversación específica con información del profesor
-     */
     fun loadConversationWithTeacher(parentId: Int, teacherId: Int) {
         viewModelScope.launch {
             _currentConversationState.value = ConversationUiState.Loading
@@ -123,38 +237,30 @@ class MessageViewModel @Inject constructor(
         }
     }
 
-
-    /**
-     * Enviar respuesta en conversación
-     */
     fun sendReply(
         senderId: Int,
         recipientId: Int,
-        studentId: Int, // <-- ¡CORRECCIÓN CLAVE! Ya no es Int.Companion
+        studentId: Int,
         content: String,
         parentMessageId: Int? = null
     ) {
         viewModelScope.launch {
             _sendState.value = MessageUiState.Loading
 
-            // --- 1. CLÁUSULA DE GUARDA (VALIDACIÓN) ---
-            // Si el ID no es válido (gracias a que ahora es Int, esto funciona)
             if (studentId <= 0) {
                 _sendState.value = MessageUiState.Error("ID de estudiante no válido. (ID: $studentId)")
                 return@launch
             }
 
-            // --- 2. LÓGICA DE ENVÍO ---
             val result = messageRepository.sendMessage(
                 senderId = senderId,
                 recipientId = recipientId,
-                studentId = studentId, // <-- Pasa el Int
+                studentId = studentId,
                 subject = "Re: Conversación",
                 content = content,
                 parentMessageId = parentMessageId
             )
 
-            // --- 3. ASIGNACIÓN DE ESTADO FINAL ---
             _sendState.value = when (result) {
                 is ApiResult.Success -> MessageUiState.Success(result.data)
                 is ApiResult.Error -> MessageUiState.Error(result.message)
@@ -163,9 +269,6 @@ class MessageViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Marcar todos los mensajes de una conversación como leídos
-     */
     fun markConversationAsRead(parentId: Int, teacherId: Int) {
         viewModelScope.launch {
             _conversationMessages.value
@@ -176,9 +279,6 @@ class MessageViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Cargar la lista de profesores para que el apoderado pueda seleccionarlos
-     */
     fun loadAllTeachersAsRecipients() {
         viewModelScope.launch {
             _teachersListState.value = ProfileListUiState.Loading
@@ -201,9 +301,6 @@ class MessageViewModel @Inject constructor(
 
     // ========== FUNCIONES PARA MENSAJES GENERALES ==========
 
-    /**
-     * Cargar mensajes enviados por un profesor
-     */
     fun loadSentMessagesByTeacher(teacherId: Int) {
         viewModelScope.launch {
             try {
@@ -216,9 +313,6 @@ class MessageViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Enviar mensaje general
-     */
     fun sendMessage(
         senderId: Int,
         recipientId: Int,
@@ -228,19 +322,15 @@ class MessageViewModel @Inject constructor(
         parentMessageId: Int? = null
     ) {
         viewModelScope.launch {
-            // --- 1. CLÁUSULA DE GUARDA (VALIDACIÓN) ---
-            // Validación básica de IDs. Un ID de 0 casi siempre es inválido.
             if (senderId <= 0 || recipientId <= 0) {
                 _sendState.value = MessageUiState.Error("ID de remitente o destinatario no válido. (Remitente: $senderId, Destinatario: $recipientId)")
                 return@launch
             }
-            // (Opcional: studentId también podría ser validado si no es nulo)
             if (studentId != null && studentId <= 0) {
                 _sendState.value = MessageUiState.Error("ID de estudiante no válido. (ID: $studentId)")
                 return@launch
             }
 
-            // --- 2. LÓGICA DE ENVÍO ---
             _sendState.value = MessageUiState.Loading
 
             val result = messageRepository.sendMessage(
@@ -252,7 +342,6 @@ class MessageViewModel @Inject constructor(
                 parentMessageId = parentMessageId
             )
 
-            // --- 3. ASIGNACIÓN DE ESTADO FINAL ---
             _sendState.value = when (result) {
                 is ApiResult.Success -> MessageUiState.Success(result.data)
                 is ApiResult.Error -> MessageUiState.Error(result.message)
@@ -261,30 +350,14 @@ class MessageViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Enviar mensaje de profesor a padre
-     */
-    // Archivo: MessageViewModel.kt
-
-// ... dentro de la clase MessageViewModel: ViewModel() { ...
-
-    /**
-     * Enviar mensaje de Profesor (teacherId) a Apoderado (parentId)
-     * Requiere studentId para contexto de la conversación.
-     */
-    // REEMPLAZAR esta función en su totalidad (líneas ~310 a ~330)
-    /**
-     * Enviar mensaje de profesor a padre (Añadido studentId para contexto de la conversación)
-     */
     fun sendMessageToParent(
         teacherId: Int,
         parentId: Int,
-        studentId: Int, // <-- ¡ESTE ES EL PARÁMETRO FALTANTE!
+        studentId: Int,
         subject: String,
         content: String
     ) {
         viewModelScope.launch {
-            // Validación básica de IDs
             if (teacherId <= 0 || parentId <= 0 || studentId <= 0) {
                 _sendState.value = MessageUiState.Error("Error de ID. El remitente, destinatario o estudiante no es válido.")
                 return@launch
@@ -295,12 +368,11 @@ class MessageViewModel @Inject constructor(
             val result = messageRepository.sendMessage(
                 senderId = teacherId,
                 recipientId = parentId,
-                studentId = studentId, // <-- Ahora se pasa al repositorio
+                studentId = studentId,
                 subject = subject,
                 content = content
             )
 
-            // Este 'when' ya es exhaustivo, pero lo mantenemos
             _sendState.value = when (result) {
                 is ApiResult.Success -> MessageUiState.Success(result.data)
                 is ApiResult.Error -> MessageUiState.Error(result.message)
@@ -309,11 +381,6 @@ class MessageViewModel @Inject constructor(
         }
     }
 
-// ...
-
-    /**
-     * Cargar mensajes por usuario
-     */
     fun loadMessagesByUser(userId: Int) {
         viewModelScope.launch {
             messageRepository.getMessagesByUser(userId).collect { messages ->
@@ -322,9 +389,6 @@ class MessageViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Cargar conversación entre dos usuarios
-     */
     fun loadConversation(user1: Int, user2: Int) {
         viewModelScope.launch {
             messageRepository.getConversation(user1, user2).collect { messages ->
@@ -333,9 +397,6 @@ class MessageViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Cargar contador de mensajes no leídos
-     */
     fun loadUnreadCount(userId: Int) {
         viewModelScope.launch {
             messageRepository.getUnreadCount(userId).collect { count ->
@@ -344,25 +405,16 @@ class MessageViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Marcar mensaje como leído
-     */
     fun markAsRead(messageId: Int) {
         viewModelScope.launch {
             messageRepository.markAsRead(messageId)
         }
     }
 
-    /**
-     * Resetear estado de envío
-     */
     fun resetSendState() {
         _sendState.value = MessageUiState.Initial
     }
 
-    /**
-     * Cargar mensajes no leídos para un profesor
-     */
     fun loadUnreadMessagesForTeacher(teacherId: Int) {
         viewModelScope.launch {
             try {
@@ -375,9 +427,6 @@ class MessageViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Marcar mensaje como leído (alias para compatibilidad)
-     */
     fun markMessageAsRead(messageId: Int) {
         viewModelScope.launch {
             messageRepository.markAsRead(messageId)

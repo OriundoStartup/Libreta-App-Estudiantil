@@ -68,6 +68,19 @@ class LocalDatabaseRepository @Inject constructor(
         }
     }
 
+    suspend fun forceTeacherDashboardSync(firebaseUid: String?, localProfileId: Int): ApiResult<Unit> {
+        return try {
+            if (firebaseUid == null) {
+                return ApiResult.Error("Firebase UID no puede ser nulo para forzar la sincronización.")
+            }
+            syncTeacherClasses(firebaseUid, localProfileId)
+            syncTeacherStudents(localProfileId)
+            ApiResult.Success(Unit)
+        } catch (e: Exception) {
+            ApiResult.Error("Error forzando sincronización: ${e.message}", e)
+        }
+    }
+
     // =====================================================
     // SINCRONIZAR USER Y PROFILE
     // =====================================================
