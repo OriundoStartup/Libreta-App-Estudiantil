@@ -125,7 +125,6 @@ fun TeacherDashboardScreen(
     // ✅ Instanciar ClassViewModel para la carga/sincronización
     val classViewModel: ClassViewModel = hiltViewModel()
     // 🔄 Cargar datos del dashboard y mensajes
-    // 🔄 Cargar datos del dashboard y mensajes
     LaunchedEffect(userWithProfile.profile.id) {
         // La ID del perfil local es el teacherId
         val teacherId = userWithProfile.profile.id
@@ -329,7 +328,7 @@ fun TeacherDashboardScreen(
                     modifier = Modifier.weight(1f),
                     onClick = {
                         navController.navigate(
-                            Screen.TeacherNotifications.createRoute(
+                            Screen.TeacherMessages.createRoute(
                                 userWithProfile.profile.id
                             )
                         )

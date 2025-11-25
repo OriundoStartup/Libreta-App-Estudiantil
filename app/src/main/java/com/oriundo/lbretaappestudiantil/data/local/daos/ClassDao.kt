@@ -31,10 +31,11 @@ interface ClassDao {
     @Query("SELECT COUNT(*) FROM classes WHERE UPPER(class_code) = UPPER(:code)")
     suspend fun codeExists(code: String): Int
 
-
-
     @Query("DELETE FROM classes WHERE id = :classId")
     suspend fun deleteClass(classId: Int)
+
+    @Query("SELECT * FROM classes WHERE teacher_id = :teacherId AND is_active = 1")
+    suspend fun getClassesForTeacher(teacherId: Int): List<ClassEntity>
 
     @Query("SELECT * FROM classes WHERE teacher_id = :teacherId AND is_active = 1")
     suspend fun getClassesByTeacherList(teacherId: Int): List<ClassEntity>

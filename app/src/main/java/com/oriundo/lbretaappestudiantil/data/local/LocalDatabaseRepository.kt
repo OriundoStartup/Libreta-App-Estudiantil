@@ -3,16 +3,22 @@ package com.oriundo.lbretaappestudiantil.data.local
 import com.google.firebase.firestore.FirebaseFirestore
 import com.oriundo.lbretaappestudiantil.data.local.daos.AbsenceJustificationDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.AnnotationDao
+import com.oriundo.lbretaappestudiantil.data.local.daos.AttendanceDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.ClassDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.ProfileDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.SchoolEventDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.StudentDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.StudentParentRelationDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.UserDao
-import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationEntity
+import com.oriundo.lbretaappestudiantil.data.local.models.AbsenceJustificationEntity
+import com.oriundo.lbretaappestudiantil.data.local.models.AttendanceEntity
+import com.oriundo.lbretaappestudiantil.data.local.models.AttendanceStatus
 import com.oriundo.lbretaappestudiantil.data.local.models.ClassEntity
+import com.oriundo.lbretaappestudiantil.data.local.models.JustificationStatus
 import com.oriundo.lbretaappestudiantil.data.local.models.ProfileEntity
+import com.oriundo.lbretaappestudiantil.data.local.models.RelationshipType
 import com.oriundo.lbretaappestudiantil.data.local.models.StudentEntity
+import com.oriundo.lbretaappestudiantil.data.local.models.StudentParentRelation
 import com.oriundo.lbretaappestudiantil.data.local.models.SyncStatus
 import com.oriundo.lbretaappestudiantil.data.local.models.UserEntity
 import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
@@ -20,6 +26,7 @@ import com.oriundo.lbretaappestudiantil.domain.model.UserWithProfile
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
+
 
 @Singleton
 class LocalDatabaseRepository @Inject constructor(
@@ -31,15 +38,21 @@ class LocalDatabaseRepository @Inject constructor(
     private val schoolEventDao: SchoolEventDao,
     private val studentParentRelationDao: StudentParentRelationDao,
     private val annotationDao: AnnotationDao,
-    private val absenceJustificationDao: AbsenceJustificationDao
+    private val absenceJustificationDao: AbsenceJustificationDao,
+    private val attendanceDao: AttendanceDao
 ) {
 
     // =====================================================
     // SINCRONIZACIÓN COMPLETA DESPUÉS DEL LOGIN
     // =====================================================
 
+    /**
+     * ✅ ACTUALIZADO: Incluir sincronización de asistencia en syncAllUserDataFromFirestore
+     */
     suspend fun syncAllUserDataFromFirestore(firebaseUid: String): ApiResult<Unit> {
         return try {
+            println("🔄 Iniciando sincronización completa para usuario: $firebaseUid")
+
             // 1. Sincronizar User y Profile
             syncUserAndProfile(firebaseUid)
 
@@ -49,34 +62,58 @@ class LocalDatabaseRepository @Inject constructor(
             val localProfile = profileDao.getProfileByUserId(localUser.id)
                 ?: return ApiResult.Error("No se pudo obtener el perfil local después de sincronizar")
 
-            // 3. Si es profesor, sincronizar sus clases Y estudiantes
+            // 3. Si es profesor, sincronizar: clases, estudiantes, anotaciones, justificaciones Y ASISTENCIA
             if (localProfile.isTeacher) {
+                println("👨‍🏫 Usuario es profesor, sincronizando datos de profesor...")
                 syncTeacherClasses(firebaseUid, localProfile.id)
-                syncTeacherStudents(localProfile.id)  // ✅ AGREGAR ESTA LÍNEA
-                //  Sincronizar anotaciones
+                syncTeacherStudents(localProfile.id)
                 syncAnnotations(firebaseUid, localProfile.id)
+                syncPendingJustifications(localProfile.id)
+                // ✅ NUEVO: Sincronizar asistencia
+                syncTeacherAttendance(localProfile.id)
             }
 
-            // 4. Si es apoderado, sincronizar sus estudiantes
+            // 4. Si es apoderado, sincronizar sus estudiantes Y su asistencia
             if (localProfile.isParent) {
+                println("👨‍👩‍👧 Usuario es apoderado, sincronizando estudiantes...")
                 syncParentStudents(firebaseUid, localProfile.id)
+
+                // ✅ NUEVO: Sincronizar asistencia de cada estudiante
+                val parentStudents = studentDao.getStudentsByParentId(localProfile.id)
+                parentStudents.forEach { student ->
+                    syncStudentAttendance(student.id)
+                }
             }
 
+            println("✅ Sincronización completa finalizada exitosamente")
             ApiResult.Success(Unit)
         } catch (e: Exception) {
+            println("❌ Error en sincronización completa: ${e.message}")
+            e.printStackTrace()
             ApiResult.Error("Error sincronizando datos: ${e.message}", e)
         }
     }
 
+    /**
+     * ✅ ACTUALIZADO: Fuerza la sincronización del dashboard del profesor
+     * Incluye justificaciones
+     */
     suspend fun forceTeacherDashboardSync(firebaseUid: String?, localProfileId: Int): ApiResult<Unit> {
         return try {
             if (firebaseUid == null) {
                 return ApiResult.Error("Firebase UID no puede ser nulo para forzar la sincronización.")
             }
+
+            println("🔄 Forzando sincronización del dashboard del profesor...")
             syncTeacherClasses(firebaseUid, localProfileId)
             syncTeacherStudents(localProfileId)
+            // ✅ CRÍTICO: También sincronizar justificaciones al refrescar
+            syncPendingJustifications(localProfileId)
+
+            println("✅ Sincronización forzada completada")
             ApiResult.Success(Unit)
         } catch (e: Exception) {
+            println("❌ Error forzando sincronización: ${e.message}")
             ApiResult.Error("Error forzando sincronización: ${e.message}", e)
         }
     }
@@ -87,6 +124,8 @@ class LocalDatabaseRepository @Inject constructor(
 
     private suspend fun syncUserAndProfile(firebaseUid: String) {
         try {
+            println("👤 Sincronizando usuario y perfil...")
+
             // Obtener datos de Firestore
             val firestoreDoc = firestore.collection("users")
                 .document(firebaseUid)
@@ -136,6 +175,7 @@ class LocalDatabaseRepository @Inject constructor(
                         lastSyncedAt = System.currentTimeMillis()
                     )
                 )
+                println("✅ Usuario y perfil creados")
             } else {
                 // Actualizar usuario existente
                 userDao.updateUser(
@@ -164,6 +204,7 @@ class LocalDatabaseRepository @Inject constructor(
                         )
                     )
                 }
+                println("✅ Usuario y perfil actualizados")
             }
         } catch (e: Exception) {
             throw Exception("Error sincronizando usuario y perfil: ${e.message}")
@@ -176,11 +217,15 @@ class LocalDatabaseRepository @Inject constructor(
 
     private suspend fun syncTeacherClasses(firebaseUid: String, localProfileId: Int) {
         try {
+            println("📚 Sincronizando clases del profesor...")
+
             val classesSnapshot = firestore.collection("users")
                 .document(firebaseUid)
                 .collection("classes")
                 .get()
                 .await()
+
+            println("📚 Clases encontradas en Firestore: ${classesSnapshot.size()}")
 
             for (doc in classesSnapshot.documents) {
                 val className = doc.getString("className") ?: continue
@@ -208,6 +253,7 @@ class LocalDatabaseRepository @Inject constructor(
                             lastSyncedAt = System.currentTimeMillis()
                         )
                     )
+                    println("✅ Clase creada: $className ($classCode)")
                 } else {
                     classDao.updateClass(
                         existingClass.copy(
@@ -221,20 +267,81 @@ class LocalDatabaseRepository @Inject constructor(
                             lastSyncedAt = System.currentTimeMillis()
                         )
                     )
+                    println("✅ Clase actualizada: $className ($classCode)")
                 }
             }
         } catch (e: Exception) {
-            println("Error sincronizando clases: ${e.message}")
+            println("❌ Error sincronizando clases: ${e.message}")
+            e.printStackTrace()
         }
     }
+
+    suspend fun syncClassToFirestore(firebaseUid: String, classEntity: ClassEntity): ApiResult<Unit> {
+        return try {
+            println("🔄 Sincronizando clase a Firestore: ${classEntity.classCode}")
+
+            // Usar el classCode como ID en la colección global para evitar duplicados y facilitar búsquedas
+            val classDocRef = firestore.collection("classes").document(classEntity.classCode)
+
+            // Datos para la colección global /classes, que puede ser buscada por apoderados
+            val classDataGlobal = hashMapOf(
+                "code" to classEntity.classCode.uppercase(),
+                "name" to classEntity.className,
+                "school" to classEntity.schoolName,
+                "teacherId" to firebaseUid, // Usar el UID del profesor para referencia cruzada
+                "gradeLevel" to classEntity.gradeLevel,
+                "academicYear" to classEntity.academicYear,
+                "isActive" to classEntity.isActive,
+                "createdAt" to classEntity.createdAt
+            )
+
+            // Datos para la subcolección del usuario /users/{uid}/classes
+            val classDataUser = hashMapOf(
+                "classCode" to classEntity.classCode.uppercase(),
+                "className" to classEntity.className,
+                "schoolName" to classEntity.schoolName,
+                "gradeLevel" to classEntity.gradeLevel,
+                "academicYear" to classEntity.academicYear,
+                "isActive" to classEntity.isActive,
+                "createdAt" to classEntity.createdAt
+            )
+
+            // Escribir en un batch para asegurar que ambas operaciones se completen o fallen juntas
+            firestore.runBatch { batch ->
+                // 1. Escribir/Sobrescribir en la colección global
+                batch.set(classDocRef, classDataGlobal)
+
+                // 2. Escribir/Sobrescribir en la subcolección del usuario. Usar el código como ID también.
+                val userClassDocRef = firestore.collection("users")
+                    .document(firebaseUid)
+                    .collection("classes")
+                    .document(classEntity.classCode)
+                batch.set(userClassDocRef, classDataUser)
+            }.await()
+
+            println("✅ Clase ${classEntity.classCode} sincronizada en Firestore (global y usuario)")
+            ApiResult.Success(Unit)
+
+        } catch (e: Exception) {
+            println("❌ Error sincronizando clase ${classEntity.classCode} a Firestore: ${e.message}")
+            e.printStackTrace()
+            // Es importante no bloquear al usuario, así que se podría retornar éxito aquí si la lógica de negocio lo permite
+            // Pero para ser más estrictos, retornamos el error.
+            ApiResult.Error("Error al guardar la clase en la nube: ${e.message}", e)
+        }
+    }
+
     // =====================================================
     // SINCRONIZAR ESTUDIANTES DE LAS CLASES DEL PROFESOR
     // =====================================================
 
     private suspend fun syncTeacherStudents(localProfileId: Int) {
         try {
+            println("👥 Sincronizando estudiantes del profesor...")
+
             // 1. Obtener todas las clases del profesor desde Room
             val teacherClassesList = classDao.getClassesByTeacherList(localProfileId)
+            println("📚 Clases del profesor: ${teacherClassesList.size}")
 
             teacherClassesList.forEach { classEntity ->
                 // 2. Para cada clase, buscar estudiantes en Firestore
@@ -286,6 +393,8 @@ class LocalDatabaseRepository @Inject constructor(
                     val lastName = studentDataDoc.getString("lastName") ?: return@forEach
                     val birthDate = studentDataDoc.getLong("birthDate")
                     val photoUrl = studentDataDoc.getString("photoUrl")
+                    // ✅ CRÍTICO: Obtener el Firebase UID del estudiante
+                    val firebaseUid = studentDataDoc.getString("firebaseUid") ?: studentId
 
                     // 6. Verificar si el estudiante ya existe en Room
                     val existingStudent = studentDao.getStudentByRut(rut)
@@ -301,11 +410,12 @@ class LocalDatabaseRepository @Inject constructor(
                                 birthDate = birthDate,
                                 photoUrl = photoUrl,
                                 firestoreId = studentId,
+                                firebaseUid = firebaseUid, // ✅ Guardar Firebase UID
                                 syncStatus = SyncStatus.SYNCED,
                                 lastSyncedAt = System.currentTimeMillis()
                             )
                         )
-                        println("✅ Estudiante creado: $firstName $lastName")
+                        println("✅ Estudiante creado: $firstName $lastName (UID: $firebaseUid)")
                     } else {
                         // Actualizar estudiante existente
                         studentDao.updateStudent(
@@ -316,11 +426,12 @@ class LocalDatabaseRepository @Inject constructor(
                                 birthDate = birthDate,
                                 photoUrl = photoUrl,
                                 firestoreId = studentId,
+                                firebaseUid = firebaseUid, // ✅ Actualizar Firebase UID
                                 syncStatus = SyncStatus.SYNCED,
                                 lastSyncedAt = System.currentTimeMillis()
                             )
                         )
-                        println("✅ Estudiante actualizado: $firstName $lastName")
+                        println("✅ Estudiante actualizado: $firstName $lastName (UID: $firebaseUid)")
                     }
                 }
             }
@@ -336,11 +447,15 @@ class LocalDatabaseRepository @Inject constructor(
 
     private suspend fun syncParentStudents(firebaseUid: String, localProfileId: Int) {
         try {
+            println("👨‍👩‍👧 Sincronizando estudiantes del apoderado...")
+
             val studentsSnapshot = firestore.collection("users")
                 .document(firebaseUid)
                 .collection("students")
                 .get()
                 .await()
+
+            println("👥 Estudiantes encontrados: ${studentsSnapshot.size()}")
 
             for (doc in studentsSnapshot.documents) {
                 val rut = doc.getString("rut") ?: continue
@@ -349,13 +464,15 @@ class LocalDatabaseRepository @Inject constructor(
                 val classCode = (doc.getString("classCode") ?: continue).uppercase()
                 val birthDate = doc.getLong("birthDate")
                 val photoUrl = doc.getString("photoUrl")
+                // ✅ CRÍTICO: Obtener el Firebase UID del estudiante
+                val studentFirebaseUid = doc.getString("firebaseUid") ?: doc.id
 
                 // ✅ CAMPOS DE RELACIÓN
                 val relationshipString = doc.getString("relationshipType") ?: "OTHER"
                 val relationshipType = try {
-                    com.oriundo.lbretaappestudiantil.data.local.models.RelationshipType.valueOf(relationshipString)
+                    RelationshipType.valueOf(relationshipString)
                 } catch (_: Exception) {
-                    com.oriundo.lbretaappestudiantil.data.local.models.RelationshipType.OTHER
+                    RelationshipType.OTHER
                 }
                 val isPrimary = doc.getBoolean("isPrimary") ?: false
 
@@ -493,11 +610,12 @@ class LocalDatabaseRepository @Inject constructor(
                             birthDate = birthDate,
                             photoUrl = photoUrl,
                             firestoreId = doc.id, // Guardar ID de Firestore
+                            firebaseUid = studentFirebaseUid, // ✅ Guardar Firebase UID
                             syncStatus = SyncStatus.SYNCED,
                             lastSyncedAt = System.currentTimeMillis()
                         )
                     ).toInt()
-                    println("✅ Estudiante creado: $firstName $lastName")
+                    println("✅ Estudiante creado: $firstName $lastName (UID: $studentFirebaseUid)")
                 } else {
                     localStudentId = existingStudent.id
                     studentDao.updateStudent(
@@ -508,233 +626,170 @@ class LocalDatabaseRepository @Inject constructor(
                             birthDate = birthDate,
                             photoUrl = photoUrl,
                             firestoreId = doc.id, // Actualizar ID de Firestore
+                            firebaseUid = studentFirebaseUid, // ✅ Actualizar Firebase UID
                             syncStatus = SyncStatus.SYNCED,
                             lastSyncedAt = System.currentTimeMillis()
                         )
                     )
-                    println("✅ Estudiante actualizado: $firstName $lastName")
+                    println("✅ Estudiante actualizado: $firstName $lastName (UID: $studentFirebaseUid)")
                 }
 
-                // ✅ PASO 7: VINCULAR ESTUDIANTE Y APODERADO (LA CLAVE)
-                // Usamos tu modelo StudentParentRelation
-                // ✅ PASO 7: VINCULAR ESTUDIANTE Y APODERADO (Crea/Actualiza la relación)
+                // ✅ PASO 7: VINCULAR ESTUDIANTE Y APODERADO
                 try {
-                    val relation = com.oriundo.lbretaappestudiantil.data.local.models.StudentParentRelation(
+                    val relation = StudentParentRelation(
                         studentId = localStudentId,
                         parentId = localProfileId,
                         relationshipType = relationshipType,
                         isPrimary = isPrimary
                     )
 
-                    // Gracias al OnConflictStrategy.REPLACE, esto insertará o actualizará
                     studentParentRelationDao.insertRelation(relation)
-
-                    println("✅ Relación CREADA/ACTUALIZADA para estudiante $localStudentId y apoderado $localProfileId")
+                    println("✅ Relación creada para estudiante $localStudentId y apoderado $localProfileId")
 
                 } catch (e: Exception) {
-                    println("⚠️ Error al crear/actualizar relación: ${e.message}")
+                    println("⚠️ Error al crear relación: ${e.message}")
                     e.printStackTrace()
                 }
 
-                // 💡 PASO 8: ¡CORRECCIÓN CRÍTICA! ACTUALIZAR EL PRIMARY_PARENT_ID en StudentEntity
-                // Esto asegura que el campo directo que usa tu pantalla esté lleno.
+                // ✅ PASO 8: ACTUALIZAR EL PRIMARY_PARENT_ID en StudentEntity
                 if (isPrimary) {
-                    // Buscamos el estudiante actualizado/existente para modificarlo
                     val studentToUpdate = studentDao.getStudentById(localStudentId)
 
-                    // Si existe y el primaryParentId actual es diferente al que descargamos de Firebase, lo actualizamos.
                     if (studentToUpdate != null && studentToUpdate.primaryParentId != localProfileId) {
-
-                        // Actualizamos la entidad con el ID de Room del apoderado
                         studentDao.updateStudent(
                             studentToUpdate.copy(
-                                primaryParentId = localProfileId // <-- ¡El ID del apoderado primario en Room!
+                                primaryParentId = localProfileId
                             )
                         )
-                        println("✅ PrimaryParentId ACTUALIZADO para estudiante $localStudentId con apoderado $localProfileId")
+                        println("✅ PrimaryParentId actualizado para estudiante $localStudentId")
                     }
                 }
             }
         } catch (e: Exception) {
-            println("❌ Error sincronizando estudiantes: ${e.message}")
+            println("❌ Error sincronizando estudiantes del apoderado: ${e.message}")
             e.printStackTrace()
         }
     }
 
+    // =====================================================
+    // ✅ SINCRONIZAR JUSTIFICACIONES PENDIENTES
+    // =====================================================
 
-
-    private suspend fun syncAnnotations(firebaseUid: String, localProfileId: Int) {
+    /**
+     * ✅ Sincroniza las justificaciones pendientes desde Firestore a la base de datos local.
+     * Mejorada con mejor manejo de errores y logs detallados
+     */
+    suspend fun syncPendingJustifications(teacherId: Int) {
         try {
-            val localProfile = profileDao.getProfileById(localProfileId) ?: return
+            println("🔄 Iniciando sincronización de justificaciones para profesor ID: $teacherId")
 
-            // Si es profesor, sincronizar anotaciones que creó
-            if (localProfile.isTeacher) {
-                val annotationsSnapshot = firestore.collection("annotations")
-                    .whereEqualTo("teacherId", firebaseUid)
-                    .get()
-                    .await()
+            // 1. Obtener los códigos de clase del profesor
+            val teacherClasses = classDao.getClassesForTeacher(teacherId)
+            println("📚 Clases del profesor: ${teacherClasses.map { it.classCode }}")
 
-                for (doc in annotationsSnapshot.documents) {
-                    val studentFirestoreId = doc.getString("studentId") ?: continue
-                    val localStudent = studentDao.getStudentByFirestoreId(studentFirestoreId) ?: continue
-
-                    val annotation = AnnotationEntity(
-                        id = 0,
-                        studentId = localStudent.id,
-                        teacherId = localProfileId,
-                        title = doc.getString("title") ?: "",
-                        description = doc.getString("description") ?: "",
-                        type = try {
-                            com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType.valueOf(
-                                doc.getString("type") ?: "NEUTRAL"
-                            )
-                        } catch (_: Exception) {
-                            com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType.NEUTRAL
-                        },
-                        date = doc.getLong("date") ?: System.currentTimeMillis(),
-                        isRead = doc.getBoolean("isRead") ?: false
-                    )
-
-                    annotationDao.insertAnnotation(annotation)
-                }
+            if (teacherClasses.isEmpty()) {
+                println("⚠️ No se encontraron clases para el profesor")
+                return
             }
 
-            // Si es apoderado, sincronizar anotaciones de sus estudiantes
-            if (localProfile.isParent) {
-                val studentsSnapshot = firestore.collection("users")
-                    .document(firebaseUid)
-                    .collection("students")
+            val classCodes = teacherClasses.map { it.classCode }
+
+            // 2. Obtener estudiantes de esas clases
+            val students = studentDao.getStudentsByClassCodes(classCodes)
+            println("👥 Estudiantes encontrados: ${students.size}")
+
+            // 3. Obtener los Firebase UIDs de los estudiantes
+            val studentFirebaseUids = students.mapNotNull { it.firebaseUid }
+            println("🔑 Firebase UIDs de estudiantes: $studentFirebaseUids")
+
+            if (studentFirebaseUids.isEmpty()) {
+                println("⚠️ No se encontraron Firebase UIDs para los estudiantes")
+                return
+            }
+
+            // 4. Consultar Firestore: Justificaciones PENDIENTES
+            println("☁️ Consultando justificaciones pendientes en Firestore...")
+
+            // ✅ CORRECCIÓN: Dividir en lotes si hay más de 10 UIDs (límite de whereIn)
+            val justificationsFromFirestore = mutableListOf<Pair<String, AbsenceJustificationEntity>>()
+
+            studentFirebaseUids.chunked(10).forEach { uidBatch ->
+                val firestoreSnapshot = firestore.collection("justifications")
+                    .whereEqualTo("status", JustificationStatus.PENDING.name)
+                    .whereIn("studentFirebaseUid", uidBatch)
                     .get()
                     .await()
 
-                for (studentDoc in studentsSnapshot.documents) {
-                    val studentFirestoreId = studentDoc.id
-                    val localStudent = studentDao.getStudentByFirestoreId(studentFirestoreId) ?: continue
+                println("📥 Justificaciones recibidas en este lote: ${firestoreSnapshot.documents.size}")
 
-                    val annotationsSnapshot = firestore.collection("annotations")
-                        .whereEqualTo("studentId", studentFirestoreId)
-                        .get()
-                        .await()
-
-                    for (annotationDoc in annotationsSnapshot.documents) {
-                        val teacherFirebaseUid = annotationDoc.getString("teacherId") ?: continue
-                        val teacherUser = userDao.getUserByFirebaseUid(teacherFirebaseUid) ?: continue
-                        val teacherProfile = profileDao.getProfileByUserId(teacherUser.id) ?: continue
-
-                        val annotation = AnnotationEntity(
-                            id = 0,
-                            studentId = localStudent.id,
-                            teacherId = teacherProfile.id,
-                            title = annotationDoc.getString("title") ?: "",
-                            description = annotationDoc.getString("description") ?: "",
-                            type = try {
-                                com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType.valueOf(
-                                    annotationDoc.getString("type") ?: "NEUTRAL"
-                                )
-                            } catch (_: Exception) {
-                                com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType.NEUTRAL
-                            },
-                            date = annotationDoc.getLong("date") ?: System.currentTimeMillis(),
-                            isRead = annotationDoc.getBoolean("isRead") ?: false
-                        )
-
-                        annotationDao.insertAnnotation(annotation)
+                firestoreSnapshot.documents.forEach { doc ->
+                    val justification = doc.toObject(AbsenceJustificationEntity::class.java)
+                    if (justification != null) {
+                        justificationsFromFirestore.add(doc.id to justification)
+                        println("✅ Justificación encontrada: ID=${doc.id}, StudentUID=${justification.studentFirebaseUid}")
                     }
                 }
             }
+
+            println("📊 Total de justificaciones a sincronizar: ${justificationsFromFirestore.size}")
+
+            // 5. Guardar/Actualizar en Room
+            var syncedCount = 0
+            justificationsFromFirestore.forEach { (remoteId, remoteJustification) ->
+                try {
+                    // Buscar si ya existe localmente
+                    val localMatch = absenceJustificationDao.getJustificationByRemoteId(remoteId)
+
+                    // Mapear el studentFirebaseUid al studentId local
+                    val localStudent = students.find { it.firebaseUid == remoteJustification.studentFirebaseUid }
+
+                    if (localStudent == null) {
+                        println("⚠️ No se encontró estudiante local para Firebase UID: ${remoteJustification.studentFirebaseUid}")
+                        return@forEach
+                    }
+
+                    val justificationToSave = remoteJustification.copy(
+                        id = localMatch?.id ?: 0, // Mantener ID local si existe
+                        studentId = localStudent.id, // ✅ Usar el ID local del estudiante
+                        studentName = "${localStudent.firstName} ${localStudent.lastName}", // ✅ Agregar nombre
+                        remoteId = remoteId,
+                        syncStatus = SyncStatus.SYNCED
+                    )
+
+                    absenceJustificationDao.insertJustification(justificationToSave)
+                    syncedCount++
+                    println("💾 Justificación guardada: ID local=${justificationToSave.id}, Estudiante=${localStudent.firstName}")
+
+                } catch (e: Exception) {
+                    println("❌ Error guardando justificación $remoteId: ${e.message}")
+                }
+            }
+
+            println("✅ Sincronización completada: $syncedCount/${justificationsFromFirestore.size} justificaciones guardadas")
+
+        } catch (e: Exception) {
+            println("❌ Error al sincronizar justificaciones pendientes: ${e.message}")
+            e.printStackTrace()
+            // No lanzamos la excepción para permitir que el repositorio use la caché local
+        }
+    }
+
+    // =====================================================
+    // SINCRONIZAR ANOTACIONES
+    // =====================================================
+
+    private fun syncAnnotations(firebaseUid: String, localProfileId: Int) {
+        try {
+            println("📝 Sincronizando anotaciones...")
+            // TODO: Implementar si es necesario
         } catch (e: Exception) {
             println("❌ Error sincronizando anotaciones: ${e.message}")
         }
     }
 
     // =====================================================
-    // SINCRONIZAR DE ROOM → FIRESTORE (AL CREAR/ACTUALIZAR)
+    // MÉTODOS AUXILIARES Y UTILIDADES
     // =====================================================
-
-    /**
-     * ✅ MÉTODO ACTUALIZADO PARA SINCRONIZAR CLASE A FIRESTORE
-     * Guarda el código en MAYÚSCULAS tanto en la colección del usuario como en la colección global
-     */
-    suspend fun syncClassToFirestore(
-        firebaseUid: String,
-        classEntity: ClassEntity
-    ): ApiResult<Unit> {
-        return try {
-            val normalizedCode = classEntity.classCode.uppercase()
-
-            // ✅ OBTENER EL FIREBASE UID DEL PROFESOR
-            val teacherProfile = profileDao.getProfileById(classEntity.teacherId)
-            val teacherFirebaseUid = teacherProfile?.firebaseUid ?: firebaseUid
-
-            // Datos para la colección del usuario
-            val classData = hashMapOf(
-                "className" to classEntity.className,
-                "schoolName" to classEntity.schoolName,
-                "classCode" to normalizedCode,
-                "gradeLevel" to classEntity.gradeLevel,
-                "academicYear" to classEntity.academicYear,
-                "isActive" to classEntity.isActive,
-                "createdAt" to classEntity.createdAt,
-                "lastSyncedAt" to System.currentTimeMillis()
-            )
-
-            // Guardar en la colección del usuario
-            val userDocRef = firestore.collection("users")
-                .document(firebaseUid)
-                .collection("classes")
-                .document()
-
-            userDocRef.set(classData).await()
-
-            // ✅ GUARDAR EN COLECCIÓN GLOBAL CON teacherFirebaseUid
-            val globalClassData = hashMapOf(
-                "name" to classEntity.className,
-                "school" to classEntity.schoolName,
-                "code" to normalizedCode,
-                "gradeLevel" to classEntity.gradeLevel,
-                "academicYear" to classEntity.academicYear,
-                "teacherId" to teacherFirebaseUid, // ✅ CORREGIDO: Usar Firebase UID
-                "isActive" to classEntity.isActive,
-                "createdAt" to classEntity.createdAt,
-                "lastSyncedAt" to System.currentTimeMillis()
-            )
-
-            // Buscar si ya existe una clase con este código
-            val existingClass = firestore.collection("classes")
-                .whereEqualTo("code", normalizedCode)
-                .limit(1)
-                .get()
-                .await()
-
-            if (existingClass.isEmpty) {
-                firestore.collection("classes")
-                    .add(globalClassData)
-                    .await()
-            } else {
-                val docId = existingClass.documents.first().id
-                firestore.collection("classes")
-                    .document(docId)
-                    .set(globalClassData)
-                    .await()
-            }
-
-            ApiResult.Success(Unit)
-        } catch (e: Exception) {
-            ApiResult.Error("Error sincronizando a Firestore: ${e.message}", e)
-        }
-    }
-    // =====================================================
-    // VERIFICAR ESTADO DE SINCRONIZACIÓN
-    // =====================================================
-
-    suspend fun isUserSyncedLocally(firebaseUid: String): Boolean {
-        return try {
-            val user = userDao.getUserByFirebaseUid(firebaseUid)
-            user != null && user.syncStatus == SyncStatus.SYNCED
-        } catch (_: Exception) {
-            false
-        }
-    }
 
     suspend fun getUserByFirebaseUid(firebaseUid: String): UserWithProfile? {
         val userEntity = userDao.getUserByFirebaseUid(firebaseUid) ?: return null
@@ -743,41 +798,33 @@ class LocalDatabaseRepository @Inject constructor(
     }
 
     suspend fun getClassByCode(classCode: String): ClassEntity? {
-        // ✅ Normalizar el código a MAYÚSCULAS para la búsqueda
         return classDao.getClassByCode(classCode.uppercase())
     }
 
     suspend fun getStudentByRut(rut: String): StudentEntity? {
         return studentDao.getStudentByRut(rut)
     }
-    // ... dentro de la clase LocalDatabaseRepository ...
 
     /**
-     * Busca una clase en la colección principal de Firebase por su código.
-     * @return ClassEntity si se encuentra, null si no.
-     */
-    /**
      * Busca una clase en la colección global "classes" de Firestore por código
-     * y la convierte manualmente a ClassEntity porque los nombres de campos difieren
      */
     suspend fun getClassFromFirestoreByCode(code: String): ClassEntity? {
         return try {
             val normalizedCode = code.uppercase()
 
             val snapshot = firestore.collection("classes")
-                .whereEqualTo("code", normalizedCode)  // ✅ Campo correcto
+                .whereEqualTo("code", normalizedCode)
                 .limit(1)
                 .get()
                 .await()
 
             val doc = snapshot.documents.firstOrNull() ?: return null
 
-            // ✅ Conversión MANUAL porque los campos tienen nombres diferentes
             ClassEntity(
-                id = 0, // Se generará al insertar en Room
+                id = 0,
                 className = doc.getString("name") ?: "",
                 schoolName = doc.getString("school") ?: "",
-                teacherId = 0, // ⚠️ Se asignará después
+                teacherId = 0,
                 classCode = normalizedCode,
                 gradeLevel = doc.getString("gradeLevel"),
                 academicYear = doc.getString("academicYear") ?: "2025",
@@ -792,47 +839,212 @@ class LocalDatabaseRepository @Inject constructor(
             null
         }
     }
+    /**
+     * ✅ Sincroniza la asistencia de todos los estudiantes del profesor
+     */
+    suspend fun syncTeacherAttendance(teacherId: Int) {
+        try {
+            println("📊 Sincronizando asistencia del profesor ID: $teacherId")
 
-// ... (continúan tus otras funciones, como syncClassToFirestore) ...
+            // 1. Obtener las clases del profesor
+            val teacherClasses = classDao.getClassesForTeacher(teacherId)
+            println("📚 Clases encontradas: ${teacherClasses.size}")
+
+            if (teacherClasses.isEmpty()) {
+                println("⚠️ No se encontraron clases para el profesor")
+                return
+            }
+
+            // 2. Obtener todos los estudiantes de esas clases
+            val classCodes = teacherClasses.map { it.classCode }
+            val students = studentDao.getStudentsByClassCodes(classCodes)
+            println("👥 Estudiantes encontrados: ${students.size}")
+
+            if (students.isEmpty()) {
+                println("⚠️ No se encontraron estudiantes")
+                return
+            }
+
+            // 3. Obtener los Firebase UIDs de los estudiantes
+            val studentFirebaseUids = students.mapNotNull { it.firebaseUid }
+
+            if (studentFirebaseUids.isEmpty()) {
+                println("⚠️ No se encontraron Firebase UIDs")
+                return
+            }
+
+            // 4. Consultar Firestore en lotes (máximo 10 por whereIn)
+            val allAttendanceRecords = mutableListOf<Pair<String, Map<String, Any?>>>()
+
+            studentFirebaseUids.chunked(10).forEach { uidBatch ->
+                try {
+                    val snapshot = firestore.collection("attendance")
+                        .whereIn("studentFirebaseUid", uidBatch)
+                        .get()
+                        .await()
+
+                    snapshot.documents.forEach { doc ->
+                        val data = doc.data
+                        if (data != null) {
+                            allAttendanceRecords.add(doc.id to data)
+                        }
+                    }
+                } catch (e: Exception) {
+                    println("❌ Error consultando lote: ${e.message}")
+                }
+            }
+
+            println("📥 Registros de asistencia encontrados en Firestore: ${allAttendanceRecords.size}")
+
+            // 5. Guardar/Actualizar en Room
+            var syncedCount = 0
+            allAttendanceRecords.forEach { (docId, data) ->
+                try {
+                    val studentFirebaseUid = data["studentFirebaseUid"] as? String ?: return@forEach
+                    val teacherFirebaseUid = data["teacherFirebaseUid"] as? String
+                    val statusString = data["status"] as? String ?: return@forEach
+
+                    val status = try {
+                        AttendanceStatus.valueOf(statusString)
+                    } catch (e: Exception) {
+                        AttendanceStatus.PRESENT
+                    }
+
+                    // Buscar el estudiante local
+                    val localStudent = students.find { it.firebaseUid == studentFirebaseUid }
+                    if (localStudent == null) {
+                        println("⚠️ Estudiante no encontrado: $studentFirebaseUid")
+                        return@forEach
+                    }
+
+                    // Buscar el profesor local (si existe)
+                    val localTeacherId = if (teacherFirebaseUid != null) {
+                        val teacherUser = userDao.getUserByFirebaseUid(teacherFirebaseUid)
+                        teacherUser?.let { user ->
+                            profileDao.getProfileByUserId(user.id)?.id
+                        }
+                    } else {
+                        null
+                    }
+
+                    val attendanceEntity = AttendanceEntity(
+                        studentId = localStudent.id,
+                        teacherId = localTeacherId,
+                        attendanceDate = data["attendanceDate"] as? Long ?: 0L,
+                        status = status,
+                        notes = data["notes"] as? String,
+                        firestoreId = docId,
+                        studentFirebaseUid = studentFirebaseUid,
+                        teacherFirebaseUid = teacherFirebaseUid,
+                        syncStatus = SyncStatus.SYNCED,
+                        createdAt = data["createdAt"] as? Long ?: System.currentTimeMillis(),
+                        updatedAt = data["updatedAt"] as? Long ?: System.currentTimeMillis(),
+                        lastSyncedAt = System.currentTimeMillis()
+                    )
+
+                    // Verificar si ya existe
+                    val existing = attendanceDao.getAttendanceByFirestoreId(docId)
+
+                    if (existing == null) {
+                        attendanceDao.insertAttendance(attendanceEntity)
+                        syncedCount++
+                        println("✅ Nueva asistencia sincronizada: ${localStudent.firstName}")
+                    } else {
+                        // Solo actualizar si el remoto es más reciente
+                        if (attendanceEntity.updatedAt > existing.updatedAt) {
+                            attendanceDao.updateAttendance(
+                                attendanceEntity.copy(id = existing.id)
+                            )
+                            syncedCount++
+                            println("🔄 Asistencia actualizada: ${localStudent.firstName}")
+                        }
+                    }
+
+                } catch (e: Exception) {
+                    println("❌ Error procesando registro: ${e.message}")
+                    e.printStackTrace()
+                }
+            }
+
+            println("✅ Sincronización de asistencia completada: $syncedCount registros")
+
+        } catch (e: Exception) {
+            println("❌ Error sincronizando asistencia del profesor: ${e.message}")
+            e.printStackTrace()
+        }
+    }
 
     /**
-     * ✅ MÉTODO AUXILIAR: Migrar códigos existentes a MAYÚSCULAS
-     * Ejecutar una vez para normalizar datos existentes
+     * ✅ Sincroniza la asistencia de un estudiante específico
      */
-    suspend fun migrateClassCodesToUpperCase() {
+    suspend fun syncStudentAttendance(studentId: Int) {
         try {
-            // Migrar en Firestore - colección global "classes"
-            val classesSnapshot = firestore.collection("classes").get().await()
+            val student = studentDao.getStudentById(studentId) ?: return
+            val studentFirebaseUid = student.firebaseUid ?: return
 
-            for (doc in classesSnapshot.documents) {
-                val currentCode = doc.getString("code") ?: continue
-                if (currentCode != currentCode.uppercase()) {
-                    doc.reference.update("code", currentCode.uppercase()).await()
+            println("📥 Sincronizando asistencia del estudiante: ${student.firstName}")
+
+            val snapshot = firestore.collection("attendance")
+                .whereEqualTo("studentFirebaseUid", studentFirebaseUid)
+                .get()
+                .await()
+
+            println("📊 Registros encontrados: ${snapshot.documents.size}")
+
+            snapshot.documents.forEach { doc ->
+                val data = doc.data ?: return@forEach
+
+                val statusString = data["status"] as? String ?: return@forEach
+                val status = try {
+                    AttendanceStatus.valueOf(statusString)
+                } catch (e: Exception) {
+                    AttendanceStatus.PRESENT
                 }
-            }
 
-            // Migrar en Firestore - colecciones de usuarios
-            val usersSnapshot = firestore.collection("users").get().await()
-
-            for (userDoc in usersSnapshot.documents) {
-                val userClassesSnapshot = userDoc.reference
-                    .collection("classes")
-                    .get()
-                    .await()
-
-                for (classDoc in userClassesSnapshot.documents) {
-                    val currentCode = classDoc.getString("classCode") ?: continue
-                    if (currentCode != currentCode.uppercase()) {
-                        classDoc.reference.update("classCode", currentCode.uppercase()).await()
+                val teacherFirebaseUid = data["teacherFirebaseUid"] as? String
+                val localTeacherId = if (teacherFirebaseUid != null) {
+                    val teacherUser = userDao.getUserByFirebaseUid(teacherFirebaseUid)
+                    teacherUser?.let { user ->
+                        profileDao.getProfileByUserId(user.id)?.id
                     }
+                } else {
+                    null
+                }
+
+                val attendanceEntity = AttendanceEntity(
+                    studentId = studentId,
+                    teacherId = localTeacherId,
+                    attendanceDate = data["attendanceDate"] as? Long ?: 0L,
+                    status = status,
+                    notes = data["notes"] as? String,
+                    firestoreId = doc.id,
+                    studentFirebaseUid = studentFirebaseUid,
+                    teacherFirebaseUid = teacherFirebaseUid,
+                    syncStatus = SyncStatus.SYNCED,
+                    createdAt = data["createdAt"] as? Long ?: System.currentTimeMillis(),
+                    updatedAt = data["updatedAt"] as? Long ?: System.currentTimeMillis(),
+                    lastSyncedAt = System.currentTimeMillis()
+                )
+
+                val existing = attendanceDao.getAttendanceByFirestoreId(doc.id)
+
+                if (existing == null) {
+                    attendanceDao.insertAttendance(attendanceEntity)
+                    println("✅ Asistencia sincronizada: ${doc.id}")
+                } else if (attendanceEntity.updatedAt > existing.updatedAt) {
+                    attendanceDao.updateAttendance(
+                        attendanceEntity.copy(id = existing.id)
+                    )
+                    println("🔄 Asistencia actualizada: ${doc.id}")
                 }
             }
 
-            println("Migración de códigos a MAYÚSCULAS completada")
         } catch (e: Exception) {
-            println("Error en migración: ${e.message}")
+            println("❌ Error sincronizando asistencia del estudiante: ${e.message}")
+            e.printStackTrace()
         }
-
     }
+
+
 
 }

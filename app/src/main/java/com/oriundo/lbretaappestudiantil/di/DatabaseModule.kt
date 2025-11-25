@@ -1,6 +1,9 @@
 package com.oriundo.lbretaappestudiantil.di
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStore
 import androidx.room.Room
 import com.oriundo.lbretaappestudiantil.data.local.LibretAppDatabase
 import com.oriundo.lbretaappestudiantil.data.local.daos.AbsenceJustificationDao
@@ -20,6 +23,12 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
+private const val USER_PREFERENCES_NAME = "user_preferences"
+
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
+    name = USER_PREFERENCES_NAME
+)
+
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
@@ -36,6 +45,12 @@ object DatabaseModule {
         )
             .fallbackToDestructiveMigration()
             .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideDataStorePreferences(@ApplicationContext context: Context): DataStore<Preferences> {
+        return context.dataStore
     }
 
     @Provides

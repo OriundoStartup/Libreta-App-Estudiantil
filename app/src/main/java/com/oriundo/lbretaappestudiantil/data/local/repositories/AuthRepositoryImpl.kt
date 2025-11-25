@@ -1,5 +1,9 @@
 package com.oriundo.lbretaappestudiantil.data.local.repositories
 
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import com.oriundo.lbretaappestudiantil.data.local.daos.ProfileDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.StudentDao
 import com.oriundo.lbretaappestudiantil.data.local.daos.StudentParentRelationDao
@@ -18,6 +22,7 @@ import com.oriundo.lbretaappestudiantil.domain.model.TeacherRegistrationForm
 import com.oriundo.lbretaappestudiantil.domain.model.UserWithProfile
 import com.oriundo.lbretaappestudiantil.domain.model.repository.AuthRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.ClassRepository
+import kotlinx.coroutines.flow.first
 import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -29,9 +34,14 @@ class AuthRepositoryImpl @Inject constructor(
     private val studentDao: StudentDao,
     private val studentParentRelationDao: StudentParentRelationDao,
     private val classRepository: ClassRepository,
+    private val dataStore: DataStore<Preferences>
 ) : AuthRepository {
 
     private var currentUserWithProfile: UserWithProfile? = null
+
+    companion object {
+        private val USER_EMAIL_KEY = stringPreferencesKey("user_email")
+    }
 
     // =====================================================
     // LOGIN
@@ -61,6 +71,9 @@ class AuthRepositoryImpl @Inject constructor(
 
             val userWithProfile = UserWithProfile(user, profile)
             currentUserWithProfile = userWithProfile
+            dataStore.edit { preferences ->
+                preferences[USER_EMAIL_KEY] = user.email
+            }
 
             ApiResult.Success(userWithProfile)
         } catch (e: Exception) {
@@ -117,6 +130,9 @@ class AuthRepositoryImpl @Inject constructor(
             val userWithProfile = UserWithProfile(createdUser, createdProfile)
 
             currentUserWithProfile = userWithProfile
+            dataStore.edit { preferences ->
+                preferences[USER_EMAIL_KEY] = createdUser.email
+            }
 
             ApiResult.Success(userWithProfile)
         } catch (e: Exception) {
@@ -212,6 +228,9 @@ class AuthRepositoryImpl @Inject constructor(
             val userWithProfile = UserWithProfile(createdUser, createdProfile)
 
             currentUserWithProfile = userWithProfile
+            dataStore.edit { preferences ->
+                preferences[USER_EMAIL_KEY] = createdUser.email
+            }
 
             ApiResult.Success(Triple(userWithProfile, createdStudent, classEntity))
         } catch (e: Exception) {
@@ -236,6 +255,9 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun logout() {
         currentUserWithProfile = null
+        dataStore.edit {
+            it.clear()
+        }
     }
 
     override suspend fun isEmailRegistered(email: String): Boolean {
@@ -243,6 +265,12 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getCurrentUser(): UserWithProfile? {
+        if (currentUserWithProfile != null) return currentUserWithProfile
+
+        val userEmail = dataStore.data.first()[USER_EMAIL_KEY] ?: return null
+        val user = userDao.getUserByEmail(userEmail) ?: return null
+        val profile = profileDao.getProfileByUserId(user.id) ?: return null
+        currentUserWithProfile = UserWithProfile(user, profile)
         return currentUserWithProfile
     }
 

@@ -2,6 +2,7 @@ package com.oriundo.lbretaappestudiantil.ui.theme.viewmodels
 
 
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -65,21 +66,51 @@ class JustifyAbsenceViewModel @Inject constructor(
             submissionSuccess = false
         )
 
-        // Fragmento de JustifyAbsenceViewModel.kt
         viewModelScope.launch {
             try {
                 val state = _uiState.value
 
-                // ✅ Uso de IDs reales extraídos de SavedStateHandle (no hardcodeados)
+                // ✅ LOGS DE DEBUG ANTES DE ENVIAR
+                Log.d("JustifyAbsenceVM", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                Log.d("JustifyAbsenceVM", "📝 DATOS A ENVIAR A FIREBASE:")
+                Log.d("JustifyAbsenceVM", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                Log.d("JustifyAbsenceVM", "   studentId (local): $studentId")
+                Log.d("JustifyAbsenceVM", "   parentId (local): $parentId")
+                Log.d("JustifyAbsenceVM", "   selectedDate: ${state.selectedDate}")
+                Log.d("JustifyAbsenceVM", "   selectedReason: ${state.selectedReason}")
+                Log.d("JustifyAbsenceVM", "   description: ${state.description}")
+                Log.d("JustifyAbsenceVM", "   attachmentUri: ${state.selectedFileUri}")
+
+                // ✅ VERIFICAR UID DE FIREBASE AUTH
+                val currentAuthUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                Log.d("JustifyAbsenceVM", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                Log.d("JustifyAbsenceVM", "🔐 VERIFICACIÓN DE AUTENTICACIÓN:")
+                Log.d("JustifyAbsenceVM", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                Log.d("JustifyAbsenceVM", "   Firebase Auth UID: $currentAuthUid")
+                Log.d("JustifyAbsenceVM", "   Email: ${com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email}")
+
+                if (currentAuthUid == null) {
+                    Log.e("JustifyAbsenceVM", "❌ ERROR: Usuario NO autenticado en Firebase!")
+                    _uiState.value = _uiState.value.copy(
+                        isSubmitting = false,
+                        submissionError = "Error: No estás autenticado. Cierra sesión e inicia nuevamente."
+                    )
+                    return@launch
+                }
+
+                Log.d("JustifyAbsenceVM", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+                // ✅ Llamada al repositorio
                 repository.submitJustification(
                     studentId = studentId,
                     parentId = parentId,
-                    dateMillis = state.selectedDate!!, // Estado de la UI
-                    reason = state.selectedReason,     // Estado de la UI
-                    description = state.description,   // Estado de la UI
-                    attachmentUri = state.selectedFileUri // Estado de la UI
+                    dateMillis = state.selectedDate!!,
+                    reason = state.selectedReason,
+                    description = state.description,
+                    attachmentUri = state.selectedFileUri
                 )
-                // ...
+
+                Log.d("JustifyAbsenceVM", "✅ Justificación enviada exitosamente")
 
                 _uiState.value = _uiState.value.copy(
                     isSubmitting = false,
@@ -87,10 +118,12 @@ class JustifyAbsenceViewModel @Inject constructor(
                 )
 
             } catch (e: CancellationException) {
-                // Se ignora la cancelación de corrutina
                 throw e
             } catch (e: Exception) {
-                // Manejo de errores generales (red, servidor, etc.)
+                Log.e("JustifyAbsenceVM", "❌ ERROR al enviar justificación", e)
+                Log.e("JustifyAbsenceVM", "   Tipo de error: ${e.javaClass.simpleName}")
+                Log.e("JustifyAbsenceVM", "   Mensaje: ${e.message}")
+
                 _uiState.value = _uiState.value.copy(
                     isSubmitting = false,
                     submissionError = "Error al enviar: ${e.message ?: "Desconocido"}"

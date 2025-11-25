@@ -1,26 +1,35 @@
 package com.oriundo.lbretaappestudiantil.ui.theme.viewmodels
 
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.oriundo.lbretaappestudiantil.data.local.models.JustificationStatus
 import com.oriundo.lbretaappestudiantil.domain.model.repository.JustificationRepository
 import com.oriundo.lbretaappestudiantil.ui.theme.states.ReviewUiState
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.CancellationException
+import javax.inject.Inject
 
 
 /**
  * ViewModel para la pantalla ReviewJustificationScreen (Profesor).
+ * AHORA HABILITADO PARA HILT
  */
-class ReviewJustificationViewModel(
+@HiltViewModel
+class ReviewJustificationViewModel @Inject constructor(
     private val repository: JustificationRepository,
-    private val justificationId: Int, // Recibido desde la pantalla
-    private val teacherId: Int // Recibido desde la pantalla
+    savedStateHandle: SavedStateHandle // Inyectado por Hilt
 ) : ViewModel() {
+
+    // Obtener IDs desde los argumentos de navegación
+    // Asumimos que las claves son "justificationId" y "teacherId"
+    private val justificationId: Int = checkNotNull(savedStateHandle["justificationId"])
+    private val teacherId: Int = checkNotNull(savedStateHandle["teacherId"])
 
     private val _uiState = MutableStateFlow(ReviewUiState())
     val uiState: StateFlow<ReviewUiState> = _uiState.asStateFlow()
@@ -36,6 +45,7 @@ class ReviewJustificationViewModel(
         _uiState.value = _uiState.value.copy(isLoading = true, reviewError = null)
         viewModelScope.launch {
             try {
+                // El justificationId y teacherId ya son miembros de la clase
                 val details = repository.getJustificationDetails(justificationId)
                 _uiState.value = _uiState.value.copy(isLoading = false, justification = details)
             } catch (e: Exception) {
@@ -77,10 +87,10 @@ class ReviewJustificationViewModel(
 
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isSubmitting = false,
-                    reviewError = "Error al ${if (newStatus == JustificationStatus.APPROVED) "aprobar" else "rechazar"}"
+                    reviewError = "Error al ${if (newStatus == JustificationStatus.APPROVED) "aprobar" else "rechazar"}: ${e.message}"
                 )
             }
         }

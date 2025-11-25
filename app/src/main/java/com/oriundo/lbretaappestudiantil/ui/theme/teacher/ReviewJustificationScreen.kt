@@ -2,6 +2,7 @@ package com.oriundo.lbretaappestudiantil.ui.theme.teacher
 
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChildCare
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -45,6 +47,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,10 +60,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.oriundo.lbretaappestudiantil.data.local.models.AbsenceJustificationEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.JustificationStatus
-import com.oriundo.lbretaappestudiantil.domain.model.AbsenceReason
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ReviewJustificationViewModel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -68,36 +72,42 @@ import java.util.Locale
 /**
  * Pantalla para que el profesor revise una justificación pendiente.
  *
- * NOTA: En una app real, 'justification' se cargaría desde un ViewModel
- * usando el 'justificationId'. Aquí se usa data de ejemplo.
+ * AHORA CONECTADA AL VIEWMODEL
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReviewJustificationScreen(
     navController: NavController,
-    justificationId: Int,
-    teacherId: Int // ID del profesor que está revisando
+    justificationId: Int, // Recibido por NavHost
+    teacherId: Int // Recibido por NavHost
 ) {
+    // --- INYECCIÓN DEL VIEWMODEL ---
+    val viewModel: ReviewJustificationViewModel = hiltViewModel()
+    val uiState by viewModel.uiState.collectAsState()
+
     // --- ESTADO DE LA VISTA ---
-    var reviewNotes by remember { mutableStateOf("") }
-    var isSubmitting by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var showConfirmDialog by remember { mutableStateOf<JustificationStatus?>(null) }
 
-    // --- TODO: Cargar la justificación ---
-    // En una app real, esto vendría de un ViewModel:
-    // val justification = viewModel.getJustificationById(justificationId).collectAsState()
-    // Por ahora, usamos datos de ejemplo basados en tu entidad:
-    val justification = AbsenceJustificationEntity(
-        id = justificationId,
-        studentId = 101, // Ejemplo
-        parentId = 202, // Ejemplo
-        absenceDate = System.currentTimeMillis() - 86400000, // Ayer
-        reason = AbsenceReason.ILLNESS,
-        description = "Mi hijo amaneció con fiebre y dolor de garganta. No podrá asistir a clases.",
-        attachmentUrl = "uploads/certificado_123.pdf", // URL de ejemplo
-    )
+    // --- DATOS ---
+    // El 'justification' ahora viene del uiState
+    val justification = uiState.justification
+
+    // --- MANEJO DE EFECTOS (SNACKBARS Y NAVEGACIÓN) ---
+    LaunchedEffect(uiState.reviewSuccess) {
+        if (uiState.reviewSuccess) {
+            snackbarHostState.showSnackbar("Revisión enviada correctamente")
+            navController.popBackStack()
+        }
+    }
+
+    LaunchedEffect(uiState.reviewError) {
+        uiState.reviewError?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearError() // Limpiar el error después de mostrarlo
+        }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -123,198 +133,233 @@ fun ReviewJustificationScreen(
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
-        ) {
-            // --- Tarjeta de Información ---
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+
+        // --- ESTADO DE CARGA ---
+        if (uiState.isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.ChildCare,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = "Estudiante ID: ${justification.studentId}",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Text(
-                            text = "Apoderado ID: ${justification.parentId}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
+                CircularProgressIndicator()
             }
+            return@Scaffold // Salir temprano si está cargando
+        }
 
-            Spacer(modifier = Modifier.height(24.dp))
+        // --- ESTADO DE ERROR (si no se pudo cargar) ---
+        if (justification == null && uiState.reviewError != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                InfoRow(
+                    icon = Icons.Filled.Warning,
+                    label = "Error",
+                    content = uiState.reviewError ?: "No se pudo cargar la justificación."
+                )
+            }
+            return@Scaffold // Salir temprano
+        }
 
-            // --- Detalles de la Justificación ---
-            Text(
-                text = "Detalles de la Solicitud",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            InfoRow(
-                icon = Icons.Filled.CalendarMonth,
-                label = "Fecha de la Falta",
-                content = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-                    .format(Date(justification.absenceDate))
-            )
-            InfoRow(
-                icon = justification.reason.icon, // Usando el ícono de tu enum
-                label = "Motivo",
-                content = justification.reason.label // Usando el label de tu enum
-            )
-            InfoRow(
-                icon = Icons.AutoMirrored.Filled.Notes,
-                label = "Descripción del Apoderado",
-                content = justification.description
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // --- Archivo Adjunto ---
-            Text(
-                text = "Archivo Adjunto",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (justification.attachmentUrl != null) {
-                OutlinedCard(
-                    onClick = {
-                        // TODO: Implementar lógica para abrir/descargar el archivo
-                        // (usando la URL 'justification.attachmentUrl')
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Abriendo adjunto...")
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
+        // --- ESTADO DE ÉXITO (justificación cargada) ---
+        if (justification != null) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp)
+            ) {
+                // --- Tarjeta de Información ---
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
                 ) {
                     Row(
                         modifier = Modifier.padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
+                            imageVector = Icons.Filled.ChildCare,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(32.dp)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = justification.attachmentUrl.substringAfterLast('/')
-                                .takeIf { it.isNotBlank() } ?: "Ver archivo adjunto",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-            } else {
-                InfoRow(
-                    icon = Icons.Filled.AttachFile,
-                    label = "Adjunto",
-                    content = "No se adjuntó ningún archivo."
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-
-
-            Text(
-                text = "Notas de Revisión",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = reviewNotes,
-                onValueChange = { reviewNotes = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Añadir notas (opcional al aprobar)...") },
-                minLines = 3,
-                maxLines = 5,
-                leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) }
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // --- Botones de Acción ---
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Botón RECHAZAR
-                Button(
-                    onClick = {
-                        if (reviewNotes.isBlank()) {
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Debes añadir notas para rechazar")
-                            }
-                        } else {
-                            showConfirmDialog = JustificationStatus.REJECTED
+                        Column {
+                            Text(
+                                text = "Estudiante ID: ${justification.studentId}", // USANDO DATOS DEL VM
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                text = "Apoderado ID: ${justification.parentId}", // USANDO DATOS DEL VM
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
                         }
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
-                    ),
-                    enabled = !isSubmitting
-                ) {
-                    Icon(Icons.Filled.Close, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Rechazar")
-                }
-
-                // Botón APROBAR
-                Button(
-                    onClick = {
-                        showConfirmDialog = JustificationStatus.APPROVED
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.tertiary // Color "Success" de tu tema
-                    ),
-                    enabled = !isSubmitting
-                ) {
-                    if (isSubmitting && showConfirmDialog == JustificationStatus.APPROVED) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = MaterialTheme.colorScheme.onTertiary
-                        )
-                    } else {
-                        Icon(Icons.Filled.Check, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Aprobar")
                     }
                 }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // --- Detalles de la Justificación ---
+                Text(
+                    text = "Detalles de la Solicitud",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                InfoRow(
+                    icon = Icons.Filled.CalendarMonth,
+                    label = "Fecha de la Falta",
+                    content = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+                        .format(Date(justification.absenceDate)) // USANDO DATOS DEL VM
+                )
+                InfoRow(
+                    icon = justification.reason.icon, // USANDO DATOS DEL VM
+                    label = "Motivo",
+                    content = justification.reason.label // USANDO DATOS DEL VM
+                )
+                InfoRow(
+                    icon = Icons.AutoMirrored.Filled.Notes,
+                    label = "Descripción del Apoderado",
+                    content = justification.description // USANDO DATOS DEL VM
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // --- Archivo Adjunto ---
+                Text(
+                    text = "Archivo Adjunto",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (justification.attachmentUrl != null) {
+                    OutlinedCard(
+                        onClick = {
+                            // TODO: Implementar lógica para abrir/descargar el archivo
+                            // (usando la URL 'justification.attachmentUrl')
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Abriendo adjunto...")
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = justification.attachmentUrl.substringAfterLast('/') // USANDO DATOS DEL VM
+                                    .takeIf { it.isNotBlank() } ?: "Ver archivo adjunto",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                } else {
+                    InfoRow(
+                        icon = Icons.Filled.AttachFile,
+                        label = "Adjunto",
+                        content = "No se adjuntó ningún archivo."
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+
+
+                Text(
+                    text = "Notas de Revisión",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = uiState.reviewNotes, // CONECTADO AL VM
+                    onValueChange = { viewModel.onReviewNotesChanged(it) }, // CONECTADO AL VM
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Añadir notas (opcional al aprobar)...") },
+                    minLines = 3,
+                    maxLines = 5,
+                    leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) }
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // --- Botones de Acción ---
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Botón RECHAZAR
+                    Button(
+                        onClick = {
+                            if (uiState.reviewNotes.isBlank()) {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Debes añadir notas para rechazar")
+                                }
+                            } else {
+                                showConfirmDialog = JustificationStatus.REJECTED
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        ),
+                        enabled = !uiState.isSubmitting // CONECTADO AL VM
+                    ) {
+                        Icon(Icons.Filled.Close, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Rechazar")
+                    }
+
+                    // Botón APROBAR
+                    Button(
+                        onClick = {
+                            showConfirmDialog = JustificationStatus.APPROVED
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.tertiary // Color "Success" de tu tema
+                        ),
+                        enabled = !uiState.isSubmitting // CONECTADO AL VM
+                    ) {
+                        if (uiState.isSubmitting && showConfirmDialog == JustificationStatus.APPROVED) { // CONECTADO AL VM
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = MaterialTheme.colorScheme.onTertiary
+                            )
+                        } else {
+                            Icon(Icons.Filled.Check, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Aprobar")
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
             }
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 
@@ -324,7 +369,7 @@ fun ReviewJustificationScreen(
         val actionText = if (statusToUpdate == JustificationStatus.APPROVED) "aprobar" else "rechazar"
 
         AlertDialog(
-            onDismissRequest = { if (!isSubmitting) showConfirmDialog = null },
+            onDismissRequest = { if (!uiState.isSubmitting) showConfirmDialog = null }, // CONECTADO AL VM
             icon = {
                 Icon(
                     if (statusToUpdate == JustificationStatus.APPROVED) Icons.Filled.CheckCircle else Icons.Filled.Cancel,
@@ -336,34 +381,28 @@ fun ReviewJustificationScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        isSubmitting = true
-                        // --- TODO: Implementar lógica de envío ---
-                        // viewModel.submitReview(
-                        //     justificationId = justificationId,
-                        //     status = statusToUpdate,
-                        //     reviewNotes = reviewNotes,
-                        //     teacherId = teacherId
-                        // )
-                        scope.launch {
-                            // Simulación de red
-                            kotlinx.coroutines.delay(1500)
-                            isSubmitting = false
-                            showConfirmDialog = null
-                            snackbarHostState.showSnackbar("Justificación ${actionText}da correctamente")
-                            navController.popBackStack()
-                        }
+                        // --- LLAMADA AL VIEWMODEL ---
+                        viewModel.submitReview(statusToUpdate)
+                        // El cierre del diálogo ahora ocurre aquí
+                        showConfirmDialog = null
+                        // La navegación y el snackbar se manejan vía LaunchedEffect
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (statusToUpdate == JustificationStatus.APPROVED) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error
-                    )
+                    ),
+                    enabled = !uiState.isSubmitting // Habilitar/deshabilitar el botón
                 ) {
-                    Text("Confirmar")
+                    if (uiState.isSubmitting) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
+                    } else {
+                        Text("Confirmar")
+                    }
                 }
             },
             dismissButton = {
                 TextButton(
                     onClick = { showConfirmDialog = null },
-                    enabled = !isSubmitting
+                    enabled = !uiState.isSubmitting // CONECTADO AL VM
                 ) {
                     Text("Cancelar")
                 }

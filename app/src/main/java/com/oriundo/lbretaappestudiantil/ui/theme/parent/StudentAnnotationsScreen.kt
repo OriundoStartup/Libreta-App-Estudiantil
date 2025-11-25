@@ -1,5 +1,5 @@
+// StudentAnnotationsScreen.kt
 package com.oriundo.lbretaappestudiantil.ui.theme.parent
-
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -21,7 +21,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
@@ -50,15 +49,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.ViewModel
 import androidx.navigation.NavController
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationEntity
+import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType
+import com.oriundo.lbretaappestudiantil.ui.theme.AppShapes
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AnnotationViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import javax.inject.Inject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,20 +64,41 @@ fun StudentAnnotationsScreen(
     studentId: Int,
     parentId: Int,
     navController: NavController,
-    viewModel: StudentAnnotationsViewModel = hiltViewModel()
+    viewModel: AnnotationViewModel = hiltViewModel()
 ) {
-    val annotations by viewModel.annotations.collectAsState()
-    val stats by viewModel.annotationStats.collectAsState()
-    var selectedFilter by remember { mutableStateOf<AnnotationType?>(null) }
+    val annotations by viewModel.annotationsByStudent.collectAsState()
 
     LaunchedEffect(studentId) {
         viewModel.loadAnnotationsByStudent(studentId)
     }
 
+    StudentAnnotationsContent(
+        annotations = annotations,
+        onBackClick = { navController.popBackStack() }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun StudentAnnotationsContent(
+    annotations: List<AnnotationEntity>,
+    onBackClick: () -> Unit
+) {
+    var selectedFilter by remember { mutableStateOf<AnnotationType?>(null) }
+
     val filteredAnnotations = if (selectedFilter != null) {
         annotations.filter { it.type == selectedFilter }
     } else {
         annotations
+    }
+
+    // Calcular estadísticas
+    val stats = remember(annotations) {
+        AnnotationStats(
+            positiveCount = annotations.count { it.type == AnnotationType.POSITIVE },
+            negativeCount = annotations.count { it.type == AnnotationType.NEGATIVE },
+            neutralCount = annotations.count { it.type == AnnotationType.NEUTRAL || it.type == AnnotationType.GENERAL }
+        )
     }
 
     Scaffold(
@@ -92,7 +111,7 @@ fun StudentAnnotationsScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Volver"
@@ -219,15 +238,22 @@ fun StudentAnnotationsScreen(
                                 )
                             }
                         )
+                        FilterChip(
+                            selected = selectedFilter == AnnotationType.NEUTRAL,
+                            onClick = {
+                                selectedFilter = if (selectedFilter == AnnotationType.NEUTRAL) null
+                                else AnnotationType.NEUTRAL
+                            },
+                            label = { Text("Neutras") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.Info,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        )
                     }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "${filteredAnnotations.size} anotación${if (filteredAnnotations.size != 1) "es" else ""}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
 
                     Spacer(modifier = Modifier.height(8.dp))
                 }
@@ -245,7 +271,7 @@ fun StudentAnnotationsScreen(
 }
 
 @Composable
-fun AnnotationStatCard(
+private fun AnnotationStatCard(
     label: String,
     count: Int,
     color: Color,
@@ -256,7 +282,8 @@ fun AnnotationStatCard(
         modifier = modifier,
         colors = CardDefaults.cardColors(
             containerColor = color.copy(alpha = 0.1f)
-        )
+        ),
+        shape = AppShapes.medium
     ) {
         Column(
             modifier = Modifier
@@ -273,7 +300,7 @@ fun AnnotationStatCard(
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = count.toString(),
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = color
             )
@@ -287,7 +314,7 @@ fun AnnotationStatCard(
 }
 
 @Composable
-fun AnnotationCard(annotation: Annotation) {
+private fun AnnotationCard(annotation: AnnotationEntity) {
     val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
     val formattedDate = dateFormat.format(Date(annotation.date))
 
@@ -298,7 +325,8 @@ fun AnnotationCard(annotation: Annotation) {
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = AppShapes.medium
     ) {
         Column(
             modifier = Modifier
@@ -366,37 +394,18 @@ fun AnnotationCard(annotation: Annotation) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Person,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = annotation.teacherName,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
         }
     }
 }
 
-data class AnnotationTypeInfo(
+private data class AnnotationTypeInfo(
     val label: String,
     val icon: ImageVector,
     val color: Color
 )
 
 @Composable
-fun getAnnotationTypeInfo(type: AnnotationType): AnnotationTypeInfo {
+private fun getAnnotationTypeInfo(type: AnnotationType): AnnotationTypeInfo {
     return when (type) {
         AnnotationType.POSITIVE -> AnnotationTypeInfo(
             label = "Anotación Positiva",
@@ -408,7 +417,7 @@ fun getAnnotationTypeInfo(type: AnnotationType): AnnotationTypeInfo {
             icon = Icons.Filled.Warning,
             color = Color(0xFFE53935)
         )
-        AnnotationType.NEUTRAL -> AnnotationTypeInfo(
+        AnnotationType.NEUTRAL, AnnotationType.GENERAL -> AnnotationTypeInfo(
             label = "Anotación Informativa",
             icon = Icons.Filled.Info,
             color = Color(0xFF1976D2)
@@ -416,79 +425,8 @@ fun getAnnotationTypeInfo(type: AnnotationType): AnnotationTypeInfo {
     }
 }
 
-data class Annotation(
-    val id: Int = 0,
-    val studentId: Int,
-    val teacherId: Int,
-    val teacherName: String,
-    val type: AnnotationType,
-    val title: String,
-    val description: String,
-    val date: Long,
-    val isRead: Boolean = false
-)
-
-enum class AnnotationType {
-    POSITIVE,
-    NEGATIVE,
-    NEUTRAL
-}
-
-data class AnnotationStats(
+private data class AnnotationStats(
     val positiveCount: Int = 0,
     val negativeCount: Int = 0,
     val neutralCount: Int = 0
 )
-
-@HiltViewModel
-class StudentAnnotationsViewModel @Inject constructor() : ViewModel() {
-    private val _annotations = MutableStateFlow<List<Annotation>>(emptyList())
-    val annotations: StateFlow<List<Annotation>> = _annotations
-
-    private val _annotationStats = MutableStateFlow(AnnotationStats())
-    val annotationStats: StateFlow<AnnotationStats> = _annotationStats
-
-    fun loadAnnotationsByStudent(studentId: Int) {
-        _annotations.value = listOf(
-            Annotation(
-                id = 1,
-                studentId = studentId,
-                teacherId = 1,
-                teacherName = "Prof. María González",
-                type = AnnotationType.POSITIVE,
-                title = "Excelente participación",
-                description = "El estudiante demostró gran interés y participación activa durante la clase de matemáticas.",
-                date = System.currentTimeMillis() - 86400000L,
-                isRead = false
-            ),
-            Annotation(
-                id = 2,
-                studentId = studentId,
-                teacherId = 2,
-                teacherName = "Prof. Juan Pérez",
-                type = AnnotationType.NEGATIVE,
-                title = "No trajo materiales",
-                description = "El estudiante no trajo los materiales solicitados para la clase de arte.",
-                date = System.currentTimeMillis() - 172800000L,
-                isRead = true
-            ),
-            Annotation(
-                id = 3,
-                studentId = studentId,
-                teacherId = 1,
-                teacherName = "Prof. María González",
-                type = AnnotationType.NEUTRAL,
-                title = "Recordatorio",
-                description = "Próxima prueba de matemáticas el viernes 22 de noviembre.",
-                date = System.currentTimeMillis() - 259200000L,
-                isRead = true
-            )
-        )
-
-        _annotationStats.value = AnnotationStats(
-            positiveCount = 1,
-            negativeCount = 1,
-            neutralCount = 1
-        )
-    }
-}

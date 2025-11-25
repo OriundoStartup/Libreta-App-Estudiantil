@@ -1,5 +1,5 @@
+// ParentProfileScreen.kt
 package com.oriundo.lbretaappestudiantil.ui.theme.parent
-
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -48,7 +47,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.oriundo.lbretaappestudiantil.domain.model.StudentWithClass
 import com.oriundo.lbretaappestudiantil.domain.model.UserWithProfile
+import com.oriundo.lbretaappestudiantil.ui.theme.AppShapes
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.StudentViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,6 +65,20 @@ fun ParentProfileScreen(
         studentViewModel.loadStudentsByParent(userWithProfile.profile.id)
     }
 
+    ParentProfileContent(
+        userWithProfile = userWithProfile,
+        students = studentsByParent,
+        onBackClick = { navController.navigateUp() }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ParentProfileContent(
+    userWithProfile: UserWithProfile,
+    students: List<StudentWithClass>,
+    onBackClick: () -> Unit
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -74,7 +89,7 @@ fun ParentProfileScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.navigateUp() }) {
+                    IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Volver"
@@ -93,7 +108,6 @@ fun ParentProfileScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Header con avatar
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -153,7 +167,6 @@ fun ParentProfileScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Estadísticas del apoderado
             Column(
                 modifier = Modifier.padding(horizontal = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -172,13 +185,13 @@ fun ParentProfileScreen(
                     ParentStatsCard(
                         icon = Icons.Filled.ChildCare,
                         label = "Hijos",
-                        value = studentsByParent.size.toString(),
+                        value = students.size.toString(),
                         modifier = Modifier.weight(1f)
                     )
                     ParentStatsCard(
                         icon = Icons.Filled.School,
                         label = "Cursos",
-                        value = studentsByParent.size.toString(), // 1 curso por hijo en este diseño
+                        value = students.size.toString(),
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -186,8 +199,7 @@ fun ParentProfileScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Hijos vinculados
-            if (studentsByParent.isNotEmpty()) {
+            if (students.isNotEmpty()) {
                 Column(
                     modifier = Modifier.padding(horizontal = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -199,9 +211,9 @@ fun ParentProfileScreen(
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
 
-                    studentsByParent.forEach { studentWithClass ->
+                    students.forEach { studentWithClass ->
                         StudentInfoCard(
-                            studentName = studentWithClass.student.fullName,
+                            studentName = studentWithClass.student.firstName,
                             className = studentWithClass.classEntity.className,
                             schoolName = studentWithClass.classEntity.schoolName
                         )
@@ -211,7 +223,6 @@ fun ParentProfileScreen(
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
-            // Información personal
             Column(
                 modifier = Modifier.padding(horizontal = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -239,7 +250,7 @@ fun ParentProfileScreen(
                     ParentProfileInfoCard(
                         icon = Icons.Filled.LocationOn,
                         label = "Dirección",
-                        value = userWithProfile.profile.address!!
+                        value = userWithProfile.profile.address
                     )
                 }
             }
@@ -257,7 +268,7 @@ private fun ParentProfileInfoCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = AppShapes.small,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         )
@@ -272,7 +283,7 @@ private fun ParentProfileInfoCard(
             Box(
                 modifier = Modifier
                     .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(AppShapes.small)
                     .background(MaterialTheme.colorScheme.tertiaryContainer),
                 contentAlignment = Alignment.Center
             ) {
@@ -309,7 +320,7 @@ private fun ParentStatsCard(
 ) {
     Card(
         modifier = modifier.height(110.dp),
-        shape = RoundedCornerShape(16.dp),
+        shape = AppShapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
         )
@@ -354,7 +365,7 @@ private fun StudentInfoCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = AppShapes.small,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),

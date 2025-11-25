@@ -1,6 +1,5 @@
 package com.oriundo.lbretaappestudiantil.ui.theme.parent
 
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,9 +21,11 @@ import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.EventAvailable
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,15 +45,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.ViewModel
 import androidx.navigation.NavController
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import com.oriundo.lbretaappestudiantil.data.local.models.AttendanceEntity
+import com.oriundo.lbretaappestudiantil.data.local.models.AttendanceStatus
+import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.AttendanceViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import javax.inject.Inject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,11 +59,18 @@ fun StudentAttendanceScreen(
     studentId: Int,
     classId: Int,
     navController: NavController,
-    viewModel: StudentAttendanceViewModel = hiltViewModel()
+    viewModel: AttendanceViewModel = hiltViewModel()
 ) {
-    val attendanceRecords by viewModel.attendanceRecords.collectAsState()
+    // ✅ Usar el ViewModel real en lugar del hardcodeado
+    val attendanceEntities by viewModel.attendanceByStudent.collectAsState()
     val stats by viewModel.attendanceStats.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val isSyncing by viewModel.isSyncing.collectAsState()
 
+    // ✅ Mapear AttendanceEntity a AttendanceRecord para la UI
+    val attendanceRecords = attendanceEntities.map { it.toAttendanceRecord() }
+
+    // ✅ Cargar datos al entrar a la pantalla
     LaunchedEffect(studentId) {
         viewModel.loadAttendanceByStudent(studentId)
     }
@@ -86,13 +92,43 @@ fun StudentAttendanceScreen(
                         )
                     }
                 },
+                actions = {
+                    // ✅ Botón para sincronizar manualmente
+                    IconButton(
+                        onClick = { viewModel.forceSync(studentId) },
+                        enabled = !isSyncing
+                    ) {
+                        if (isSyncing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Filled.Refresh,
+                                contentDescription = "Sincronizar"
+                            )
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
         }
     ) { padding ->
-        if (attendanceRecords.isEmpty()) {
+        // ✅ Mostrar loading mientras carga
+        if (isLoading && attendanceRecords.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else if (attendanceRecords.isEmpty()) {
+            // ✅ Estado vacío mejorado
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -118,7 +154,7 @@ fun StudentAttendanceScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Los registros de asistencia aparecerán aquí.",
+                        text = "Los registros de asistencia aparecerán aquí cuando el profesor los registre.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -126,6 +162,7 @@ fun StudentAttendanceScreen(
                 }
             }
         } else {
+            // ✅ Mostrar datos reales
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -136,13 +173,14 @@ fun StudentAttendanceScreen(
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
 
+                    // ✅ Tarjetas de estadísticas con datos reales
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         AttendanceStatCard(
                             label = "Presente",
-                            count = stats.presentCount,
+                            count = stats.presentDays,
                             total = stats.totalDays,
                             color = Color(0xFF4CAF50),
                             modifier = Modifier.weight(1f)
@@ -150,7 +188,7 @@ fun StudentAttendanceScreen(
 
                         AttendanceStatCard(
                             label = "Ausente",
-                            count = stats.absentCount,
+                            count = stats.absentDays,
                             total = stats.totalDays,
                             color = Color(0xFFE53935),
                             modifier = Modifier.weight(1f)
@@ -158,11 +196,41 @@ fun StudentAttendanceScreen(
 
                         AttendanceStatCard(
                             label = "Tarde",
-                            count = stats.lateCount,
+                            count = stats.lateDays,
                             total = stats.totalDays,
                             color = Color(0xFFFB8C00),
                             modifier = Modifier.weight(1f)
                         )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // ✅ Mostrar porcentaje de asistencia
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Porcentaje de Asistencia",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "${stats.attendancePercentage}%",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -176,6 +244,7 @@ fun StudentAttendanceScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
+                // ✅ Lista de registros ordenados por fecha (más reciente primero)
                 items(attendanceRecords.sortedByDescending { it.date }) { record ->
                     AttendanceRecordCard(record = record)
                 }
@@ -186,6 +255,17 @@ fun StudentAttendanceScreen(
             }
         }
     }
+}
+
+// ✅ FUNCIÓN MAPPER: Convierte AttendanceEntity a AttendanceRecord
+fun AttendanceEntity.toAttendanceRecord(): AttendanceRecord {
+    return AttendanceRecord(
+        id = this.id,
+        studentId = this.studentId,
+        date = this.attendanceDate,
+        status = this.status,
+        notes = this.notes ?: ""
+    )
 }
 
 @Composable
@@ -327,6 +407,7 @@ fun getAttendanceStatusInfo(status: AttendanceStatus): AttendanceStatusInfo {
     }
 }
 
+// ✅ Data class simple para la UI (mantener separada de la entidad de Room)
 data class AttendanceRecord(
     val id: Int = 0,
     val studentId: Int,
@@ -334,43 +415,3 @@ data class AttendanceRecord(
     val status: AttendanceStatus,
     val notes: String = ""
 )
-
-enum class AttendanceStatus {
-    PRESENT,
-    ABSENT,
-    LATE,
-    JUSTIFIED
-}
-
-data class AttendanceStats(
-    val totalDays: Int = 0,
-    val presentCount: Int = 0,
-    val absentCount: Int = 0,
-    val lateCount: Int = 0,
-    val justifiedCount: Int = 0
-)
-
-@HiltViewModel
-class StudentAttendanceViewModel @Inject constructor() : ViewModel() {
-    private val _attendanceRecords = MutableStateFlow<List<AttendanceRecord>>(emptyList())
-    val attendanceRecords: StateFlow<List<AttendanceRecord>> = _attendanceRecords
-
-    private val _attendanceStats = MutableStateFlow(AttendanceStats())
-    val attendanceStats: StateFlow<AttendanceStats> = _attendanceStats
-
-    fun loadAttendanceByStudent(studentId: Int) {
-        _attendanceRecords.value = listOf(
-            AttendanceRecord(1, studentId, System.currentTimeMillis() - 86400000L, AttendanceStatus.PRESENT),
-            AttendanceRecord(2, studentId, System.currentTimeMillis() - 172800000L, AttendanceStatus.ABSENT, "Sin justificación"),
-            AttendanceRecord(3, studentId, System.currentTimeMillis() - 259200000L, AttendanceStatus.LATE, "Llegó 15 minutos tarde"),
-        )
-
-        _attendanceStats.value = AttendanceStats(
-            totalDays = 3,
-            presentCount = 1,
-            absentCount = 1,
-            lateCount = 1,
-            justifiedCount = 0
-        )
-    }
-}

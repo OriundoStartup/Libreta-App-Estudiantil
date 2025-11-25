@@ -92,7 +92,7 @@ fun StudentDetailScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = student?.fullName ?: "Estudiante",
+                        text = student?.firstName ?: "Estudiante",
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -199,7 +199,7 @@ private fun StudentInfoCard(student: StudentEntity) {
 
             Column {
                 Text(
-                    text = student.fullName,
+                    text = student.firstName,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )

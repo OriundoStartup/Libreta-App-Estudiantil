@@ -357,7 +357,7 @@ private fun StudentSelectorItem(
             // Info
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = student.fullName,
+                    text = student.firstName,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )

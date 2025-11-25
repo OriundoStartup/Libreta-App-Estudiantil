@@ -74,7 +74,7 @@ class StudentViewModel @Inject constructor(
                     students
                 } else {
                     students.filter { studentWithClass ->
-                        studentWithClass.student.fullName.contains(query, ignoreCase = true) ||
+                        studentWithClass.student.firstName.contains(query, ignoreCase = true) ||
                                 studentWithClass.classEntity.className.contains(query, ignoreCase = true)
                     }
                 }

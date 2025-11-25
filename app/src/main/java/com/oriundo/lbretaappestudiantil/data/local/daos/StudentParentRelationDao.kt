@@ -17,7 +17,7 @@ interface StudentParentRelationDao {
     @Query("""
         SELECT s.* FROM students s
         INNER JOIN student_parent_relation spr ON s.id = spr.student_id
-        WHERE spr.parent_id = :parentId AND s.is_active = 1
+        WHERE spr.parent_id = :parentId AND s.isActive = 1
     """)
     fun getStudentsByParent(parentId: Int): Flow<List<StudentEntity>>
 
@@ -38,7 +38,7 @@ interface StudentParentRelationDao {
     @Query("""
         SELECT COUNT(spr.student_id) FROM student_parent_relation spr
         INNER JOIN students s ON spr.student_id = s.id 
-        WHERE spr.parent_id = :parentId AND s.is_active = 1
+        WHERE spr.parent_id = :parentId AND s.isActive = 1
     """)
     suspend fun countRelationsByParentId(parentId: Int): Int
 }

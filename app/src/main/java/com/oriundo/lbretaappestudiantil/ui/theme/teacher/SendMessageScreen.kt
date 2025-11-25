@@ -297,8 +297,8 @@ private fun RecipientSelectorCard(
                 Text(
                     text = when (count) {
                         0 -> "Toca para seleccionar destinatarios"
-                        1 -> selectedStudents.first().student.fullName
-                        else -> "${selectedStudents.first().student.fullName} y ${count - 1} más"
+                        1 -> selectedStudents.first().student.firstName
+                        else -> "${selectedStudents.first().student.firstName} y ${count - 1} más"
                     },
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = if (count > 0) FontWeight.SemiBold else FontWeight.Normal,
@@ -476,7 +476,7 @@ private fun ParentSelectorBottomSheet(
                 selectableStudents
             } else {
                 selectableStudents.filter {
-                    it.student.fullName.contains(searchQuery, ignoreCase = true) ||
+                    it.student.firstName.contains(searchQuery, ignoreCase = true) ||
                             it.classEntity.className.contains(searchQuery, ignoreCase = true)
                 }
             }
@@ -677,7 +677,7 @@ private fun StudentSelectorItem(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = studentWithClass.student.fullName,
+                    text = studentWithClass.student.firstName,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold
                 )

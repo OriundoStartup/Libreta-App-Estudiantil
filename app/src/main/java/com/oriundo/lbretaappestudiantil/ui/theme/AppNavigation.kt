@@ -24,6 +24,7 @@ import com.oriundo.lbretaappestudiantil.ui.theme.auth.LoginScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.auth.ParentRegisterScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.auth.RoleSelectionScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.auth.TeacherRegisterScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.parent.AttendanceStatsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.ConversationThreadScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.JustifyAbsenceScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.parent.NotificationsScreen
@@ -48,6 +49,7 @@ import com.oriundo.lbretaappestudiantil.ui.theme.teacher.SendMessageScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.StudentDetailScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TakeAttendanceScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherDashboardScreen
+import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherMessagesScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherPendingJustificationsScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherProfileScreen
 import com.oriundo.lbretaappestudiantil.ui.theme.teacher.TeacherSettingsScreen
@@ -89,6 +91,12 @@ sealed class Screen(val route: String) {
     object SendMessage : Screen("send_message/{teacherId}") {
         fun createRoute(teacherId: Int) = "send_message/$teacherId"
     }
+
+    // UBICACIÓN: En AppNavigation.kt, dentro de la 'sealed class Screen', agrega este objeto (por ejemplo, debajo de TeacherNotifications).
+    object TeacherMessages : Screen("teacher_messages/{teacherId}") {
+        fun createRoute(teacherId: Int) = "teacher_messages/$teacherId"
+    }
+
     object StudentHistory : Screen("student_history/{studentId}/{classId}") {
         fun createRoute(studentId: Int, classId: Int) = "student_history/$studentId/$classId"
     }
@@ -131,6 +139,10 @@ sealed class Screen(val route: String) {
     }
     object StudentEvents : Screen("student_events/{studentId}/{classId}") {
         fun createRoute(studentId: Int, classId: Int) = "student_events/$studentId/$classId"
+    }
+
+    object AttendanceStats : Screen("attendance_stats/{studentId}") {
+        fun createRoute(studentId: Int) = "attendance_stats/$studentId"
     }
 
     /**
@@ -414,6 +426,18 @@ fun AppNavigation(
             SendMessageScreen(teacherId = teacherId, navController = navController)
         }
 
+        // UBICACIÓN: En AppNavigation.kt, dentro del bloque NavHost (puedes ponerlo después de TeacherNotifications)
+        composable(
+            route = Screen.TeacherMessages.route,
+            arguments = listOf(navArgument("teacherId") { type = NavType.IntType })
+        ) { backStackEntry ->
+            val teacherId = backStackEntry.arguments?.getInt("teacherId") ?: 0
+            TeacherMessagesScreen(
+                teacherId = teacherId,
+                navController = navController
+            )
+        }
+
         composable(
             route = Screen.ParentConversation.route,
             arguments = listOf(
@@ -617,6 +641,17 @@ fun AppNavigation(
             StudentAnnotationsScreen(
                 studentId = studentId,
                 parentId = parentId,
+                navController = navController
+            )
+        }
+
+        composable(
+            route = Screen.AttendanceStats.route,
+            arguments = listOf(navArgument("studentId") { type = NavType.IntType })
+        ) { backStackEntry ->
+            val studentId = backStackEntry.arguments?.getInt("studentId") ?: 0
+            AttendanceStatsScreen(
+                studentId = studentId,
                 navController = navController
             )
         }

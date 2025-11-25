@@ -41,7 +41,7 @@ interface AnnotationDao {
     @Query("""
         SELECT a.* FROM annotations a
         INNER JOIN students s ON a.student_id = s.id
-        WHERE s.class_id = :classId
+        WHERE s.classId = :classId
         ORDER BY a.date DESC
     """)
     fun getAnnotationsByClass(classId: Int): Flow<List<AnnotationEntity>>

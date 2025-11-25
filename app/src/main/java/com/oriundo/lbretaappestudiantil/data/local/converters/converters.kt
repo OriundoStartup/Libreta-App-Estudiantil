@@ -1,109 +1,38 @@
 package com.oriundo.lbretaappestudiantil.data.local.converters
 
 import androidx.room.TypeConverter
-import com.oriundo.lbretaappestudiantil.data.local.models.AnnotationType
-import com.oriundo.lbretaappestudiantil.data.local.models.AttendanceStatus
-import com.oriundo.lbretaappestudiantil.data.local.models.EventType
 import com.oriundo.lbretaappestudiantil.data.local.models.JustificationStatus
 import com.oriundo.lbretaappestudiantil.data.local.models.SyncStatus
 import com.oriundo.lbretaappestudiantil.domain.model.AbsenceReason
 
-/**
- * TypeConverters para Room Database
- * Convierte enums a String y viceversa
- */
-@Suppress("unused") // 💡 SOLUCIÓN: Suprime la advertencia 'is never used'
 class Converters {
-
-    // ====================================================================
-    // CONVERSORES DE ENUMS EXISTENTES
-    // ====================================================================
-
-    // EventType Converters
     @TypeConverter
-    fun fromEventType(value: EventType): String {
-        return value.name
+    fun fromAbsenceReason(value: AbsenceReason?): String? {
+        return value?.name
     }
 
     @TypeConverter
-    fun toEventType(value: String): EventType {
-        return try {
-            EventType.valueOf(value)
-        } catch (_: IllegalArgumentException) {
-            EventType.OTHER
-        }
-    }
-
-    // AnnotationType Converters
-    @TypeConverter
-    fun fromAnnotationType(value: AnnotationType): String {
-        return value.name
+    fun toAbsenceReason(value: String?): AbsenceReason? {
+        return value?.let { AbsenceReason.valueOf(it) }
     }
 
     @TypeConverter
-    fun toAnnotationType(value: String): AnnotationType {
-        return try {
-            AnnotationType.valueOf(value)
-        } catch (_: IllegalArgumentException) {
-            AnnotationType.GENERAL
-        }
-    }
-
-    // AttendanceStatus Converters
-    @TypeConverter
-    fun fromAttendanceStatus(value: AttendanceStatus): String {
-        return value.name
+    fun fromSyncStatus(value: SyncStatus?): String? {
+        return value?.name
     }
 
     @TypeConverter
-    fun toAttendanceStatus(value: String): AttendanceStatus {
-        return try {
-            AttendanceStatus.valueOf(value)
-        } catch (_: IllegalArgumentException) {
-            AttendanceStatus.ABSENT
-        }
+    fun toSyncStatus(value: String?): SyncStatus? {
+        return value?.let { SyncStatus.valueOf(it) }
     }
 
-    // ====================================================================
-    // CONVERSORES DE JUSTIFICACIÓN Y SINCRONIZACIÓN
-    // ====================================================================
-
-    // JustificationStatus Converters
     @TypeConverter
-    fun fromJustificationStatus(value: JustificationStatus): String = value.name
-
-    @TypeConverter
-    fun toJustificationStatus(value: String): JustificationStatus {
-        return try {
-            JustificationStatus.valueOf(value)
-        } catch (_: IllegalArgumentException) {
-            JustificationStatus.PENDING
-        }
+    fun fromJustificationStatus(value: JustificationStatus?): String? {
+        return value?.name
     }
 
-    // SyncStatus Converters
     @TypeConverter
-    fun fromSyncStatus(value: SyncStatus): String = value.name
-
-    @TypeConverter
-    fun toSyncStatus(value: String): SyncStatus {
-        return try {
-            SyncStatus.valueOf(value)
-        } catch (_: IllegalArgumentException) {
-            SyncStatus.ERROR
-        }
-    }
-
-    // AbsenceReason Converters
-    @TypeConverter
-    fun fromAbsenceReason(value: AbsenceReason): String = value.name
-
-    @TypeConverter
-    fun toAbsenceReason(value: String): AbsenceReason {
-        return try {
-            AbsenceReason.valueOf(value)
-        } catch (_: IllegalArgumentException) {
-            AbsenceReason.OTHER
-        }
+    fun toJustificationStatus(value: String?): JustificationStatus? {
+        return value?.let { JustificationStatus.valueOf(it) }
     }
 }

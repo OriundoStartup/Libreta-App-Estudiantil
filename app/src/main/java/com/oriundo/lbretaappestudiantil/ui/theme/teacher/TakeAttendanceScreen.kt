@@ -166,7 +166,7 @@ fun AttendanceItem(
                 .padding(16.dp)
         ) {
             Text(
-                text = student.fullName,
+                text = student.firstName,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )

@@ -107,7 +107,7 @@ fun StudentHistoryScreen(
                         )
                         student?.let {
                             Text(
-                                text = it.fullName,
+                                text = it.firstName,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -545,7 +545,7 @@ private fun AttendanceRecordCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     // Mostrar nota si existe
-                    record.note?.let { note ->
+                    record.notes?.let { note ->
                         Text(
                             text = note,
                             style = MaterialTheme.typography.bodySmall,

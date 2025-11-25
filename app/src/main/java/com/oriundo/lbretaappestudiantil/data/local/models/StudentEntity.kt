@@ -1,82 +1,53 @@
 package com.oriundo.lbretaappestudiantil.data.local.models
 
-import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-/**
- * Estudiantes
- */
 @Entity(
     tableName = "students",
     foreignKeys = [
         ForeignKey(
             entity = ClassEntity::class,
             parentColumns = ["id"],
-            childColumns = ["class_id"],
-            onDelete = ForeignKey.RESTRICT
-        ),
-        ForeignKey(
-            entity = ProfileEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["primary_parent_id"],
-            onDelete = ForeignKey.SET_NULL
+            childColumns = ["classId"],
+            onDelete = ForeignKey.CASCADE
         )
     ],
     indices = [
-        Index(value = ["class_id"]),
         Index(value = ["rut"], unique = true),
-        Index(value = ["primary_parent_id"])
-
+        Index(value = ["firestoreId"], unique = true),
+        Index(value = ["firebaseUid"], unique = true),
+        Index(value = ["classId"])
     ]
 )
 data class StudentEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
 
-    @ColumnInfo(name = "class_id")
-    val classId: Int,
+    var classId: Int, // Clave foránea para la clase
 
-
-    @ColumnInfo(name = "rut")
     val rut: String,
-
-    @ColumnInfo(name = "first_name")
     val firstName: String,
-
-    @ColumnInfo(name = "last_name")
     val lastName: String,
-
-    @ColumnInfo(name = "birth_date")
     val birthDate: Long? = null,
-
-    @ColumnInfo(name = "photo_url")
     val photoUrl: String? = null,
 
-    @ColumnInfo(name = "enrollment_date")
-    val enrollmentDate: Long = System.currentTimeMillis(),
+    // ✅ Campos añadidos que faltaban
+    val enrollmentDate: Long? = null, // Fecha de matrícula
+    val isActive: Boolean = true,       // Si el estudiante está activo en la clase
+    val notes: String? = null,          // Notas adicionales sobre el estudiante
 
-    @ColumnInfo(name = "is_active")
-    val isActive: Boolean = true,
-
-    @ColumnInfo(name = "notes")
-    val notes: String? = null,
-
-    @ColumnInfo(name = "primary_parent_id")
-    val primaryParentId: Int? = null,
-
-    // ✅ NUEVOS CAMPOS DE SINCRONIZACIÓN
-    @ColumnInfo(name = "firestore_id")
+    // ID del documento del estudiante en la subcolección del padre en Firestore
     val firestoreId: String? = null,
 
-    @ColumnInfo(name = "sync_status")
-    val syncStatus: SyncStatus = SyncStatus.PENDING,
+    // UID del estudiante si tiene su propia cuenta de usuario (para futuras implementaciones)
+    val firebaseUid: String? = null,
 
-    @ColumnInfo(name = "last_synced_at")
+    // ID del perfil del apoderado principal (denormalizado para acceso rápido)
+    var primaryParentId: Int? = null,
+
+    val syncStatus: SyncStatus = SyncStatus.PENDING,
     val lastSyncedAt: Long? = null
-) {
-    val fullName: String
-        get() = "$firstName $lastName"
-}
+)

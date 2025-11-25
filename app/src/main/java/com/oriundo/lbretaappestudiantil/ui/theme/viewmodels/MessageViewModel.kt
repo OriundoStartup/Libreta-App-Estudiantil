@@ -83,7 +83,7 @@ class MessageViewModel @Inject constructor(
                     successful = emptyList(),
                     failed = selectedStudents.map {
                         SendResult(
-                            studentName = it.student.fullName,
+                            studentName = it.student.firstName,
                             studentId = it.student.id,
                             success = false,
                             error = "ID de profesor inválido"
@@ -103,7 +103,7 @@ class MessageViewModel @Inject constructor(
             selectedStudents.forEach { studentWithClass ->
                 val parentId = studentWithClass.student.primaryParentId
                 val studentId = studentWithClass.student.id
-                val studentName = studentWithClass.student.fullName
+                val studentName = studentWithClass.student.firstName
 
                 val result = if (parentId == null || parentId <= 0) {
                     // Sin apoderado válido

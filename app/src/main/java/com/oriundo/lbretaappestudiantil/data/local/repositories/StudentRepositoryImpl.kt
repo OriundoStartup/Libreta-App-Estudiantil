@@ -146,22 +146,10 @@ class StudentRepositoryImpl @Inject constructor(
     override fun getAllStudentsWithClass(): Flow<List<StudentWithClass>> {
         return studentDao.getAllStudentsWithClassAndParent().map { dtoList ->
             dtoList.mapNotNull { dto ->
-                val classEntity = classDao.getClassById(dto.classId)
+                val classEntity = classDao.getClassById(dto.student.classId)
                 classEntity?.let {
                     StudentWithClass(
-                        student = StudentEntity(
-                            id = dto.id,
-                            classId = dto.classId,
-                            rut = dto.rut,
-                            firstName = dto.firstName,
-                            lastName = dto.lastName,
-                            birthDate = dto.birthDate,
-                            photoUrl = dto.photoUrl,
-                            enrollmentDate = dto.enrollmentDate,
-                            isActive = dto.isActive,
-                            notes = dto.notes,
-                            primaryParentId = dto.primaryParentId
-                        ),
+                        student = dto.student,
                         classEntity = it,
                     )
                 }

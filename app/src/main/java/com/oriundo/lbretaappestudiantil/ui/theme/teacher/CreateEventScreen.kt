@@ -1,8 +1,10 @@
 package com.oriundo.lbretaappestudiantil.ui.theme.teacher
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,15 +12,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -35,7 +39,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
@@ -46,12 +49,15 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.oriundo.lbretaappestudiantil.data.local.models.EventType
+import com.oriundo.lbretaappestudiantil.ui.theme.AppColors
 import com.oriundo.lbretaappestudiantil.ui.theme.states.SchoolEventUiState
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.ClassViewModel
 import com.oriundo.lbretaappestudiantil.ui.theme.viewmodels.SchoolEventViewModel
@@ -73,6 +79,8 @@ fun CreateEventScreen(
     var selectedClassId by remember { mutableStateOf<Int?>(null) }
     var selectedEventType by remember { mutableStateOf(EventType.MEETING) }
     var eventDate by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    // Control de diálogos y menús
     var showDatePicker by remember { mutableStateOf(false) }
     var showClassDropdown by remember { mutableStateOf(false) }
     var showEventTypeDropdown by remember { mutableStateOf(false) }
@@ -81,12 +89,12 @@ fun CreateEventScreen(
     val createState by eventViewModel.createState.collectAsState()
     val teacherClasses by classViewModel.teacherClasses.collectAsState()
 
-    // Cargar clases del profesor
+    // Cargar datos
     LaunchedEffect(teacherId) {
         classViewModel.loadTeacherClasses(teacherId)
     }
 
-    // Manejar éxito
+    // Manejar éxito y navegación
     LaunchedEffect(createState) {
         if (createState is SchoolEventUiState.Success) {
             navController.popBackStack()
@@ -95,11 +103,11 @@ fun CreateEventScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        "Crear Evento Escolar",
-                        fontWeight = FontWeight.Bold
+                        "Nuevo Evento",
+                        style = MaterialTheme.typography.headlineSmall // [cite: 4]
                     )
                 },
                 navigationIcon = {
@@ -108,41 +116,44 @@ fun CreateEventScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
+                .padding(horizontal = 24.dp) // Márgenes laterales consistentes
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // Tarjeta de información básica
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // SECCIÓN 1: DATOS PRINCIPALES
+            Text(
+                text = "Información General",
+                style = MaterialTheme.typography.titleMedium, // [cite: 5]
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.medium, //  (16.dp)
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    containerColor = MaterialTheme.colorScheme.surface
                 ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        text = "Información del Evento",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-
-                    // Campo: Título
+                    // Input: Título
                     OutlinedTextField(
                         value = title,
                         onValueChange = { title = it },
@@ -150,310 +161,207 @@ fun CreateEventScreen(
                         placeholder = { Text("Ej: Reunión de apoderados") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        isError = title.isBlank() && createState is SchoolEventUiState.Error,
-                        shape = RoundedCornerShape(12.dp)
+                        shape = MaterialTheme.shapes.small, //  (12.dp)
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                        )
                     )
 
-                    // Campo: Descripción
+                    // Input: Descripción
                     OutlinedTextField(
                         value = description,
                         onValueChange = { description = it },
                         label = { Text("Descripción") },
-                        placeholder = { Text("Detalles del evento") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(120.dp),
                         maxLines = 5,
-                        isError = description.isBlank() && createState is SchoolEventUiState.Error,
-                        shape = RoundedCornerShape(12.dp)
+                        shape = MaterialTheme.shapes.small, // 
                     )
                 }
             }
 
-            // Tarjeta de configuración
+            // SECCIÓN 2: CONFIGURACIÓN
+            Text(
+                text = "Detalles",
+                style = MaterialTheme.typography.titleMedium, // [cite: 5]
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                shape = MaterialTheme.shapes.medium, // 
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        text = "Configuración",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-
-                    // Selector de Clase
+                    // 1. Selector de Clase (Dropdown Estilizado)
                     ExposedDropdownMenuBox(
                         expanded = showClassDropdown,
                         onExpandedChange = { showClassDropdown = it }
                     ) {
                         OutlinedTextField(
                             value = teacherClasses.find { it.id == selectedClassId }?.className
-                                ?: "Seleccionar clase",
+                                ?: "Evento General (Sin clase)",
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text("Clase (opcional)") },
+                            label = { Text("Asignar a Clase") },
                             trailingIcon = {
-                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = showClassDropdown)
+                                Icon(
+                                    if (showClassDropdown) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                                    contentDescription = null
+                                )
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true),
-                            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                            shape = RoundedCornerShape(12.dp)
+                                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                            shape = MaterialTheme.shapes.small, // 
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                            )
                         )
-
                         ExposedDropdownMenu(
                             expanded = showClassDropdown,
                             onDismissRequest = { showClassDropdown = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Ninguna (evento general)") },
-                                onClick = {
-                                    selectedClassId = null
-                                    showClassDropdown = false
-                                }
+                                text = { Text("Ninguna (Evento General)") },
+                                onClick = { selectedClassId = null; showClassDropdown = false }
                             )
                             teacherClasses.forEach { classEntity ->
                                 DropdownMenuItem(
                                     text = { Text(classEntity.className) },
-                                    onClick = {
-                                        selectedClassId = classEntity.id
-                                        showClassDropdown = false
-                                    }
+                                    onClick = { selectedClassId = classEntity.id; showClassDropdown = false }
                                 )
                             }
                         }
                     }
 
-                    // Selector de Tipo de Evento
+                    // 2. Selector de Tipo
                     ExposedDropdownMenuBox(
                         expanded = showEventTypeDropdown,
                         onExpandedChange = { showEventTypeDropdown = it }
                     ) {
                         OutlinedTextField(
-                            value = when (selectedEventType) {
-                                EventType.TEST -> "📝 Prueba"
-                                EventType.ASSIGNMENT -> "📚 Tarea"
-                                EventType.PROJECT -> "🎯 Proyecto"
-                                EventType.FIELD_TRIP -> "🚌 Salida Pedagógica"
-                                EventType.MEETING -> "👥 Reunión"
-                                EventType.HOLIDAY -> "🎉 Festivo"
-                                EventType.GENERAL -> "Casos Generales    "
-                                EventType.OTHER -> "📌 Otro"
-                            },
+                            value = selectedEventType.name,
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text("Tipo de evento") },
-                            trailingIcon = {
-                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = showEventTypeDropdown)
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true),
-                            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                            shape = RoundedCornerShape(12.dp)
+                            label = { Text("Tipo de Evento") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showEventTypeDropdown) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                            shape = MaterialTheme.shapes.small
                         )
-
                         ExposedDropdownMenu(
                             expanded = showEventTypeDropdown,
                             onDismissRequest = { showEventTypeDropdown = false }
                         ) {
-                            DropdownMenuItem(
-                                text = { Text("📝 Prueba") },
-                                onClick = {
-                                    selectedEventType = EventType.TEST
-                                    showEventTypeDropdown = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("📚 Tarea") },
-                                onClick = {
-                                    selectedEventType = EventType.ASSIGNMENT
-                                    showEventTypeDropdown = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("🎯 Proyecto") },
-                                onClick = {
-                                    selectedEventType = EventType.PROJECT
-                                    showEventTypeDropdown = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("🚌 Salida Pedagógica") },
-                                onClick = {
-                                    selectedEventType = EventType.FIELD_TRIP
-                                    showEventTypeDropdown = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("👥 Reunión") },
-                                onClick = {
-                                    selectedEventType = EventType.MEETING
-                                    showEventTypeDropdown = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("🎉 Festivo") },
-                                onClick = {
-                                    selectedEventType = EventType.HOLIDAY
-                                    showEventTypeDropdown = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("📌 Otro") },
-                                onClick = {
-                                    selectedEventType = EventType.OTHER
-                                    showEventTypeDropdown = false
-                                }
-                            )
+                            EventType.entries.forEach { type ->
+                                DropdownMenuItem(
+                                    text = { Text(type.name) },
+                                    onClick = { selectedEventType = type; showEventTypeDropdown = false }
+                                )
+                            }
                         }
                     }
 
-                    // Selector de Fecha
+                    // 3. Selector de Fecha
                     OutlinedTextField(
-                        value = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+                        value = SimpleDateFormat("dd 'de' MMMM, yyyy", Locale("es", "ES"))
                             .format(Date(eventDate)),
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Fecha del evento") },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.DateRange,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        },
+                        label = { Text("Fecha") },
                         trailingIcon = {
                             IconButton(onClick = { showDatePicker = true }) {
-                                Icon(
-                                    Icons.Default.DateRange,
-                                    "Seleccionar fecha",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
+                                Icon(Icons.Default.DateRange, "Cambiar fecha", tint = MaterialTheme.colorScheme.primary)
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                        )
+                        shape = MaterialTheme.shapes.small
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Botón de crear con gradiente
+            // BOTÓN DE CREAR (Con Gradiente de la App) 
             Button(
                 onClick = {
-                    if (title.isNotBlank() && description.isNotBlank()) {
-                        eventViewModel.createEvent(
-                            classId = selectedClassId,
-                            teacherId = teacherId,
-                            title = title,
-                            description = description,
-                            eventDate = eventDate,
-                            eventType = selectedEventType
-                        )
-                    }
+                    eventViewModel.createEvent(
+                        selectedClassId,
+                        teacherId,
+                        title,
+                        description,
+                        eventDate,
+                        selectedEventType
+                    )
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                enabled = createState !is SchoolEventUiState.Loading,
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.medium, // 
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
+                    containerColor = Color.Transparent // Transparente para que se vea el gradiente
+                ),
+                contentPadding = PaddingValues(), // Sin padding para que el Box llene todo
+                enabled = createState !is SchoolEventUiState.Loading
             ) {
-                if (createState is SchoolEventUiState.Loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Text(
-                        "Crear Evento",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            // Mostrar errores
-            if (createState is SchoolEventUiState.Error) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
+                // Box con el gradiente definido en AppColors
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(AppColors.PrimaryGradient), // 
+                    contentAlignment = Alignment.Center
                 ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
+                    if (createState is SchoolEventUiState.Loading) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                    } else {
                         Text(
-                            text = "⚠️ ",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Text(
-                            text = (createState as SchoolEventUiState.Error).message,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodyMedium
+                            "Guardar Evento",
+                            style = MaterialTheme.typography.titleMedium, // [cite: 5]
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
             }
+
+            // Manejo de Errores
+            if (createState is SchoolEventUiState.Error) {
+                Text(
+                    text = (createState as SchoolEventUiState.Error).message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 
-    // DatePicker con Material3
+    // DatePicker con la corrección del bug
     if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = eventDate
-        )
-
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = eventDate)
         DatePickerDialog(
-            onDismissRequest = { },
+            onDismissRequest = { showDatePicker = false }, // Corrección: Cerrar
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        datePickerState.selectedDateMillis?.let {
-                            eventDate = it
-                        }
-                    }
-                ) {
-                    Text("Aceptar")
-                }
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { eventDate = it }
+                    showDatePicker = false // Corrección: Cerrar al confirmar
+                }) { Text("Aceptar") }
             },
             dismissButton = {
-                TextButton(onClick = { }) {
-                    Text("Cancelar")
-                }
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancelar") } // Corrección: Cerrar al cancelar
             }
         ) {
-            DatePicker(
-                state = datePickerState,
-                title = {
-                    Text(
-                        text = "Seleccionar fecha",
-                        modifier = Modifier.padding(16.dp),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            )
+            DatePicker(state = datePickerState)
         }
     }
 }

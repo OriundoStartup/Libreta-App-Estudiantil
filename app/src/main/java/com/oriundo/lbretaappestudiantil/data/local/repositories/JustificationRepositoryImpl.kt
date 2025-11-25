@@ -1,11 +1,14 @@
 package com.oriundo.lbretaappestudiantil.data.local.repositories
 
 import android.net.Uri
-import android.util.Log
-import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
+import com.oriundo.lbretaappestudiantil.data.local.LocalDatabaseRepository
 import com.oriundo.lbretaappestudiantil.data.local.daos.AbsenceJustificationDao
+import com.oriundo.lbretaappestudiantil.data.local.daos.ClassDao
+import com.oriundo.lbretaappestudiantil.data.local.daos.StudentDao
+import com.oriundo.lbretaappestudiantil.data.local.daos.UserDao
 import com.oriundo.lbretaappestudiantil.data.local.models.AbsenceJustificationEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.JustificationStatus
 import com.oriundo.lbretaappestudiantil.data.local.models.SyncStatus
@@ -14,77 +17,16 @@ import com.oriundo.lbretaappestudiantil.domain.model.repository.JustificationRep
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
-// Asumo que esta función de mapeo existe en alguna extensión o util
-// Asumo que esta función de mapeo existe en alguna extensión o util
-fun DocumentSnapshot.toAbsenceJustificationEntity(): AbsenceJustificationEntity? {
-    // Este mapeo es crucial. Aquí va tu lógica real.
-    // Usando el mapeo mínimo para que el código compile y sea funcional:
-    return try {
-        AbsenceJustificationEntity(
-            // Asumo que tu entidad ahora tiene un campo para el ID de Firestore.
-            // Si el campo 'id' de la Entity es el ID de Firestore, úsalo. Si no, usa el ID local.
-            id = (getLong("id") ?: 0).toInt(),
-            studentId = (getLong("studentId") ?: 0).toInt(),
-            parentId = (getLong("parentId") ?: 0).toInt(),
-            absenceDate = getLong("absenceDate") ?: 0L,
-            reason = AbsenceReason.valueOf(getString("reason") ?: "OTHER"),
-            description = getString("description") ?: "",
-            attachmentUrl = getString("attachmentUrl"),
-            status = JustificationStatus.valueOf(getString("status") ?: "PENDING"),
-
-            // ✅ CORRECCIÓN: Añadir 'submittedAt' recuperándolo de Firestore
-            submittedAt = getLong("submittedAt") ?: 0L,
-
-            reviewedByTeacherId = (getLong("reviewedByTeacherId") ?: 0).toInt().takeIf { it != 0 },
-            reviewNotes = getString("reviewNotes"),
-            reviewedAt = getLong("reviewedAt"),
-            createdAt = getLong("createdAt") ?: 0L,
-            updatedAt = getLong("updatedAt") ?: 0L,
-
-            // ⚠️ NOTA: Si incluiste 'remoteId' y 'syncStatus' en la entidad
-            // (que se usa para la justificación local/offline), deberías
-            // asignarlos aquí también, al menos con valores por defecto o
-            // mapeando el ID de Firebase:
-            // remoteId = id, // Si el ID de Firestore es el que se usa en el repo
-            // syncStatus = SyncStatus.SYNCED // Ya que viene de Firestore
-        )
-    } catch (e: Exception) {
-        Log.e("Mapper", "Error mapeando justificación desde Firestore: ${e.message}")
-        null
-    }
-}
-
-// Asumo que esta función de mapeo existe en alguna extensión o util
-fun AbsenceJustificationEntity.toMap(): Map<String, Any?> {
-    return mapOf(
-        "id" to this.id,
-        "studentId" to this.studentId,
-        "parentId" to this.parentId,
-        "absenceDate" to this.absenceDate,
-        "reason" to this.reason.name,
-        "description" to this.description,
-        "attachmentUrl" to this.attachmentUrl,
-        "status" to this.status.name,
-        "createdAt" to this.createdAt,
-        "updatedAt" to this.updatedAt,
-        "reviewedByTeacherId" to this.reviewedByTeacherId,
-        "reviewNotes" to this.reviewNotes,
-        "reviewedAt" to this.reviewedAt,
-    )
-}
-
-/**
- * Implementación del repositorio.
- * Coordina la base de datos local (DAO) y Firebase.
- */
 class JustificationRepositoryImpl @Inject constructor(
     private val dao: AbsenceJustificationDao,
-    private val firestore: FirebaseFirestore // ✅ Inyección de Firebase
+    private val studentDao: StudentDao,
+    private val classDao: ClassDao,
+    private val userDao: UserDao,
+    private val firestore: FirebaseFirestore,
+    private val auth: FirebaseAuth,
+    private val localDatabaseRepository: LocalDatabaseRepository
 ) : JustificationRepository {
 
-    // =========================================================================
-    // ✅ submitJustification: Guardar Local (PENDING) -> Subir a Firebase -> Actualizar Local (SYNCED)
-    // =========================================================================
     override suspend fun submitJustification(
         studentId: Int,
         parentId: Int,
@@ -93,152 +35,215 @@ class JustificationRepositoryImpl @Inject constructor(
         description: String,
         attachmentUri: Uri?
     ) {
-        val submittedAt = System.currentTimeMillis() // ⬅️ Usamos submittedAt
+        val submittedAt = System.currentTimeMillis()
 
-        // 1. Crear una entidad local inicial con estado PENDING
-        val initialJustification = AbsenceJustificationEntity(
-            // id se genera automáticamente por Room (es 0 aquí)
+        // 1. Obtener el estudiante de Room
+        val studentEntity = studentDao.getStudentById(studentId)
+            ?: throw IllegalStateException("Estudiante ID $studentId no encontrado")
+
+        // 2. Obtener la clase del estudiante
+        val classEntity = classDao.getClassById(studentEntity.classId)
+            ?: throw IllegalStateException("Clase ID ${studentEntity.classId} no encontrada")
+
+        // 3. Obtener el padre de Room y validar su ID de Firebase
+        val parentUser = userDao.getUserById(parentId)
+            ?: throw IllegalStateException("Padre ID $parentId no encontrado")
+
+        val parentFirebaseUid = parentUser.firebaseUid
+            ?: throw IllegalStateException("El padre no tiene firebaseUid")
+
+        // 4. Verificar autenticación
+        val currentAuthUid = auth.currentUser?.uid
+        if (currentAuthUid != parentFirebaseUid) {
+            throw SecurityException("UID de autenticación no coincide")
+        }
+
+        // 5. Obtener IDs de Firestore y clase actual
+        val studentFirestoreId = studentEntity.firestoreId
+            ?: throw IllegalStateException("El estudiante no tiene firestoreId")
+
+        // Buscar la clase ACTUAL en Firestore por código (siempre la fuente de verdad)
+        val classSnapshot = firestore.collection("classes")
+            .whereEqualTo("code", classEntity.classCode)
+            .limit(1)
+            .get()
+            .await()
+
+        if (classSnapshot.isEmpty) {
+            throw IllegalStateException("Clase ${classEntity.classCode} no encontrada en Firestore")
+        }
+
+        val classDoc = classSnapshot.documents.first()
+        val classFirestoreId = classDoc.id
+
+        // Actualizar Room si el ID de clase cambió
+        if (classEntity.firestoreId != classFirestoreId) {
+            try {
+                val updatedClass = classEntity.copy(firestoreId = classFirestoreId)
+                classDao.updateClass(updatedClass)
+            } catch (_: Exception) {
+                // Se ignora el error de actualización de Room para no detener el envío de la justificación
+            }
+        }
+
+        // 6. Verificar que el estudiante existe en esa clase en Firestore y que pertenece al padre
+        try {
+            val studentDoc = firestore
+                .collection("classes")
+                .document(classFirestoreId)
+                .collection("students")
+                .document(studentFirestoreId)
+                .get()
+                .await()
+
+            if (!studentDoc.exists()) {
+                throw IllegalStateException("Estudiante no encontrado en la clase en Firestore")
+            }
+
+            val firestoreParentId = studentDoc.getString("parentId")
+            if (firestoreParentId != parentFirebaseUid) {
+                throw SecurityException("El estudiante no pertenece a este padre")
+            }
+
+        } catch (e: Exception) {
+            if (e is SecurityException || e is IllegalStateException) {
+                throw e
+            }
+            throw e
+        }
+
+        // 7. Preparar el documento para Firestore
+        val justificationData = hashMapOf(
+            "studentId" to studentFirestoreId,
+            "classId" to classFirestoreId,
+            "parentId" to parentFirebaseUid,
+            "reason" to reason.name,
+            "description" to description,
+            "date" to dateMillis,
+            "status" to "pending",
+            "createdAt" to FieldValue.serverTimestamp()
+        )
+
+        // Agregar attachmentUrl solo si existe
+        if (attachmentUri != null) {
+            justificationData["attachmentUrl"] = attachmentUri.toString()
+        }
+
+        // 8. Guardar localmente primero
+        val localJustification = AbsenceJustificationEntity(
             studentId = studentId,
             parentId = parentId,
             absenceDate = dateMillis,
             reason = reason,
             description = description,
             attachmentUrl = attachmentUri?.toString(),
-
-            // ✅ CORRECCIÓN: Pasar el valor a su respectivo parámetro
             submittedAt = submittedAt,
-
             status = JustificationStatus.PENDING,
-
-            // Estos campos ya deberían tener valores por defecto en tu entidad (createdAt = submittedAt)
-            // Pero si no tienen default, también necesitan ser pasados.
-            // Lo hacemos por seguridad:
             createdAt = submittedAt,
             updatedAt = submittedAt,
-
             syncStatus = SyncStatus.PENDING
         )
 
-        // 2. Guardar en Room para obtener el ID local y garantizar la persistencia
-        // 🛑 CORRECCIÓN: Usar la instancia 'dao' y el nombre correcto 'insertJustification'
-        val localId = dao.insertJustification(initialJustification).toInt()
-        val justificationToUpload = initialJustification.copy(id = localId)
+        val localId = dao.insertJustification(localJustification).toInt()
 
+        // 9. Enviar a Firestore
         try {
-            // 3. Subir a Firestore
-            // 🛑 CORRECCIÓN: Usar la función helper 'toMap()' que definiste
-            val firestoreData = justificationToUpload.toMap()
-
-            val documentReference = firestore
+            val docRef = firestore
                 .collection("justifications")
-                .add(firestoreData)
+                .add(justificationData)
                 .await()
 
-            val remoteId = documentReference.id
+            val remoteId = docRef.id
 
-            // 4. Éxito: Actualizar el registro en Room con el ID remoto y estado SYNCED
-            val syncedJustification = justificationToUpload.copy(
-                // Asumo que la Entidad YA TIENE el campo 'remoteId'
+            // 10. Actualizar estado local
+            val syncedJustification = localJustification.copy(
+                id = localId,
                 remoteId = remoteId,
                 syncStatus = SyncStatus.SYNCED
             )
-            // 🛑 CORRECCIÓN: Usar la instancia 'dao' y el nombre correcto 'updateJustification'
             dao.updateJustification(syncedJustification)
 
         } catch (e: Exception) {
-            Log.e("JustificationRepo", "Falla al sincronizar justificación (Local ID: $localId): ${e.message}")
-            // 5. Falla de Red: El registro ya está en Room como PENDING.
-            throw e // Relanzar el error para que el ViewModel/UI lo maneje.
-        }
-    }
-
-    // =========================================================================
-    // 2. GET PENDING JUSTIFICATIONS (PROFESOR) - Obtiene la lista de Firebase
-    // =========================================================================
-    override suspend fun getPendingJustifications(teacherId: Int): List<AbsenceJustificationEntity> {
-        return try {
-            val snapshot = firestore.collection("justifications")
-                .whereEqualTo("status", JustificationStatus.PENDING.name)
-                // .whereArrayContains("classIds", classId) // Opcional: Filtro por clase del profesor
-                .orderBy("createdAt", Query.Direction.DESCENDING)
-                .get()
-                .await()
-
-            val justifications = snapshot.documents.mapNotNull { document ->
-                document.toAbsenceJustificationEntity()
-            }
-
-            // Opcional: Guardar en caché local
-            // dao.insertAllJustifications(justifications)
-
-            justifications
-        } catch (e: Exception) {
-            Log.e("JustificationRepo", "Error al obtener justificaciones pendientes: ${e.message}")
-            // Si Firebase falla, intenta obtener de la base de datos local como fallback
-            // return dao.getAllPendingLocal()
-            emptyList()
-        }
-    }
-
-
-    // =========================================================================
-    // 3. GET JUSTIFICATION DETAILS (PROFESOR) - Obtiene el detalle de Firebase
-    // =========================================================================
-    override suspend fun getJustificationDetails(justificationId: Int): AbsenceJustificationEntity {
-        // Asumo que el 'justificationId' recibido es el ID local.
-        // La forma más robusta es buscar por el ID de Firebase.
-        // Aquí buscaremos por el campo 'id' local en Firebase, asumiendo que está indexado.
-
-        return try {
-            // 1. Busco el documento en Firebase
-            val docSnapshot = firestore.collection("justifications")
-                .whereEqualTo("id", justificationId) // 🛑 REEMPLAZAR con .document(firestoreId).get() si es posible
-                .get().await().documents.firstOrNull() ?: throw NoSuchElementException("Justificación ID:$justificationId no encontrada en Firebase.")
-
-            // 2. Mapeo a la entidad
-            docSnapshot.toAbsenceJustificationEntity() ?: throw IllegalStateException("Error mapeando justificación de Firebase.")
-
-        } catch (e: Exception) {
-            Log.e("JustificationRepo", "Error obteniendo detalle de justificación: ${e.message}")
-            // ❌ Eliminado: kotlinx.coroutines.delay(500) y hardcodeo
+            // Se lanza la excepción para que la capa superior la maneje (ej. revertir UI)
             throw e
         }
     }
 
     // =========================================================================
-    // 4. UPDATE JUSTIFICATION STATUS (PROFESOR) - Actualiza en Firebase
+    // OTROS MÉTODOS
     // =========================================================================
+
+    override suspend fun getPendingJustifications(teacherId: Int): List<AbsenceJustificationEntity> {
+        // 1. Activar la sincronización (Pull) delegando a LocalDatabaseRepository
+        localDatabaseRepository.syncPendingJustifications(teacherId)
+
+        // 2. Devolver la lista desde el DAO local
+        // Se asume que este método ya fue añadido a AbsenceJustificationDao
+        return dao.getPendingJustificationsForTeacher(teacherId)
+    }
+
+
+
+    override suspend fun getJustificationDetails(justificationId: Int): AbsenceJustificationEntity {
+        // Implementación necesaria: Usar el DAO para buscar por ID local
+        return dao.getJustificationById(justificationId) ?: throw NoSuchElementException(
+            "Justificación con ID $justificationId no encontrada en la base de datos local."
+        )
+    }
+
+
     override suspend fun updateJustificationStatus(
         justificationId: Int,
         teacherId: Int,
         newStatus: JustificationStatus,
         reviewNotes: String
     ) {
+        // 1. Obtener la justificación local (debe existir)
+        val existingJustification = dao.getJustificationById(justificationId)
+            ?: throw IllegalStateException("Justificación ID $justificationId no encontrada para actualizar.")
+
+        // 2. Preparar la entidad actualizada con el nuevo estado y marca de sincronización PENDING
+        val localUpdatedJustification = existingJustification.copy(
+            status = newStatus,
+            reviewedByTeacherId = teacherId,
+            reviewNotes = reviewNotes,
+            reviewedAt = System.currentTimeMillis(),
+            syncStatus = SyncStatus.PENDING, // Marcar como pendiente de sincronización
+            updatedAt = System.currentTimeMillis()
+        )
+
+        // 3. Actualizar localmente (para dar feedback inmediato al usuario)
+        dao.updateJustification(localUpdatedJustification)
+
+        // 4. Sincronizar con Firestore
+        val remoteId = localUpdatedJustification.remoteId
+            ?: throw IllegalStateException("Justificación ID $justificationId no tiene remoteId para sincronizar.")
+
+        // Datos que se enviarán a Firestore
+        val firestoreUpdateData = mapOf(
+            "status" to newStatus.name, // El Enum se guarda como String (PENDING, APPROVED, REJECTED)
+            "reviewedByTeacherId" to teacherId,
+            "reviewNotes" to reviewNotes,
+            "reviewedAt" to localUpdatedJustification.reviewedAt,
+            "updatedAt" to FieldValue.serverTimestamp() // Marca de tiempo del servidor
+        )
+
         try {
-            // 1. Busco el documento en Firebase (necesito su referencia)
-            val docSnapshot = firestore.collection("justifications")
-                .whereEqualTo("id", justificationId)
-                .get().await().documents.firstOrNull() ?: throw NoSuchElementException("Justificación ID:$justificationId no encontrada para actualizar.")
+            // Actualizar el documento en la colección 'justifications' de Firebase
+            firestore.collection("justifications")
+                .document(remoteId)
+                .update(firestoreUpdateData)
+                .await()
 
-            // 2. Defino los campos a actualizar
-            val updates = mapOf(
-                "status" to newStatus.name,
-                "reviewedByTeacherId" to teacherId,
-                "reviewNotes" to reviewNotes,
-                "reviewedAt" to System.currentTimeMillis(),
-                "updatedAt" to System.currentTimeMillis()
+            // 5. Si la sincronización es exitosa, actualizar el estado local a SYNCED
+            val finalJustification = localUpdatedJustification.copy(
+                syncStatus = SyncStatus.SYNCED
             )
-
-            // 3. Actualizo el documento
-            docSnapshot.reference.update(updates).await()
-
-            // 4. Opcional: Actualizar la BD local
-            // dao.updateJustificationStatus(justificationId, newStatus, teacherId, reviewNotes)
+            dao.updateJustification(finalJustification)
 
         } catch (e: Exception) {
-            Log.e("JustificationRepo", "Error actualizando estado en Firebase: ${e.message}")
-            // ❌ Eliminado: kotlinx.coroutines.delay(1000)
-            throw e
+            // Lanzar la excepción para que el ViewModel la capture y muestre el error en la UI
+            throw Exception("Error al sincronizar la revisión de la justificación ID $justificationId con Firestore: ${e.message}", e)
         }
     }
 }

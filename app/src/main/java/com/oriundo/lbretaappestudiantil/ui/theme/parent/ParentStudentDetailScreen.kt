@@ -1,3 +1,4 @@
+// ParentStudentDetailScreen.kt
 package com.oriundo.lbretaappestudiantil.ui.theme.parent
 
 import androidx.compose.foundation.background
@@ -63,17 +64,44 @@ fun ParentStudentDetailScreen(
         studentViewModel.loadStudentById(studentId)
     }
 
+    ParentStudentDetailContent(
+        student = student,
+        onBackClick = { navController.popBackStack() },
+        onHistoryClick = {
+            navController.navigate(
+                Screen.StudentHistory.createRoute(studentId, classId)
+            )
+        },
+        onSendMessageClick = {
+            navController.navigate(
+                Screen.ParentSendMessage.createRoute(
+                    parentId = parentId,
+                    studentId = studentId
+                )
+            )
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ParentStudentDetailContent(
+    student: StudentEntity?,
+    onBackClick: () -> Unit,
+    onHistoryClick: () -> Unit,
+    onSendMessageClick: () -> Unit
+) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = student?.fullName ?: "Estudiante",
+                        text = student?.firstName ?: "Estudiante",
                         fontWeight = FontWeight.Bold
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = onBackClick) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
                     }
                 },
@@ -106,26 +134,14 @@ fun ParentStudentDetailScreen(
                     title = "Ver Historial",
                     description = "Consulta anotaciones y asistencia",
                     icon = Icons.Default.History,
-                    onClick = {
-                        navController.navigate(
-                            Screen.StudentHistory.createRoute(studentId, classId)
-                        )
-                    }
+                    onClick = onHistoryClick
                 )
 
                 ActionCard(
                     title = "Enviar Mensaje",
                     description = "Comunicarse con los profesores",
                     icon = Icons.AutoMirrored.Filled.Message,
-                    onClick = {
-                        navController.navigate(
-                            // CORRECCIÓN: Usamos argumentos nombrados (parentId = valor, studentId = valor)
-                            Screen.ParentSendMessage.createRoute(
-                                parentId = parentId,
-                                studentId = studentId
-                            )
-                        )
-                    }
+                    onClick = onSendMessageClick
                 )
             }
         }
@@ -155,7 +171,7 @@ private fun StudentInfoCard(student: StudentEntity) {
 
             Column {
                 Text(
-                    text = student.fullName,
+                    text = student.firstName,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )

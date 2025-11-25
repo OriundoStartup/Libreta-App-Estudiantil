@@ -345,7 +345,7 @@ fun StudentListItem(
 
                 Column {
                     Text(
-                        text = student.fullName,
+                        text = student.firstName,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )

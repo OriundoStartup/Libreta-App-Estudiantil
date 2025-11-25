@@ -40,14 +40,17 @@ data class AbsenceJustificationEntity(
     val description: String,
     val attachmentUrl: String? = null,
 
+    // Campo para el nombre del estudiante (denormalizado para UI)
+    val studentName: String? = null,
+
     // ====================================================================
-    // CAMPOS DE SINCRONIZACIÓN (añadidos en el paso anterior)
+    // CAMPOS DE SINCRONIZACIÓN
     // ====================================================================
     val remoteId: String? = null,
+    val studentFirebaseUid: String? = null, // UID del estudiante en Firebase, usado para la consulta
     val syncStatus: SyncStatus = SyncStatus.PENDING,
     // ====================================================================
 
-    // Ya no necesita import porque JustificationStatus está en el mismo paquete
     val status: JustificationStatus = JustificationStatus.PENDING,
     val reviewedByTeacherId: Int? = null,
     val reviewNotes: String? = null,

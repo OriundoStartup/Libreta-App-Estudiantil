@@ -1,22 +1,11 @@
 package com.oriundo.lbretaappestudiantil.di
 
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
-import com.oriundo.lbretaappestudiantil.data.local.LocalDatabaseRepository
-import com.oriundo.lbretaappestudiantil.data.local.daos.AbsenceJustificationDao
-import com.oriundo.lbretaappestudiantil.data.local.daos.AnnotationDao
-import com.oriundo.lbretaappestudiantil.data.local.daos.AttendanceDao
-import com.oriundo.lbretaappestudiantil.data.local.daos.ClassDao
-import com.oriundo.lbretaappestudiantil.data.local.daos.MessageDao
-import com.oriundo.lbretaappestudiantil.data.local.daos.ProfileDao
-import com.oriundo.lbretaappestudiantil.data.local.daos.SchoolEventDao
-import com.oriundo.lbretaappestudiantil.data.local.daos.StudentDao
-import com.oriundo.lbretaappestudiantil.data.local.daos.StudentParentRelationDao
 import com.oriundo.lbretaappestudiantil.data.local.repositories.AnnotationRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.AttendanceRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.ClassRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.JustificationRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.MessageRepositoryImpl
+import com.oriundo.lbretaappestudiantil.data.local.repositories.PreferencesRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.ProfileRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.SchoolEventRepositoryImpl
 import com.oriundo.lbretaappestudiantil.data.local.repositories.StudentRepositoryImpl
@@ -25,107 +14,113 @@ import com.oriundo.lbretaappestudiantil.domain.model.repository.AttendanceReposi
 import com.oriundo.lbretaappestudiantil.domain.model.repository.ClassRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.JustificationRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.MessageRepository
+import com.oriundo.lbretaappestudiantil.domain.model.repository.PreferencesRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.ProfileRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.SchoolEventRepository
 import com.oriundo.lbretaappestudiantil.domain.model.repository.StudentRepository
+import dagger.Binds
 import dagger.Module
-import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
+/**
+ * Módulo de Hilt para proporcionar todos los repositorios
+ *
+ * IMPORTANTE: Cambió de `object` a `abstract class` para poder usar @Binds
+ * @Binds es más eficiente que @Provides porque genera menos código
+ */
 @Module
 @InstallIn(SingletonComponent::class)
-object RepositoryModule {
+abstract class RepositoryModule {
 
-
-
-    @Provides
+    /**
+     * Bindea ProfileRepository
+     * Hilt automáticamente inyectará ProfileDao en ProfileRepositoryImpl
+     */
+    @Binds
     @Singleton
-    fun provideProfileRepository(
-        profileDao: ProfileDao
-    ): ProfileRepository {
-        return ProfileRepositoryImpl(profileDao)
-    }
+    abstract fun bindProfileRepository(
+        impl: ProfileRepositoryImpl
+    ): ProfileRepository
 
-    @Provides
+    /**
+     * Bindea ClassRepository
+     * Hilt automáticamente inyectará: classDao, localDatabaseRepository, firebaseAuth
+     */
+    @Binds
     @Singleton
-    fun provideClassRepository(
-        classDao: ClassDao,
-        localDatabaseRepository: LocalDatabaseRepository, // 👈 AGREGADO
-        firebaseAuth: FirebaseAuth // 👈 AGREGADO
-    ): ClassRepository {
-        return ClassRepositoryImpl(
-            classDao,
-            localDatabaseRepository, // 👈 PASANDO EL VALOR
-            firebaseAuth           // 👈 PASANDO EL VALOR
-        )
-    }
+    abstract fun bindClassRepository(
+        impl: ClassRepositoryImpl
+    ): ClassRepository
 
-    @Provides
+    /**
+     * Bindea StudentRepository
+     * Hilt automáticamente inyectará: studentDao, classDao, studentParentRelationDao
+     */
+    @Binds
     @Singleton
-    fun provideStudentRepository(
-        studentDao: StudentDao,
-        classDao: ClassDao,
-        studentParentRelationDao: StudentParentRelationDao
-    ): StudentRepository {
-        return StudentRepositoryImpl(
-            studentDao = studentDao,
-            classDao = classDao,
-            studentParentRelationDao = studentParentRelationDao
-        )
-    }
+    abstract fun bindStudentRepository(
+        impl: StudentRepositoryImpl
+    ): StudentRepository
 
-    @Provides
+    /**
+     * Bindea AnnotationRepository
+     * Hilt automáticamente inyectará: annotationDao, profileDao, studentDao
+     */
+    @Binds
     @Singleton
-    fun provideAnnotationRepository(
-        annotationDao: AnnotationDao,
-        profileDao: ProfileDao,
-        studentDao: StudentDao
-    ): AnnotationRepository {
-        return AnnotationRepositoryImpl(annotationDao, profileDao, studentDao)
-    }
+    abstract fun bindAnnotationRepository(
+        impl: AnnotationRepositoryImpl
+    ): AnnotationRepository
 
-    @Provides
+    /**
+     * Bindea AttendanceRepository
+     * Hilt automáticamente inyectará: attendanceDao, studentDao, profileDao, firestore
+     */
+    @Binds
     @Singleton
-    fun provideAttendanceRepository(
-        attendanceDao: AttendanceDao
-    ): AttendanceRepository {
-        return AttendanceRepositoryImpl(attendanceDao)
-    }
+    abstract fun bindAttendanceRepository(
+        impl: AttendanceRepositoryImpl
+    ): AttendanceRepository
 
-
-
-    @Provides
+    /**
+     * Bindea MessageRepository
+     * Hilt automáticamente inyectará: messageDao
+     */
+    @Binds
     @Singleton
-    fun provideMessageRepository(
-        messageDao: MessageDao
-    ): MessageRepository {
-        return MessageRepositoryImpl(messageDao)
-    }
+    abstract fun bindMessageRepository(
+        impl: MessageRepositoryImpl
+    ): MessageRepository
 
-    @Provides
+    /**
+     * Bindea SchoolEventRepository
+     * Hilt automáticamente inyectará: schoolEventDao
+     */
+    @Binds
     @Singleton
-    fun provideSchoolEventRepository(
-        schoolEventDao: SchoolEventDao
-    ): SchoolEventRepository {
-        return SchoolEventRepositoryImpl(schoolEventDao)
-    }
+    abstract fun bindSchoolEventRepository(
+        impl: SchoolEventRepositoryImpl
+    ): SchoolEventRepository
 
-
-    @Provides
+    /**
+     * Bindea JustificationRepository
+     * Hilt automáticamente inyectará: dao, studentDao, classDao, userDao, firestore, auth, localDatabaseRepository
+     */
+    @Binds
     @Singleton
-    fun provideJustificationRepository(
-        dao: AbsenceJustificationDao,
-        // ✅ Hilt usará la instancia provista por tu 'FirebaseModule'
-        firestore: FirebaseFirestore
-    ): JustificationRepository {
-        // ✅ Se pasan los dos argumentos al constructor de la implementación
-        return JustificationRepositoryImpl(
-            dao = dao,
-            firestore = firestore
-        )
-    }
+    abstract fun bindJustificationRepository(
+        impl: JustificationRepositoryImpl
+    ): JustificationRepository
 
-
+    /**
+     * Bindea PreferencesRepository
+     * Hilt automáticamente inyectará: context (anotado con @ApplicationContext)
+     */
+    @Binds
+    @Singleton
+    abstract fun bindPreferencesRepository(
+        impl: PreferencesRepositoryImpl
+    ): PreferencesRepository
 }

@@ -9,12 +9,12 @@ plugins {
 
 android {
     namespace = "com.oriundo.lbretaappestudiantil"
-    compileSdk = 35 // ✅ CORREGIDO: 36 no existe
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.oriundo.lbretaappestudiantil"
         minSdk = 24
-        targetSdk = 35 // ✅ CORREGIDO
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -59,6 +59,10 @@ android {
 }
 
 dependencies {
+
+
+    // build.gradle.kts (Module: app)
+    implementation(libs.androidx.datastore.preferences)
     // ============= CORE ANDROID =============
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

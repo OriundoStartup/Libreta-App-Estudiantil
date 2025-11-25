@@ -1,5 +1,5 @@
+// ParentMessagesListScreen.kt
 package com.oriundo.lbretaappestudiantil.ui.theme.parent
-
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -48,12 +48,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.oriundo.lbretaappestudiantil.data.local.models.MessageEntity
 import com.oriundo.lbretaappestudiantil.data.local.models.ProfileEntity
+import com.oriundo.lbretaappestudiantil.domain.model.ApiResult
 import com.oriundo.lbretaappestudiantil.ui.theme.AppColors
 import com.oriundo.lbretaappestudiantil.ui.theme.AppShapes
 import com.oriundo.lbretaappestudiantil.ui.theme.Screen
@@ -73,16 +75,12 @@ fun ParentMessagesListScreen(
     profileViewModel: ProfileViewModel = hiltViewModel()
 ) {
     val conversationsState by messageViewModel.conversationsListState.collectAsState()
-
-    // Mapa de profesores cargados
     val teacherProfiles = remember { mutableStateMapOf<Int, ProfileEntity>() }
 
     LaunchedEffect(parentId) {
         messageViewModel.loadConversationsForParent(parentId)
-
     }
 
-    // Cargar perfiles de profesores a medida que aparecen mensajes
     LaunchedEffect(conversationsState) {
         if (conversationsState is MessagesListUiState.Success) {
             val messages = (conversationsState as MessagesListUiState.Success).messages
@@ -92,12 +90,47 @@ fun ParentMessagesListScreen(
 
             teacherIds.forEach { teacherId ->
                 if (!teacherProfiles.containsKey(teacherId)) {
-                    profileViewModel.loadProfileById(teacherId)
+                    when (val result = profileViewModel.loadProfile(teacherId)) {
+                        is ApiResult.Success -> {
+                            teacherProfiles[teacherId] = result.data
+                        }
+                        else -> {}
+                    }
                 }
             }
         }
     }
 
+    ParentMessagesListContent(
+        conversationsState = conversationsState,
+        teacherProfiles = teacherProfiles,
+        parentId = parentId,
+        onConversationClick = { teacherId, studentId ->
+            navController.navigate(
+                Screen.ParentConversation.createRoute(
+                    parentId = parentId,
+                    teacherId = teacherId,
+                    studentId = studentId
+                )
+            )
+        },
+        onNewMessageClick = {
+            navController.navigate(Screen.ParentSendMessage.createRoute(parentId))
+        },
+        onBackClick = { navController.navigateUp() }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ParentMessagesListContent(
+    conversationsState: MessagesListUiState,
+    teacherProfiles: Map<Int, ProfileEntity>,
+    parentId: Int,
+    onConversationClick: (teacherId: Int, studentId: Int) -> Unit,
+    onNewMessageClick: () -> Unit,
+    onBackClick: () -> Unit
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -109,7 +142,7 @@ fun ParentMessagesListScreen(
                             fontWeight = FontWeight.Bold
                         )
                         if (conversationsState is MessagesListUiState.Success) {
-                            val messages = (conversationsState as MessagesListUiState.Success).messages
+                            val messages = conversationsState.messages
                             val unreadCount = messages.count { !it.isRead && it.recipientId == parentId }
                             if (unreadCount > 0) {
                                 Text(
@@ -122,7 +155,7 @@ fun ParentMessagesListScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.navigateUp() }) {
+                    IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Volver"
@@ -136,9 +169,7 @@ fun ParentMessagesListScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = {
-                    navController.navigate(Screen.ParentSendMessage.createRoute(parentId))
-                },
+                onClick = onNewMessageClick,
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = Color.White,
                 shape = AppShapes.large
@@ -163,9 +194,7 @@ fun ParentMessagesListScreen(
             }
 
             is MessagesListUiState.Success -> {
-                val messages = (conversationsState as MessagesListUiState.Success).messages
-
-                // Agrupar mensajes por conversación (por teacherId)
+                val messages = conversationsState.messages
                 val conversationsMap = messages.groupBy { message ->
                     if (message.senderId == parentId) message.recipientId else message.senderId
                 }
@@ -180,8 +209,6 @@ fun ParentMessagesListScreen(
                     items(conversationsMap.entries.toList()) { (teacherId, messagesInConversation) ->
                         val lastMessage = messagesInConversation.maxByOrNull { it.sentDate }!!
                         val unreadCount = messagesInConversation.count { !it.isRead && it.recipientId == parentId }
-
-                        // Obtener perfil del profesor
                         val teacher = teacherProfiles[teacherId]
 
                         ConversationItem(
@@ -190,13 +217,7 @@ fun ParentMessagesListScreen(
                             unreadCount = unreadCount,
                             isFromParent = lastMessage.senderId == parentId,
                             onClick = {
-                                navController.navigate(
-                                    Screen.ParentConversation.createRoute(
-                                        parentId = parentId,
-                                        teacherId = teacherId,
-                                        studentId = null
-                                    )
-                                )
+                                onConversationClick(teacherId, lastMessage.studentId ?: 0)
                             }
                         )
                     }
@@ -206,9 +227,7 @@ fun ParentMessagesListScreen(
             is MessagesListUiState.Empty -> {
                 EmptyMessagesView(
                     modifier = Modifier.padding(padding),
-                    onCreateMessage = {
-                        navController.navigate(Screen.ParentSendMessage.createRoute(parentId))
-                    }
+                    onCreateMessage = onNewMessageClick
                 )
             }
 
@@ -219,27 +238,15 @@ fun ParentMessagesListScreen(
                         .padding(padding),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "Error al cargar mensajes",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        Text(
-                            text = (conversationsState as MessagesListUiState.Error).message,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Text(
+                        text = conversationsState.message,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
 
-            MessagesListUiState.Initial -> {
-                // Mostrar nada o loading inicial
-            }
+            MessagesListUiState.Initial -> {}
         }
     }
 }
@@ -272,7 +279,6 @@ private fun ConversationItem(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar del profesor
             Box(
                 modifier = Modifier
                     .size(56.dp)
@@ -288,7 +294,6 @@ private fun ConversationItem(
                 )
             }
 
-            // Contenido del mensaje
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -314,7 +319,6 @@ private fun ConversationItem(
                     )
                 }
 
-                // Asunto del mensaje
                 if (lastMessage.subject.isNotBlank() && lastMessage.subject != "Re: Conversación") {
                     Text(
                         text = lastMessage.subject,
@@ -325,7 +329,6 @@ private fun ConversationItem(
                     )
                 }
 
-                // Preview del contenido
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -349,7 +352,6 @@ private fun ConversationItem(
                 }
             }
 
-            // Badge de mensajes no leídos
             if (unreadCount > 0) {
                 Badge(
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -395,7 +397,7 @@ private fun EmptyMessagesView(
                 text = "Inicia una conversación con un profesor",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(8.dp))
             Button(

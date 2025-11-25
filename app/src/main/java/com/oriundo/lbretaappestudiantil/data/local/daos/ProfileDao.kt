@@ -51,6 +51,12 @@ interface ProfileDao {
     suspend fun insertOrUpdateProfile(profile: ProfileEntity): Long
 
 
+
+
+    @Query("SELECT * FROM profiles WHERE firebase_uid = :firebaseUid")
+    suspend fun getProfileByFirebaseUid(firebaseUid: String): ProfileEntity?
+
+
     /**
      * Obtener perfil del usuario actual (puedes ajustar la lógica según tu app)
      * Por ahora, obtiene el primer perfil disponible
@@ -76,10 +82,6 @@ interface ProfileDao {
     suspend fun insertProfiles(profiles: List<ProfileEntity>)
 
 
-
-    /**
-     * Eliminar perfil
-     */
     @Delete
     suspend fun deleteProfile(profile: ProfileEntity)
 
